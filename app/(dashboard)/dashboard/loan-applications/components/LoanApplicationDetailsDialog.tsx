@@ -63,7 +63,7 @@ interface LoanApplication {
   district?: string;
   mobileNumber?: string;
   emailAddress?: string;
-  loanOfficer?: { name: string } | null;
+  loanOfficer?: { name: string; role?: string | null } | null;
   allocatedTeller?: { name: string } | null;
   modeOfRepayment?: string | null;
   applyLoanProcessingFee?: boolean;
@@ -242,6 +242,31 @@ export default function LoanApplicationDetailsDialog({
                   />
                 </>
               )}
+            </div>
+          </section>
+
+          <Separator />
+
+          {/* Assignment Information */}
+          <section>
+            <div className="flex items-center gap-2 mb-4">
+              <Users className="h-5 w-5 text-indigo-600" />
+              <h3 className="text-lg font-semibold">Assignment Information</h3>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-indigo-50 p-4 rounded-lg border border-indigo-100">
+              <InfoItem
+                icon={User}
+                label="Loan Officer"
+                value={application.loanOfficer?.name || "Unassigned"}
+                highlight="text-indigo-700 font-semibold"
+              />
+              <InfoItem
+                icon={Shield}
+                label="Officer Role"
+                value={application.loanOfficer?.role || "N/A"}
+                highlight="text-indigo-700 font-semibold"
+              />
             </div>
           </section>
 

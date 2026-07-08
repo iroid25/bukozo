@@ -96,20 +96,10 @@ export async function GET(
       where: { id },
       include: {
         loanApplication: {
-          include: {
-            loanProduct: {
-              select: {
-                id: true,
-                name: true,
-                description: true,
-                interestRate: true,
-                interestType: true,
-                interestPeriod: true,
-                minAmount: true,
-                maxAmount: true,
-                repaymentPeriodDays: true,
-              },
-            },
+          select: {
+            id: true,
+            purpose: true,
+            applicationDate: true,
             amountApplied: true,
             approvedAmount: true,
             applyLoanProcessingFee: true,
@@ -123,6 +113,19 @@ export async function GET(
             repaymentStartDate: true,
             gracePeriod: true,
             disbursementMethod: true,
+            loanProduct: {
+              select: {
+                id: true,
+                name: true,
+                description: true,
+                interestRate: true,
+                interestType: true,
+                interestPeriod: true,
+                minAmount: true,
+                maxAmount: true,
+                repaymentPeriodDays: true,
+              },
+            },
             allocatedTeller: {
               select: {
                 id: true,

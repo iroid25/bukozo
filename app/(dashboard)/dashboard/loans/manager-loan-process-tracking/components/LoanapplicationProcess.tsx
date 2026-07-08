@@ -134,6 +134,11 @@ interface LoanApplication {
     name: string;
     role: string;
   } | null;
+  loanOfficer?: {
+    id: string;
+    name: string;
+    role: string;
+  } | null;
   loan?: {
     id: string;
     amountGranted: number;
@@ -944,6 +949,18 @@ export default function ManagerLoanApplicationsManager({
       ),
     },
     {
+      header: "Loan Officer",
+      accessorKey: (row) => row.loanOfficer?.name || "Unassigned",
+      cell: (row: LoanApplication) => (
+        <div className="space-y-1">
+          <div className="font-medium">{row.loanOfficer?.name || "Unassigned"}</div>
+          {row.loanOfficer?.role && (
+            <div className="text-xs text-gray-500">{row.loanOfficer.role}</div>
+          )}
+        </div>
+      ),
+    },
+    {
       header: "Amount",
       accessorKey: "amountApplied",
       cell: (row: LoanApplication) => (
@@ -1265,6 +1282,10 @@ export default function ManagerLoanApplicationsManager({
                           {selectedApplication.approver.role})
                         </div>
                       )}
+                      <div className="text-sm text-gray-600 flex items-center gap-2">
+                        <UserCheck className="h-4 w-4" />
+                        Loan Officer: {selectedApplication.loanOfficer?.name || "Unassigned"}
+                      </div>
                       {selectedApplication.approvalDate && (
                         <div className="text-xs text-gray-500">
                           on{" "}

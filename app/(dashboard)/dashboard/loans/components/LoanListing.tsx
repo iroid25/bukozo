@@ -615,6 +615,23 @@ export default function LoanListing({
       },
     },
     {
+      accessorKey: (row: Loan) => row.loanApplication?.loanOfficer?.name || row.allocatedTeller?.name || "Unassigned",
+      header: "Loan Officer",
+      cell: (row) => {
+        const loan = row;
+        const officer = (loan as any).loanApplication?.loanOfficer || (loan as any).allocatedTeller;
+
+        return (
+          <div className="flex flex-col gap-1">
+            <span className="font-medium text-slate-900">{officer?.name || "Unassigned"}</span>
+            <Badge variant="outline" className="w-fit text-[10px] uppercase tracking-wide">
+              {officer?.role || "N/A"}
+            </Badge>
+          </div>
+        );
+      },
+    },
+    {
       accessorKey: "loanApplication",
       header: "Loan Details",
       cell: (row) => {
@@ -848,6 +865,7 @@ export default function LoanListing({
           "Loan ID": loan.id,
           "Member Name": loan.member.user.name,
           "Member Number": loan.member.memberNumber,
+          "Loan Officer": (loan as any).loanApplication?.loanOfficer?.name || (loan as any).allocatedTeller?.name || "N/A",
           "Amount Granted": loan.amountGranted,
           "Interest Rate": `${loan.interestRate}%`,
           "Total Amount Due": loan.totalAmountDue,

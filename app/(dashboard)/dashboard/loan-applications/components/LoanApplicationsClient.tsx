@@ -88,6 +88,7 @@ interface LoanApplication {
   loanOfficer?: {
     id: string;
     name: string;
+    role?: string | null;
   } | null;
   allocatedTeller?: {
     id: string;
@@ -284,6 +285,22 @@ export default function LoanApplicationsClient({
           <p className="text-xs text-muted-foreground">
             {row.loanProduct.interestRate}% interest
           </p>
+        </div>
+      ),
+    },
+    {
+      accessorKey: (row: LoanApplication) => row.loanOfficer?.name || "Unassigned",
+      header: "Loan Officer",
+      cell: (row: LoanApplication) => (
+        <div className="space-y-1">
+          <div className="font-medium">
+            {row.loanOfficer?.name || "Unassigned"}
+          </div>
+          {row.loanOfficer?.role && (
+            <div className="text-xs text-gray-500">
+              {row.loanOfficer.role}
+            </div>
+          )}
         </div>
       ),
     },

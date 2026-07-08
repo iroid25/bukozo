@@ -11,6 +11,17 @@ export interface Loan {
     purpose: string | null;
     applicationDate: Date;
     interestType?: "FLAT_RATE" | "REDUCING_BALANCE" | null;
+    loanOfficer?: {
+      id: string;
+      name: string;
+      email?: string | null;
+      role?: string | null;
+    } | null;
+    allocatedTeller?: {
+      id: string;
+      name: string;
+      role?: string | null;
+    } | null;
     loanProduct: {
       name: string;
       interestRate: number;
@@ -48,6 +59,12 @@ export interface Loan {
     name: string;
     role: string;
   };
+  allocatedTellerId?: string | null;
+  allocatedTeller?: {
+    id: string;
+    name: string;
+    role?: string | null;
+  } | null;
   branchId: string | null;
   branch: {
     id: string;
