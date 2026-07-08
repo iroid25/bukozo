@@ -27,28 +27,28 @@ export default function DisburseLoanForm({ loan, currentFloat }: Props) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   
-  const app = loan.loanApplication;
-  const amount = loan.amountGranted;
+  const app = loan.loanApplication || {};
+  const amount = Number(loan.amountGranted || app.approvedAmount || app.amountGranted || app.amountApplied || 0);
 
   // Calculate Deductions (Mirroring backend logic)
   const deductions = {
-    processingFee: app.applyLoanProcessingFee 
-        ? (amount * (app.loanProcessingFeePercentage || 2)) / 100 
+    processingFee: app.applyLoanProcessingFee
+        ? Math.round((amount * (app.loanProcessingFeePercentage || 2)) / 100)
         : 0,
-    insurance: (app.applyLoanInsurance && app.loanInsurancePercentage) 
-        ? (amount * app.loanInsurancePercentage) / 100 
+    insurance: (app.applyLoanInsurance && app.loanInsurancePercentage)
+        ? Math.round((amount * app.loanInsurancePercentage) / 100)
         : 0,
-    shares: (app.applyShareDeduction && app.shareAmount) 
-        ? app.shareAmount 
+    shares: (app.applyShareDeduction && app.shareAmount)
+        ? Number(app.shareAmount)
         : 0,
-    loanRecovery: (app.existingLoanBalance && app.existingLoanBalance > 0) 
-        ? app.existingLoanBalance 
+    loanRecovery: (app.existingLoanBalance && app.existingLoanBalance > 0)
+        ? Number(app.existingLoanBalance)
         : 0
   };
 
   const totalDeductions = Object.values(deductions).reduce((a, b) => a + b, 0);
   const netDisbursement = amount - totalDeductions;
-  
+
   const hasInsufficientFloat = currentFloat < netDisbursement;
 
   const handleDisburse = async () => {
@@ -58,6 +58,7 @@ export default function DisburseLoanForm({ loan, currentFloat }: Props) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          accountId: loan.member?.accounts?.find((account: any) => account.status === "ACTIVE")?.id,
           processingFeePercentage: app.loanProcessingFeePercentage || 2,
           periodMonths: app.repaymentPeriodMonths || 12,
           repaymentStartDate: app.repaymentStartDate
@@ -71,7 +72,7 @@ export default function DisburseLoanForm({ loan, currentFloat }: Props) {
       }
 
       toast.success("Loan disbursed successfully", {
-        description: `Net amount: UGX ${netDisbursement.toLocaleString()}`,
+        description: `Approved: UGX ${amount.toLocaleString()} | Net paid: UGX ${netDisbursement.toLocaleString()}`,
       });
       setOpen(false);
       router.refresh();
@@ -101,9 +102,12 @@ export default function DisburseLoanForm({ loan, currentFloat }: Props) {
         <div className="space-y-4 py-4">
             <div className="bg-muted p-4 rounded-lg space-y-2">
                 <div className="flex justify-between font-medium">
-                    <span>Approved Amount</span>
+                    <span>Approved Loan Amount</span>
                     <span>UGX {amount.toLocaleString()}</span>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                    Deductions are taken from the approved loan before the net cash is paid out.
+                </p>
                 <div className="h-px bg-border my-2" />
                 
                 <div className="space-y-1 text-sm text-muted-foreground">
@@ -135,7 +139,7 @@ export default function DisburseLoanForm({ loan, currentFloat }: Props) {
 
                 <div className="h-px bg-border my-2" />
                 <div className="flex justify-between font-bold text-lg">
-                    <span>Net Disbursement</span>
+                    <span>Net Cash to Client</span>
                     <span className="text-green-600">UGX {netDisbursement.toLocaleString()}</span>
                 </div>
             </div>
@@ -145,7 +149,7 @@ export default function DisburseLoanForm({ loan, currentFloat }: Props) {
                     <AlertTriangle className="h-4 w-4" />
                     <AlertTitle>Insufficient Funds</AlertTitle>
                     <AlertDescription>
-                        You have UGX {currentFloat.toLocaleString()} available, but need UGX {netDisbursement.toLocaleString()} to process this disbursement.
+                        You have UGX {currentFloat.toLocaleString()} available, but need UGX {netDisbursement.toLocaleString()} to pay the client after deductions.
                     </AlertDescription>
                 </Alert>
             )}

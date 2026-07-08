@@ -110,6 +110,17 @@ export async function GET(
                 repaymentPeriodDays: true,
               },
             },
+            applyLoanProcessingFee: true,
+            loanProcessingFeePercentage: true,
+            applyLoanInsurance: true,
+            loanInsurancePercentage: true,
+            applyShareDeduction: true,
+            shareAmount: true,
+            existingLoanBalance: true,
+            repaymentPeriodMonths: true,
+            repaymentStartDate: true,
+            gracePeriod: true,
+            disbursementMethod: true,
             allocatedTeller: {
               select: {
                 id: true,

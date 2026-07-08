@@ -55,6 +55,7 @@ export default function DisburseLoanForm({ loan, memberAccounts }: DisburseLoanF
 
   const calculateDeductions = () => {
     const { amountGranted, loanApplication } = loan;
+    const grossAmount = Number(amountGranted || loanApplication?.approvedAmount || loanApplication?.amountGranted || loanApplication?.amountApplied || 0);
     const breakdown = {
       processingFee: 0,
       insurance: 0,
@@ -64,15 +65,15 @@ export default function DisburseLoanForm({ loan, memberAccounts }: DisburseLoanF
     };
 
     if (loanApplication.applyLoanProcessingFee && loanApplication.loanProcessingFeePercentage) {
-      breakdown.processingFee = (amountGranted * loanApplication.loanProcessingFeePercentage) / 100;
+      breakdown.processingFee = Math.round((grossAmount * loanApplication.loanProcessingFeePercentage) / 100);
     }
 
     if (loanApplication.applyLoanInsurance && loanApplication.loanInsurancePercentage) {
-      breakdown.insurance = (amountGranted * loanApplication.loanInsurancePercentage) / 100;
+      breakdown.insurance = Math.round((grossAmount * loanApplication.loanInsurancePercentage) / 100);
     }
 
     if (loanApplication.applyShareDeduction && loanApplication.shareAmount) {
-      breakdown.shareCapital = loanApplication.shareAmount;
+      breakdown.shareCapital = Number(loanApplication.shareAmount);
     }
 
     if (loanApplication.existingLoanBalance && loanApplication.existingLoanBalance > 0) {
@@ -85,7 +86,8 @@ export default function DisburseLoanForm({ loan, memberAccounts }: DisburseLoanF
   };
 
   const deductions = calculateDeductions();
-  const netAmount = loan.amountGranted - deductions.total;
+  const grossAmount = Number(loan.amountGranted || loan.loanApplication?.approvedAmount || loan.loanApplication?.amountGranted || loan.loanApplication?.amountApplied || 0);
+  const netAmount = grossAmount - deductions.total;
 
   const handleDisburse = async () => {
     if (!selectedAccountId) {
@@ -145,11 +147,11 @@ export default function DisburseLoanForm({ loan, memberAccounts }: DisburseLoanF
           <div className="space-y-2 bg-gray-50 p-4 rounded-lg">
             <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Gross Amount:</span>
-                <span className="font-medium">{formatCurrency(loan.amountGranted)}</span>
+                <span className="font-medium">{formatCurrency(grossAmount)}</span>
             </div>
             
             <div className="border-t border-gray-200 my-2 pt-2 space-y-1">
-                <p className="text-xs font-semibold text-gray-500 uppercase">Deductions</p>
+                <p className="text-xs font-semibold text-gray-500 uppercase">Deductions Taken From Approved Loan</p>
                 {deductions.processingFee > 0 && (
                     <div className="flex justify-between text-sm">
                         <span className="text-gray-500">Processing Fee:</span>
@@ -180,7 +182,7 @@ export default function DisburseLoanForm({ loan, memberAccounts }: DisburseLoanF
             </div>
 
             <div className="border-t border-gray-300 pt-2 flex justify-between font-bold text-lg">
-                <span>Net Disbursement:</span>
+                <span>Net Cash to Client:</span>
                 <span className="text-green-700">{formatCurrency(netAmount)}</span>
             </div>
           </div>
