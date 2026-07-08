@@ -2732,6 +2732,8 @@ export class LoanService {
             loanApplication: {
               select: {
                 loanProduct: true,
+                amountApplied: true,
+                approvedAmount: true,
                 loanOfficer: { select: { id: true, name: true, email: true } },
                 approver: { select: { id: true, name: true, role: true } },
                 applicant: { select: { id: true, name: true, role: true } },

@@ -55,7 +55,8 @@ export default function DisburseLoanForm({ loan, memberAccounts }: DisburseLoanF
 
   const calculateDeductions = () => {
     const { amountGranted, loanApplication } = loan;
-    const grossAmount = Number(amountGranted || loanApplication?.approvedAmount || loanApplication?.amountGranted || loanApplication?.amountApplied || 0);
+    const requestedAmount = Number(loanApplication?.amountApplied || loanApplication?.requestedAmount || amountGranted || 0);
+    const grossAmount = Number(amountGranted || loanApplication?.approvedAmount || loanApplication?.amountGranted || requestedAmount || 0);
     const breakdown = {
       processingFee: 0,
       insurance: 0,
@@ -85,8 +86,16 @@ export default function DisburseLoanForm({ loan, memberAccounts }: DisburseLoanF
     return breakdown;
   };
 
+  const deductionDestinations = {
+    processingFee: "Loan fee income",
+    insurance: "Loan insurance pool",
+    shareCapital: "Share capital account",
+    existingLoanRecovery: "Existing loan recovery",
+  } as const;
+
   const deductions = calculateDeductions();
-  const grossAmount = Number(loan.amountGranted || loan.loanApplication?.approvedAmount || loan.loanApplication?.amountGranted || loan.loanApplication?.amountApplied || 0);
+  const requestedAmount = Number(loan.loanApplication?.amountApplied || loan.loanApplication?.requestedAmount || loan.amountGranted || 0);
+  const grossAmount = Number(loan.amountGranted || loan.loanApplication?.approvedAmount || loan.loanApplication?.amountGranted || requestedAmount || 0);
   const netAmount = grossAmount - deductions.total;
 
   const handleDisburse = async () => {
@@ -144,36 +153,52 @@ export default function DisburseLoanForm({ loan, memberAccounts }: DisburseLoanF
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          <div className="space-y-2 bg-gray-50 p-4 rounded-lg">
+            <div className="space-y-2 bg-gray-50 p-4 rounded-lg">
             <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Gross Amount:</span>
+                <span className="text-gray-500">Total Loan Requested:</span>
+                <span className="font-medium">{formatCurrency(requestedAmount)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Gross Amount Before Deductions:</span>
                 <span className="font-medium">{formatCurrency(grossAmount)}</span>
             </div>
             
             <div className="border-t border-gray-200 my-2 pt-2 space-y-1">
                 <p className="text-xs font-semibold text-gray-500 uppercase">Deductions Taken From Approved Loan</p>
                 {deductions.processingFee > 0 && (
-                    <div className="flex justify-between text-sm">
-                        <span className="text-gray-500">Processing Fee:</span>
-                        <span className="text-red-600">-{formatCurrency(deductions.processingFee)}</span>
+                    <div className="flex justify-between gap-4 text-sm">
+                        <span className="text-gray-500">
+                          Processing Fee
+                          <span className="block text-[10px] text-gray-400">{deductionDestinations.processingFee}</span>
+                        </span>
+                        <span className="text-red-600 whitespace-nowrap">-{formatCurrency(deductions.processingFee)}</span>
                     </div>
                 )}
                 {deductions.insurance > 0 && (
-                    <div className="flex justify-between text-sm">
-                        <span className="text-gray-500">Insurance:</span>
-                        <span className="text-red-600">-{formatCurrency(deductions.insurance)}</span>
+                    <div className="flex justify-between gap-4 text-sm">
+                        <span className="text-gray-500">
+                          Insurance
+                          <span className="block text-[10px] text-gray-400">{deductionDestinations.insurance}</span>
+                        </span>
+                        <span className="text-red-600 whitespace-nowrap">-{formatCurrency(deductions.insurance)}</span>
                     </div>
                 )}
                 {deductions.shareCapital > 0 && (
-                    <div className="flex justify-between text-sm">
-                        <span className="text-gray-500">Share Capital:</span>
-                        <span className="text-red-600">-{formatCurrency(deductions.shareCapital)}</span>
+                    <div className="flex justify-between gap-4 text-sm">
+                        <span className="text-gray-500">
+                          Share Capital
+                          <span className="block text-[10px] text-gray-400">{deductionDestinations.shareCapital}</span>
+                        </span>
+                        <span className="text-red-600 whitespace-nowrap">-{formatCurrency(deductions.shareCapital)}</span>
                     </div>
                 )}
                 {deductions.existingLoanRecovery > 0 && (
-                     <div className="flex justify-between text-sm">
-                     <span className="text-gray-500">Loan Recovery:</span>
-                     <span className="text-red-600">-{formatCurrency(deductions.existingLoanRecovery)}</span>
+                     <div className="flex justify-between gap-4 text-sm">
+                     <span className="text-gray-500">
+                       Loan Recovery
+                       <span className="block text-[10px] text-gray-400">{deductionDestinations.existingLoanRecovery}</span>
+                     </span>
+                     <span className="text-red-600 whitespace-nowrap">-{formatCurrency(deductions.existingLoanRecovery)}</span>
                  </div>
                 )}
                 {deductions.total === 0 && (

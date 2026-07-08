@@ -19,24 +19,25 @@ import { AlertTriangle, Banknote, Loader2 } from "lucide-react";
 
 interface Props {
   loan: any;
-  currentFloat: number;
+  currentReserve: number;
 }
 
-export default function DisburseLoanForm({ loan, currentFloat }: Props) {
+export default function DisburseLoanForm({ loan, currentReserve }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   
   const app = loan.loanApplication || {};
-  const amount = Number(loan.amountGranted || app.approvedAmount || app.amountGranted || app.amountApplied || 0);
+  const requestedAmount = Number(app.amountApplied || app.requestedAmount || loan.amountGranted || 0);
+  const approvedAmount = Number(loan.amountGranted || app.approvedAmount || app.amountGranted || requestedAmount || 0);
 
   // Calculate Deductions (Mirroring backend logic)
   const deductions = {
     processingFee: app.applyLoanProcessingFee
-        ? Math.round((amount * (app.loanProcessingFeePercentage || 2)) / 100)
+        ? Math.round((approvedAmount * (app.loanProcessingFeePercentage || 2)) / 100)
         : 0,
     insurance: (app.applyLoanInsurance && app.loanInsurancePercentage)
-        ? Math.round((amount * app.loanInsurancePercentage) / 100)
+        ? Math.round((approvedAmount * app.loanInsurancePercentage) / 100)
         : 0,
     shares: (app.applyShareDeduction && app.shareAmount)
         ? Number(app.shareAmount)
@@ -45,11 +46,17 @@ export default function DisburseLoanForm({ loan, currentFloat }: Props) {
         ? Number(app.existingLoanBalance)
         : 0
   };
+  const deductionDestinations = {
+    processingFee: "Loan fee income",
+    insurance: "Loan insurance pool",
+    shares: "Share capital account",
+    loanRecovery: "Existing loan recovery",
+  } as const;
 
   const totalDeductions = Object.values(deductions).reduce((a, b) => a + b, 0);
-  const netDisbursement = amount - totalDeductions;
+  const netDisbursement = approvedAmount - totalDeductions;
 
-  const hasInsufficientFloat = currentFloat < netDisbursement;
+  const hasInsufficientReserve = currentReserve < netDisbursement;
 
   const handleDisburse = async () => {
     try {
@@ -72,7 +79,7 @@ export default function DisburseLoanForm({ loan, currentFloat }: Props) {
       }
 
       toast.success("Loan disbursed successfully", {
-        description: `Approved: UGX ${amount.toLocaleString()} | Net paid: UGX ${netDisbursement.toLocaleString()}`,
+          description: `Approved: UGX ${approvedAmount.toLocaleString()} | Net paid: UGX ${netDisbursement.toLocaleString()}`,
       });
       setOpen(false);
       router.refresh();
@@ -102,37 +109,61 @@ export default function DisburseLoanForm({ loan, currentFloat }: Props) {
         <div className="space-y-4 py-4">
             <div className="bg-muted p-4 rounded-lg space-y-2">
                 <div className="flex justify-between font-medium">
-                    <span>Approved Loan Amount</span>
-                    <span>UGX {amount.toLocaleString()}</span>
+                    <span>Total Loan Requested</span>
+                    <span>UGX {requestedAmount.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>Gross Amount Before Deductions</span>
+                    <span>UGX {approvedAmount.toLocaleString()}</span>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                    Deductions are taken from the approved loan before the net cash is paid out.
+                    Deductions are taken from the approved amount. Only the net cash is paid out to the client, while each deduction is posted to its destination account.
                 </p>
                 <div className="h-px bg-border my-2" />
                 
                 <div className="space-y-1 text-sm text-muted-foreground">
                     {deductions.processingFee > 0 && (
-                        <div className="flex justify-between text-red-500">
-                            <span>Processing Fee</span>
-                            <span>- UGX {deductions.processingFee.toLocaleString()}</span>
+                        <div className="flex justify-between gap-4 text-red-500">
+                            <span>
+                              Processing Fee
+                              <span className="block text-[11px] text-muted-foreground">
+                                {deductionDestinations.processingFee}
+                              </span>
+                            </span>
+                            <span className="whitespace-nowrap">- UGX {deductions.processingFee.toLocaleString()}</span>
                         </div>
                     )}
                     {deductions.insurance > 0 && (
-                        <div className="flex justify-between text-red-500">
-                            <span>Insurance</span>
-                            <span>- UGX {deductions.insurance.toLocaleString()}</span>
+                        <div className="flex justify-between gap-4 text-red-500">
+                            <span>
+                              Insurance
+                              <span className="block text-[11px] text-muted-foreground">
+                                {deductionDestinations.insurance}
+                              </span>
+                            </span>
+                            <span className="whitespace-nowrap">- UGX {deductions.insurance.toLocaleString()}</span>
                         </div>
                     )}
                     {deductions.shares > 0 && (
-                        <div className="flex justify-between text-red-500">
-                            <span>Shares Deduction</span>
-                            <span>- UGX {deductions.shares.toLocaleString()}</span>
+                        <div className="flex justify-between gap-4 text-red-500">
+                            <span>
+                              Shares Deduction
+                              <span className="block text-[11px] text-muted-foreground">
+                                {deductionDestinations.shares}
+                              </span>
+                            </span>
+                            <span className="whitespace-nowrap">- UGX {deductions.shares.toLocaleString()}</span>
                         </div>
                     )}
                     {deductions.loanRecovery > 0 && (
-                        <div className="flex justify-between text-red-500">
-                            <span>Loan Recovery</span>
-                            <span>- UGX {deductions.loanRecovery.toLocaleString()}</span>
+                        <div className="flex justify-between gap-4 text-red-500">
+                            <span>
+                              Loan Recovery
+                              <span className="block text-[11px] text-muted-foreground">
+                                {deductionDestinations.loanRecovery}
+                              </span>
+                            </span>
+                            <span className="whitespace-nowrap">- UGX {deductions.loanRecovery.toLocaleString()}</span>
                         </div>
                     )}
                 </div>
@@ -144,12 +175,12 @@ export default function DisburseLoanForm({ loan, currentFloat }: Props) {
                 </div>
             </div>
 
-            {hasInsufficientFloat && (
+            {hasInsufficientReserve && (
                 <Alert variant="destructive">
                     <AlertTriangle className="h-4 w-4" />
-                    <AlertTitle>Insufficient Funds</AlertTitle>
+                    <AlertTitle>Insufficient Branch Reserve</AlertTitle>
                     <AlertDescription>
-                        You have UGX {currentFloat.toLocaleString()} available, but need UGX {netDisbursement.toLocaleString()} to pay the client after deductions.
+                        You have UGX {currentReserve.toLocaleString()} available in the branch reserve, but need UGX {netDisbursement.toLocaleString()} to pay the client after deductions.
                     </AlertDescription>
                 </Alert>
             )}
@@ -161,7 +192,7 @@ export default function DisburseLoanForm({ loan, currentFloat }: Props) {
           </Button>
           <Button 
             onClick={handleDisburse} 
-            disabled={loading || hasInsufficientFloat}
+            disabled={loading || hasInsufficientReserve}
             className="bg-green-600 hover:bg-green-700"
           >
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

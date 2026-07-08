@@ -110,6 +110,8 @@ export async function GET(
                 repaymentPeriodDays: true,
               },
             },
+            amountApplied: true,
+            approvedAmount: true,
             applyLoanProcessingFee: true,
             loanProcessingFeePercentage: true,
             applyLoanInsurance: true,

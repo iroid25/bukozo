@@ -8,10 +8,10 @@ import DisburseLoanForm from "@/app/(dashboard)/dashboard/teller/loans-to-disbur
 
 interface TellerTrackingTableProps {
   loans: any[];
-  currentFloat: number;
+  currentReserve: number;
 }
 
-export default function TellerTrackingTable({ loans, currentFloat }: TellerTrackingTableProps) {
+export default function TellerTrackingTable({ loans, currentReserve }: TellerTrackingTableProps) {
   const columns: Column<any>[] = [
     {
       header: "Member",
@@ -72,7 +72,7 @@ export default function TellerTrackingTable({ loans, currentFloat }: TellerTrack
       cell: (row) => (
         <div className="flex items-center gap-2">
            {/* DisburseLoanForm expects 'loan' prop */}
-           <DisburseLoanForm loan={row} currentFloat={currentFloat} />
+           <DisburseLoanForm loan={row} currentReserve={currentReserve} />
         </div>
       ),
     },

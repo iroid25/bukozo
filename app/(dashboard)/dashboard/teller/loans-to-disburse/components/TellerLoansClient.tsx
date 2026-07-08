@@ -23,17 +23,17 @@ export default function TellerLoansClient({ userId }: Props) {
     refetchOnWindowFocus: true,
   });
 
-  const { data: floatData, isLoading: floatLoading } = useQuery({
-    queryKey: ["my-float"],
+  const { data: reserveData, isLoading: reserveLoading } = useQuery({
+    queryKey: ["branch-reserve-balance"],
     queryFn: async () => {
-      const res = await axios.get("/api/v1/floats/me");
-      return res.data.success ? res.data.data : null;
+      const res = await axios.get("/api/v1/vault/balance");
+      return res.data ?? null;
     },
     refetchOnWindowFocus: true,
   });
 
   const loans: any[] = loansData ?? [];
-  const floatBalance: number = floatData?.userFloat?.balance ?? 0;
+  const reserveBalance: number = reserveData?.balance ?? 0;
 
   return (
     <div className="container mx-auto py-8 space-y-6">
@@ -47,12 +47,12 @@ export default function TellerLoansClient({ userId }: Props) {
         <div className="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-lg border border-blue-100">
           <Wallet className="h-5 w-5 text-blue-600" />
           <div className="flex flex-col">
-            <span className="text-xs text-blue-600 font-medium">Your Float Balance</span>
-            {floatLoading ? (
+            <span className="text-xs text-blue-600 font-medium">Branch Reserve Balance</span>
+            {reserveLoading ? (
               <Skeleton className="h-6 w-28 mt-1" />
             ) : (
               <span className="text-lg font-bold text-blue-800">
-                UGX {floatBalance.toLocaleString()}
+                UGX {reserveBalance.toLocaleString()}
               </span>
             )}
           </div>
@@ -128,7 +128,7 @@ export default function TellerLoansClient({ userId }: Props) {
                   </div>
                 </div>
                 <div className="flex justify-end pt-2 border-t mt-2">
-                  <DisburseLoanForm loan={loan} currentFloat={floatBalance} />
+                  <DisburseLoanForm loan={loan} currentReserve={reserveBalance} />
                 </div>
               </CardContent>
             </Card>

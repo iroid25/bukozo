@@ -24,6 +24,8 @@ export async function GET(request: NextRequest) {
       UserRole.ACCOUNTANT,
       UserRole.ADMIN,
       UserRole.BRANCHMANAGER,
+      UserRole.LOANOFFICER,
+      UserRole.TELLER,
     ];
 
     if (!allowedRoles.includes(currentUser.role as UserRole)) {

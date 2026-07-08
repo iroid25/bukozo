@@ -42,9 +42,9 @@ export default async function DisbursementQueuePage() {
     loansQuery = `/api/v1/loans?allocatedTellerId=${session.user.id}&status=APPROVED`;
   }
 
-  // LOANOFFICER uses personal float; ADMIN/BRANCHMANAGER with branch use vault balance
-  const usesVaultBalance = ["ADMIN", "BRANCHMANAGER"].includes(userRole) && !!branchId;
-  const balanceEndpoint = usesVaultBalance ? "/api/v1/vault/balance" : "/api/v1/floats/me";
+  // Branch loan processing uses branch reserve; admin without branch uses organisational reserve.
+  const usesOrganisationalReserve = userRole === "ADMIN" && !branchId;
+  const balanceEndpoint = usesOrganisationalReserve ? "/api/v1/dashboard/reserve" : "/api/v1/vault/balance";
 
   const [loansRes, balanceRes] = await Promise.all([
     serverFetch(loansQuery),
@@ -55,16 +55,16 @@ export default async function DisbursementQueuePage() {
   const loans = loansJson.success ? (loansJson.data ?? []) : [];
 
   let balanceAmount = 0;
-  let balanceLabel = "Your Float Balance";
+  let balanceLabel = "Branch Reserve Balance";
 
-  if (usesVaultBalance) {
+  if (usesOrganisationalReserve) {
+    const balJson = balanceRes.ok ? await balanceRes.json() : {};
+    balanceAmount = balJson.data?.organisationalReserve?.balance ?? 0;
+    balanceLabel = "Organisational Reserve Balance";
+  } else {
     const balJson = balanceRes.ok ? await balanceRes.json() : {};
     balanceAmount = balJson.balance ?? 0;
     balanceLabel = "Branch Reserve Balance";
-  } else {
-    const balJson = balanceRes.ok ? await balanceRes.json() : { success: false, data: null };
-    balanceAmount = balJson.success ? (balJson.data?.userFloat?.balance ?? 0) : 0;
-    balanceLabel = userRole === "LOANOFFICER" ? "Your Float Balance" : "Your Personal Float";
   }
 
   return (
@@ -73,9 +73,9 @@ export default async function DisbursementQueuePage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Disbursement Queue</h1>
           <p className="text-muted-foreground">
-            {usesVaultBalance
-              ? "Manage and disburse loans from the branch reserve."
-              : "Track and disburse loans assigned to your personal float."}
+            {usesOrganisationalReserve
+              ? "Manage and disburse loans from the organisational reserve."
+              : "Track and disburse loans assigned to your branch reserve."}
           </p>
         </div>
         <div className="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-lg border border-blue-100">
@@ -90,7 +90,7 @@ export default async function DisbursementQueuePage() {
       </div>
 
       <div className="bg-card rounded-lg border shadow-sm">
-        <TellerTrackingTable loans={loans} currentFloat={balanceAmount} />
+        <TellerTrackingTable loans={loans} currentReserve={balanceAmount} />
       </div>
     </div>
   );
