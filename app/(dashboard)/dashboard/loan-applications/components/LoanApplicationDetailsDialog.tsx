@@ -1,6 +1,7 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -12,6 +13,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   FileText,
   User,
@@ -30,8 +39,12 @@ import {
   Users,
   Shield,
   FileSignature,
+  RotateCcw,
+  Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
+import axios from "axios";
+import { toast } from "sonner";
 
 interface LoanApplication {
   id: string;
@@ -63,7 +76,7 @@ interface LoanApplication {
   district?: string;
   mobileNumber?: string;
   emailAddress?: string;
-  loanOfficer?: { name: string; role?: string | null } | null;
+  loanOfficer?: { id?: string; name: string; role?: string | null } | null;
   allocatedTeller?: { name: string } | null;
   modeOfRepayment?: string | null;
   applyLoanProcessingFee?: boolean;
@@ -93,6 +106,18 @@ export default function LoanApplicationDetailsDialog({
   onReject,
   userRole,
 }: LoanApplicationDetailsDialogProps) {
+  const queryClient = useQueryClient();
+  const [reassignDialogOpen, setReassignDialogOpen] = useState(false);
+  const [officersLoading, setOfficersLoading] = useState(false);
+  const [officersError, setOfficersError] = useState<string | null>(null);
+  const [loanOfficers, setLoanOfficers] = useState<
+    Array<{ id: string; name: string; role?: string | null }>
+  >([]);
+  const [selectedOfficerId, setSelectedOfficerId] = useState(
+    application.loanOfficer?.id || "",
+  );
+  const [reassigning, setReassigning] = useState(false);
+
   const fmt = (n: number) =>
     new Intl.NumberFormat("en-UG", {
       style: "currency",
@@ -139,6 +164,9 @@ export default function LoanApplicationDetailsDialog({
   };
 
   const isInstitution = application.applicationType === "INSTITUTION";
+  const canReassign = ["ADMIN", "BRANCHMANAGER", "LOANOFFICER"].includes(
+    userRole,
+  );
   const requestedAmount = Number(application.amountApplied) || 0;
   const existingLoanDeduction =
     Number(application.existingLoanBalance) > 0
@@ -160,7 +188,75 @@ export default function LoanApplicationDetailsDialog({
     existingLoanDeduction + processingFee + insurance + shareDeduction;
   const netDisbursement = requestedAmount - totalDeductions;
 
+  useEffect(() => {
+    if (!reassignDialogOpen) return;
+
+    setSelectedOfficerId(application.loanOfficer?.id || "");
+
+    const loadOfficers = async () => {
+      try {
+        setOfficersLoading(true);
+        setOfficersError(null);
+
+        const response = await axios.get("/api/v1/users?role=LOANOFFICER");
+        if (!response.data?.success) {
+          throw new Error(response.data?.error || "Failed to load loan officers");
+        }
+
+        setLoanOfficers(Array.isArray(response.data.data) ? response.data.data : []);
+      } catch (error) {
+        setOfficersError(
+          error instanceof Error ? error.message : "Failed to load loan officers",
+        );
+        setLoanOfficers([]);
+      } finally {
+        setOfficersLoading(false);
+      }
+    };
+
+    void loadOfficers();
+  }, [application.loanOfficer?.id, reassignDialogOpen]);
+
+  const handleReassignOfficer = async () => {
+    if (!selectedOfficerId) {
+      toast.error("Please select a loan officer");
+      return;
+    }
+
+    if (selectedOfficerId === application.loanOfficer?.id) {
+      toast.info("This loan is already assigned to that officer");
+      return;
+    }
+
+    try {
+      setReassigning(true);
+      const response = await axios.post(
+        `/api/v1/loans/${application.id}/reassign-loan-officer`,
+        { loanOfficerId: selectedOfficerId },
+      );
+
+      if (!response.data?.success) {
+        throw new Error(response.data?.error || "Failed to reassign loan officer");
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ["loan-applications"] });
+      await queryClient.invalidateQueries({
+        queryKey: ["loan-application-statistics"],
+      });
+
+      toast.success("Loan officer reassigned successfully");
+      setReassignDialogOpen(false);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to reassign loan officer",
+      );
+    } finally {
+      setReassigning(false);
+    }
+  };
+
   return (
+    <>
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -268,6 +364,19 @@ export default function LoanApplicationDetailsDialog({
                 highlight="text-indigo-700 font-semibold"
               />
             </div>
+
+            {canReassign && (
+              <div className="mt-4 flex items-center justify-end">
+                <Button
+                  variant="outline"
+                  className="border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                  onClick={() => setReassignDialogOpen(true)}
+                >
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                  Reassign Officer
+                </Button>
+              </div>
+            )}
           </section>
 
           <Separator />
@@ -559,6 +668,79 @@ export default function LoanApplicationDetailsDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <Dialog open={reassignDialogOpen} onOpenChange={setReassignDialogOpen}>
+      <DialogContent className="max-w-md rounded-3xl p-8 border-none ring-1 ring-neutral-100 shadow-2xl">
+        <DialogHeader className="space-y-3">
+          <DialogTitle className="text-2xl font-black tracking-tighter">
+            Reassign Loan Officer
+          </DialogTitle>
+          <DialogDescription className="text-sm font-medium text-muted-foreground">
+            Move this application to a different officer on the same branch.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-2">
+          <div className="rounded-2xl border bg-muted/30 p-4 text-sm">
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-muted-foreground">Current Officer</span>
+              <span className="font-semibold text-right">
+                {application.loanOfficer?.name || "Unassigned"}
+              </span>
+            </div>
+          </div>
+
+          {officersError && (
+            <Alert variant="destructive">
+              <AlertTitle>Unable to load officers</AlertTitle>
+              <AlertDescription>{officersError}</AlertDescription>
+            </Alert>
+          )}
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Select Loan Officer</label>
+            <Select
+              value={selectedOfficerId}
+              onValueChange={setSelectedOfficerId}
+              disabled={officersLoading}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue
+                  placeholder={
+                    officersLoading ? "Loading officers..." : "Choose officer"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {loanOfficers.map((officer) => (
+                  <SelectItem key={officer.id} value={officer.id}>
+                    {officer.name} {officer.role ? `(${officer.role})` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-3">
+          <Button
+            variant="outline"
+            onClick={() => setReassignDialogOpen(false)}
+            disabled={reassigning}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleReassignOfficer}
+            disabled={reassigning || officersLoading || !selectedOfficerId}
+          >
+            {reassigning && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Save Changes
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
 
