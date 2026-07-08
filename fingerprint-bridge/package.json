@@ -1,0 +1,21 @@
+{
+  "name": "fingerprint-bridge",
+  "version": "1.0.0",
+  "description": "Native DLL bridge for SecuGen fingerprint matching",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "service:install": "pm2 start server.js --name fingerprint-bridge && pm2 save && pm2-startup install",
+    "service:uninstall": "pm2 delete fingerprint-bridge && pm2 save && pm2-startup uninstall",
+    "service:status": "pm2 status",
+    "service:logs": "pm2 logs fingerprint-bridge"
+  },
+  "dependencies": {
+    "koffi": "^2.16.2"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}

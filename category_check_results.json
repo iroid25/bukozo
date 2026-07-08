@@ -1,0 +1,14 @@
+Found Categories:
+[
+  {
+    "id": "cmmlsqosj0002w7z0h5xfiklz",
+    "name": "member account income",
+    "code": "402000",
+    "kind": "INCOME",
+    "description": null,
+    "isActive": true,
+    "parentId": null,
+    "createdAt": "2026-03-11T08:48:05.635Z",
+    "updatedAt": "2026-03-11T08:48:05.635Z"
+  }
+]

@@ -1,0 +1,256 @@
+{
+  "info": {
+    "name": "SACCO Financial APIs",
+    "description": "Complete API collection for SACCO financial operations",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{authToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "authToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "accountId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "memberId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "loanId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Withdrawals",
+      "item": [
+        {
+          "name": "Process Withdrawal",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountId\": \"{{accountId}}\",\n  \"amount\": 10000,\n  \"channel\": \"CASH\",\n  \"description\": \"Test withdrawal\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/withdrawals",
+              "host": ["{{baseUrl}}"],
+              "path": ["withdrawals"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Deposits",
+      "item": [
+        {
+          "name": "Process Deposit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountId\": \"{{accountId}}\",\n  \"amount\": 50000,\n  \"channel\": \"CASH\",\n  \"depositType\": \"DIRECT\",\n  \"description\": \"Test deposit\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/deposits",
+              "host": ["{{baseUrl}}"],
+              "path": ["deposits"]
+            }
+          }
+        },
+        {
+          "name": "Get Deposits",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/deposits?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["deposits"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Transfers",
+      "item": [
+        {
+          "name": "Internal Transfer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourceAccountId\": \"{{accountId}}\",\n  \"targetAccountId\": \"target-account-id\",\n  \"amount\": 25000,\n  \"description\": \"Test transfer\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/transfers/internal",
+              "host": ["{{baseUrl}}"],
+              "path": ["transfers", "internal"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Accounts",
+      "item": [
+        {
+          "name": "Get Account Details",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/accounts/{{accountId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["accounts", "{{accountId}}"]
+            }
+          }
+        },
+        {
+          "name": "Get Account Transactions",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/accounts/{{accountId}}/transactions?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["accounts", "{{accountId}}", "transactions"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Members",
+      "item": [
+        {
+          "name": "Get Member Details",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/members/{{memberId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["members", "{{memberId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Loans",
+      "item": [
+        {
+          "name": "Get Loan Details",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/loans/{{loanId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["loans", "{{loanId}}"]
+            }
+          }
+        },
+        {
+          "name": "Get Loans List",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/loans?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["loans"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Make Loan Repayment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 50000,\n  \"channel\": \"CASH\",\n  \"description\": \"Monthly repayment\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/loans/{{loanId}}/repayments",
+              "host": ["{{baseUrl}}"],
+              "path": ["loans", "{{loanId}}", "repayments"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

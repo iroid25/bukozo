@@ -1,0 +1,40 @@
+(node:2184) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///E:/developemet/projexts/bukonzemergency/scripts/e2e-testing-seed-v2.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to E:\developemet\projexts\bukonzemergency\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+🚀 Starting Comprehensive E2E Testing Seed V2...
+👷 Setting up staff for branch: Main Branch - Kisinga
+👷 Setting up staff for branch: Kyarumba
+✅ Base setup complete. Ready to seed members and institutions.
+
+============== Seeding entities for Branch: Main Branch - Kisinga ==============
+🏢 Creating 2 Institutions...
+👥 Creating 18 Members...
+
+============== Seeding entities for Branch: Kyarumba ==============
+🏢 Creating 2 Institutions...
+👥 Creating 18 Members...
+✅ Members and Institutions seeded.
+
+💰 Generating Savings Transactions...
+✅ Savings transactions generated.
+
+📈 Generating Loans...
+✅ Loans generated.
+
+🔒 Generating Fixed Deposits...
+✅ Fixed Deposits generated.
+
+📈 Generating Shares...
+✅ Shares generated.
+
+📅 Generating Compulsory Deposits...
+✅ Compulsory deposits generated.
+
+📄 Generating Income/Expenditure...
+✅ Income & Expenditure records generated.
+
+🚜 Generating Assets...
+✅ Assets generated.
+
+🎉 E2E Seed Testing COMPLETE!

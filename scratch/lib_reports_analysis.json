@@ -1,0 +1,338 @@
+[
+  {
+    "path": "activity-report.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\activity-report.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 8012
+  },
+  {
+    "path": "base-generator.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\base-generator.ts",
+    "usesDb": false,
+    "hasHardcodedData": false,
+    "size": 2873
+  },
+  {
+    "path": "cash-flow-review-report.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\cash-flow-review-report.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 15834
+  },
+  {
+    "path": "customer-internal-accounting-report.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\customer-internal-accounting-report.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 8873
+  },
+  {
+    "path": "exporters\\csv-exporter.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\exporters\\csv-exporter.ts",
+    "usesDb": false,
+    "hasHardcodedData": false,
+    "size": 2507
+  },
+  {
+    "path": "exporters\\excel-exporter.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\exporters\\excel-exporter.ts",
+    "usesDb": false,
+    "hasHardcodedData": true,
+    "size": 4582
+  },
+  {
+    "path": "exporters\\pdf-exporter.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\exporters\\pdf-exporter.ts",
+    "usesDb": false,
+    "hasHardcodedData": false,
+    "size": 4179
+  },
+  {
+    "path": "financial-year-balance-sheet-report.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\financial-year-balance-sheet-report.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 11626
+  },
+  {
+    "path": "fixed-deposits-report.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\fixed-deposits-report.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 34949
+  },
+  {
+    "path": "generators\\dormant-accounts.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\generators\\dormant-accounts.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 3841
+  },
+  {
+    "path": "generators\\interest-paid-report.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\generators\\interest-paid-report.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 3760
+  },
+  {
+    "path": "generators\\manager-dashboard-stats.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\generators\\manager-dashboard-stats.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 2629
+  },
+  {
+    "path": "generators\\member-statement-pdf.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\generators\\member-statement-pdf.ts",
+    "usesDb": false,
+    "hasHardcodedData": true,
+    "size": 5711
+  },
+  {
+    "path": "generators\\on-hold-closed-status.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\generators\\on-hold-closed-status.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 3398
+  },
+  {
+    "path": "generators\\overdrawn-accounts.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\generators\\overdrawn-accounts.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 3010
+  },
+  {
+    "path": "generators\\savings-account-balance.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\generators\\savings-account-balance.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 4683
+  },
+  {
+    "path": "generators\\savings-account-listing.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\generators\\savings-account-listing.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 3591
+  },
+  {
+    "path": "generators\\savings-account-statement.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\generators\\savings-account-statement.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 18713
+  },
+  {
+    "path": "generators\\savings-batch-totals.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\generators\\savings-batch-totals.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 11498
+  },
+  {
+    "path": "generators\\savings-transactions.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\generators\\savings-transactions.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 4051
+  },
+  {
+    "path": "generators\\share-account-balance.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\generators\\share-account-balance.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 4256
+  },
+  {
+    "path": "generators\\share-account-listing.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\generators\\share-account-listing.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 2720
+  },
+  {
+    "path": "generators\\share-account-statement.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\generators\\share-account-statement.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 4806
+  },
+  {
+    "path": "generators\\share-batch-totals.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\generators\\share-batch-totals.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 3178
+  },
+  {
+    "path": "generators\\share-concentration.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\generators\\share-concentration.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 1917
+  },
+  {
+    "path": "generators\\share-on-hold-closed.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\generators\\share-on-hold-closed.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 3331
+  },
+  {
+    "path": "generators\\top-bottom-savers.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\generators\\top-bottom-savers.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 4540
+  },
+  {
+    "path": "generators\\top-bottom-shareholders.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\generators\\top-bottom-shareholders.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 2256
+  },
+  {
+    "path": "generators\\zero-balance-accounts.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\generators\\zero-balance-accounts.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 2787
+  },
+  {
+    "path": "income-expense-report.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\income-expense-report.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 20039
+  },
+  {
+    "path": "interest-exposure-report.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\interest-exposure-report.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 16849
+  },
+  {
+    "path": "member-ledger-utils.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\member-ledger-utils.ts",
+    "usesDb": false,
+    "hasHardcodedData": false,
+    "size": 4305
+  },
+  {
+    "path": "performance-monitoring-report.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\performance-monitoring-report.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 35434
+  },
+  {
+    "path": "personal-ledger-report.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\personal-ledger-report.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 41183
+  },
+  {
+    "path": "profit-loss-report.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\profit-loss-report.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 24180
+  },
+  {
+    "path": "query-builder.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\query-builder.ts",
+    "usesDb": false,
+    "hasHardcodedData": false,
+    "size": 3621
+  },
+  {
+    "path": "report-pdf.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\report-pdf.ts",
+    "usesDb": false,
+    "hasHardcodedData": false,
+    "size": 1909
+  },
+  {
+    "path": "sacco-internal-control-checklist-report.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\sacco-internal-control-checklist-report.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 6762
+  },
+  {
+    "path": "savings-listing-report.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\savings-listing-report.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 22474
+  },
+  {
+    "path": "savings-transactions-report.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\savings-transactions-report.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 40350
+  },
+  {
+    "path": "share-account-statement-report.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\share-account-statement-report.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 25550
+  },
+  {
+    "path": "share-concentration-report.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\share-concentration-report.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 18214
+  },
+  {
+    "path": "share-movement-reports.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\share-movement-reports.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 24022
+  },
+  {
+    "path": "share-portfolio-reports.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\share-portfolio-reports.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 22492
+  },
+  {
+    "path": "statement-of-comprehensive-balance-sheet.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\statement-of-comprehensive-balance-sheet.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 16237
+  },
+  {
+    "path": "top-bottom-savers-report.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\top-bottom-savers-report.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 19972
+  },
+  {
+    "path": "transaction-journal-reports.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\transaction-journal-reports.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 49158
+  },
+  {
+    "path": "trial-balance-report.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\lib\\reports\\trial-balance-report.ts",
+    "usesDb": true,
+    "hasHardcodedData": false,
+    "size": 14011
+  }
+]

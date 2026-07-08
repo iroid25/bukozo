@@ -1,0 +1,20 @@
+
+> next-admin@0.1.0 build D:\projects\bukonzemergency
+> node --max-old-space-size=4096 ./node_modules/next/dist/bin/next build
+
+   ▲ Next.js 15.1.9
+   - Environments: .env
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+   Collecting page data ...
+
+> Build error occurred
+[Error: ENOENT: no such file or directory, open 'D:\projects\bukonzemergency\.next\server\pages-manifest.json'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'D:\\projects\\bukonzemergency\\.next\\server\\pages-manifest.json'
+}
+ ELIFECYCLE  Command failed with exit code 1.

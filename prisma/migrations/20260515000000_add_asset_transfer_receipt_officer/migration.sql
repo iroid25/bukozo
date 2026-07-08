@@ -1,0 +1,3 @@
+ALTER TABLE "AssetTransfer"
+ADD COLUMN IF NOT EXISTS "receiptNo" TEXT,
+ADD COLUMN IF NOT EXISTS "officerName" TEXT;

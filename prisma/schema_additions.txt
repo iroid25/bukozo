@@ -1,0 +1,105 @@
+
+// =====================
+// Prisma Schema
+// =====================
+
+generator client {
+provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+url      = env("DATABASE_URL")
+}
+
+// =====================
+// Enums
+// =====================
+
+enum UserRole {
+  ADMIN
+  BRANCH_MANAGER
+  TELLER
+  AGENT
+  MEMBER
+  ACCOUNTANT
+  LOAN_OFFICER
+  INSTITUTION
+  AUDITOR
+}
+
+enum AccountStatus {
+  ACTIVE
+  INACTIVE
+  CLOSED
+  SUSPENDED
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  LOAN_DISBURSEMENT
+  LOAN_REPAYMENT
+  FLOAT_ALLOCATION
+  FLOAT_PURCHASE
+  FLOAT_RECONCILIATION
+  FEE
+  OTHER
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+   APPROVED
+  FAILED
+  REVERSED
+}
+
+enum LoanStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  UNDER_REVIEW
+  DISBURSED
+  REPAID
+  OVERDUE
+  WRITTEN_OFF
+}
+
+enum NotificationType {
+  EMAIL
+  SMS
+  IN_APP
+}
+
+enum LogType {
+  SYSTEM
+  USER_ACTION
+  SECURITY
+  ERROR
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum MaritalStatus {
+  SINGLE
+  MARRIED
+  DIVORCED
+  WIDOWED
+  SEPARATED
+  OTHER
+}
+
+enum AccountLedgerType {
+  ASSETS
+  LIABILITIES
+  EQUITY
+  INCOME
+  EXPENSES
+}
+
+// ... rest of existing enums and models ...

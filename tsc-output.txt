@@ -1,0 +1,7 @@
+scripts/restructure_liabilities.ts(3,10): error TS2305: Module '"@prisma/client"' has no exported member 'AccountLevel'.
+scripts/restructure_liabilities.ts(3,24): error TS2305: Module '"@prisma/client"' has no exported member 'LedgerType'.
+scripts/restructure_liabilities.ts(18,51): error TS2353: Object literal may only specify known properties, and 'accountLevel' does not exist in type 'Without<ChartOfAccountUpdateInput, ChartOfAccountUncheckedUpdateInput> & ChartOfAccountUncheckedUpdateInput'.
+scripts/restructure_liabilities.ts(22,7): error TS2353: Object literal may only specify known properties, and 'accountLevel' does not exist in type 'Without<ChartOfAccountCreateInput, ChartOfAccountUncheckedCreateInput> & ChartOfAccountUncheckedCreateInput'.
+scripts/restructure_liabilities.ts(33,55): error TS2353: Object literal may only specify known properties, and 'accountLevel' does not exist in type 'Without<ChartOfAccountUpdateInput, ChartOfAccountUncheckedUpdateInput> & ChartOfAccountUncheckedUpdateInput'.
+scripts/restructure_liabilities.ts(37,7): error TS2353: Object literal may only specify known properties, and 'accountLevel' does not exist in type 'Without<ChartOfAccountCreateInput, ChartOfAccountUncheckedCreateInput> & ChartOfAccountUncheckedCreateInput'.
+scripts/surgical_restructure.ts(3,10): error TS2305: Module '"@prisma/client"' has no exported member 'LedgerType'.

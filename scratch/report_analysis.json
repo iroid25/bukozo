@@ -1,0 +1,1597 @@
+[
+  {
+    "type": "API",
+    "path": "activity\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\activity\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1767
+  },
+  {
+    "type": "API",
+    "path": "activity\\statistics\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\activity\\statistics\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1298
+  },
+  {
+    "type": "API",
+    "path": "agent-performance\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\agent-performance\\route.ts",
+    "usesDb": true,
+    "hasMockData": false,
+    "size": 5655
+  },
+  {
+    "type": "API",
+    "path": "audit-trail\\customer-information\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\audit-trail\\customer-information\\route.ts",
+    "usesDb": true,
+    "hasMockData": false,
+    "size": 3243
+  },
+  {
+    "type": "API",
+    "path": "audit-trail\\customer-information\\statistics\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\audit-trail\\customer-information\\statistics\\route.ts",
+    "usesDb": true,
+    "hasMockData": false,
+    "size": 2600
+  },
+  {
+    "type": "API",
+    "path": "comprehensive\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\comprehensive\\route.ts",
+    "usesDb": true,
+    "hasMockData": false,
+    "size": 18795
+  },
+  {
+    "type": "API",
+    "path": "custom\\balance-sheet\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\custom\\balance-sheet\\route.ts",
+    "usesDb": true,
+    "hasMockData": false,
+    "size": 3747
+  },
+  {
+    "type": "API",
+    "path": "custom\\cash-flow\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\custom\\cash-flow\\route.ts",
+    "usesDb": true,
+    "hasMockData": false,
+    "size": 11507
+  },
+  {
+    "type": "API",
+    "path": "custom\\profit-loss\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\custom\\profit-loss\\route.ts",
+    "usesDb": true,
+    "hasMockData": false,
+    "size": 3267
+  },
+  {
+    "type": "API",
+    "path": "customer-internal-accounting-system\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\customer-internal-accounting-system\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1409
+  },
+  {
+    "type": "API",
+    "path": "customer-internal-accounting-system\\statistics\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\customer-internal-accounting-system\\statistics\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1289
+  },
+  {
+    "type": "API",
+    "path": "financial\\balance-sheet\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\financial\\balance-sheet\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 2642
+  },
+  {
+    "type": "API",
+    "path": "financial\\budget-variance\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\financial\\budget-variance\\route.ts",
+    "usesDb": true,
+    "hasMockData": false,
+    "size": 5746
+  },
+  {
+    "type": "API",
+    "path": "financial\\cash-flow\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\financial\\cash-flow\\route.ts",
+    "usesDb": true,
+    "hasMockData": false,
+    "size": 10051
+  },
+  {
+    "type": "API",
+    "path": "financial\\cash-flow-review\\balance-sheet\\export\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\financial\\cash-flow-review\\balance-sheet\\export\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1930
+  },
+  {
+    "type": "API",
+    "path": "financial\\cash-flow-review\\balance-sheet\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\financial\\cash-flow-review\\balance-sheet\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1557
+  },
+  {
+    "type": "API",
+    "path": "financial\\cash-flow-review\\profit-loss\\export\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\financial\\cash-flow-review\\profit-loss\\export\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1926
+  },
+  {
+    "type": "API",
+    "path": "financial\\cash-flow-review\\profit-loss\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\financial\\cash-flow-review\\profit-loss\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1557
+  },
+  {
+    "type": "API",
+    "path": "financial\\dashboard-summary\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\financial\\dashboard-summary\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1046
+  },
+  {
+    "type": "API",
+    "path": "financial\\dashboard-trends\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\financial\\dashboard-trends\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1154
+  },
+  {
+    "type": "API",
+    "path": "financial\\performance\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\financial\\performance\\route.ts",
+    "usesDb": true,
+    "hasMockData": false,
+    "size": 3778
+  },
+  {
+    "type": "API",
+    "path": "financial\\performance-monitoring\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\financial\\performance-monitoring\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 3689
+  },
+  {
+    "type": "API",
+    "path": "financial\\profit-loss\\export\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\financial\\profit-loss\\export\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1983
+  },
+  {
+    "type": "API",
+    "path": "financial\\profit-loss\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\financial\\profit-loss\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 2721
+  },
+  {
+    "type": "API",
+    "path": "financial\\summary\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\financial\\summary\\route.ts",
+    "usesDb": true,
+    "hasMockData": false,
+    "size": 3230
+  },
+  {
+    "type": "API",
+    "path": "financial\\transactions\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\financial\\transactions\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1627
+  },
+  {
+    "type": "API",
+    "path": "financial\\trends\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\financial\\trends\\route.ts",
+    "usesDb": true,
+    "hasMockData": false,
+    "size": 3165
+  },
+  {
+    "type": "API",
+    "path": "financial\\trial-balance\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\financial\\trial-balance\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 2773
+  },
+  {
+    "type": "API",
+    "path": "financial-year\\balance-sheet\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\financial-year\\balance-sheet\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1591
+  },
+  {
+    "type": "API",
+    "path": "financial-year\\profit-loss\\export\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\financial-year\\profit-loss\\export\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 2281
+  },
+  {
+    "type": "API",
+    "path": "financial-year\\profit-loss\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\financial-year\\profit-loss\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1902
+  },
+  {
+    "type": "API",
+    "path": "financial-year\\trial-balance\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\financial-year\\trial-balance\\route.ts",
+    "usesDb": true,
+    "hasMockData": false,
+    "size": 3926
+  },
+  {
+    "type": "API",
+    "path": "fixed-assets\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\fixed-assets\\route.ts",
+    "usesDb": true,
+    "hasMockData": false,
+    "size": 6935
+  },
+  {
+    "type": "API",
+    "path": "fixed-deposits\\active\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\fixed-deposits\\active\\route.ts",
+    "usesDb": true,
+    "hasMockData": false,
+    "size": 1943
+  },
+  {
+    "type": "API",
+    "path": "fixed-deposits\\concentration\\export\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\fixed-deposits\\concentration\\export\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1577
+  },
+  {
+    "type": "API",
+    "path": "fixed-deposits\\concentration\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\fixed-deposits\\concentration\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1163
+  },
+  {
+    "type": "API",
+    "path": "fixed-deposits\\interest-exposure\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\fixed-deposits\\interest-exposure\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 4199
+  },
+  {
+    "type": "API",
+    "path": "fixed-deposits\\listing\\export\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\fixed-deposits\\listing\\export\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1766
+  },
+  {
+    "type": "API",
+    "path": "fixed-deposits\\listing\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\fixed-deposits\\listing\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1433
+  },
+  {
+    "type": "API",
+    "path": "fixed-deposits\\maturing\\export\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\fixed-deposits\\maturing\\export\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 2067
+  },
+  {
+    "type": "API",
+    "path": "fixed-deposits\\maturing\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\fixed-deposits\\maturing\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1700
+  },
+  {
+    "type": "API",
+    "path": "fixed-deposits\\statement\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\fixed-deposits\\statement\\route.ts",
+    "usesDb": true,
+    "hasMockData": false,
+    "size": 3167
+  },
+  {
+    "type": "API",
+    "path": "fixed-deposits\\withdrawn\\export\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\fixed-deposits\\withdrawn\\export\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1725
+  },
+  {
+    "type": "API",
+    "path": "fixed-deposits\\withdrawn\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\fixed-deposits\\withdrawn\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1386
+  },
+  {
+    "type": "API",
+    "path": "generate\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\generate\\route.ts",
+    "usesDb": true,
+    "hasMockData": false,
+    "size": 45347
+  },
+  {
+    "type": "API",
+    "path": "gl-performance\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\gl-performance\\route.ts",
+    "usesDb": true,
+    "hasMockData": false,
+    "size": 7418
+  },
+  {
+    "type": "API",
+    "path": "loans\\[reportType]\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\loans\\[reportType]\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 9627
+  },
+  {
+    "type": "API",
+    "path": "manager\\dashboard-stats\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\manager\\dashboard-stats\\route.ts",
+    "usesDb": true,
+    "hasMockData": false,
+    "size": 5411
+  },
+  {
+    "type": "API",
+    "path": "member-ledger\\personal-ledger\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\member-ledger\\personal-ledger\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 3230
+  },
+  {
+    "type": "API",
+    "path": "member-ledger\\personal-ledger\\search\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\member-ledger\\personal-ledger\\search\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1118
+  },
+  {
+    "type": "API",
+    "path": "member-ledger\\top-bottom-savers\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\member-ledger\\top-bottom-savers\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 4024
+  },
+  {
+    "type": "API",
+    "path": "member-statement\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\member-statement\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1311
+  },
+  {
+    "type": "API",
+    "path": "sacco-internal-control-checklist\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\sacco-internal-control-checklist\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 2679
+  },
+  {
+    "type": "API",
+    "path": "savings\\account-balance\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\savings\\account-balance\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 2380
+  },
+  {
+    "type": "API",
+    "path": "savings\\account-listing\\dormant\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\savings\\account-listing\\dormant\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1922
+  },
+  {
+    "type": "API",
+    "path": "savings\\account-listing\\export\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\savings\\account-listing\\export\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1793
+  },
+  {
+    "type": "API",
+    "path": "savings\\account-listing\\member\\[accountNumber]\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\savings\\account-listing\\member\\[accountNumber]\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1299
+  },
+  {
+    "type": "API",
+    "path": "savings\\account-listing\\reconcile\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\savings\\account-listing\\reconcile\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1718
+  },
+  {
+    "type": "API",
+    "path": "savings\\account-listing\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\savings\\account-listing\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 2332
+  },
+  {
+    "type": "API",
+    "path": "savings\\account-statement\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\savings\\account-statement\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 2443
+  },
+  {
+    "type": "API",
+    "path": "savings\\batch-totals\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\savings\\batch-totals\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1912
+  },
+  {
+    "type": "API",
+    "path": "savings\\dormant-accounts\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\savings\\dormant-accounts\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1517
+  },
+  {
+    "type": "API",
+    "path": "savings\\interest-paid\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\savings\\interest-paid\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1372
+  },
+  {
+    "type": "API",
+    "path": "savings\\on-hold-closed\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\savings\\on-hold-closed\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1397
+  },
+  {
+    "type": "API",
+    "path": "savings\\overdrawn-accounts\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\savings\\overdrawn-accounts\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1383
+  },
+  {
+    "type": "API",
+    "path": "savings\\performance\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\savings\\performance\\route.ts",
+    "usesDb": true,
+    "hasMockData": false,
+    "size": 4327
+  },
+  {
+    "type": "API",
+    "path": "savings\\top-bottom-savers\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\savings\\top-bottom-savers\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 2179
+  },
+  {
+    "type": "API",
+    "path": "savings\\transactions\\export\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\savings\\transactions\\export\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 2799
+  },
+  {
+    "type": "API",
+    "path": "savings\\transactions\\large\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\savings\\transactions\\large\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1911
+  },
+  {
+    "type": "API",
+    "path": "savings\\transactions\\member\\[accountNumber]\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\savings\\transactions\\member\\[accountNumber]\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 2490
+  },
+  {
+    "type": "API",
+    "path": "savings\\transactions\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\savings\\transactions\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 4291
+  },
+  {
+    "type": "API",
+    "path": "savings\\transactions\\summary\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\savings\\transactions\\summary\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1852
+  },
+  {
+    "type": "API",
+    "path": "savings\\transactions\\teller\\[tellerName]\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\savings\\transactions\\teller\\[tellerName]\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1880
+  },
+  {
+    "type": "API",
+    "path": "savings\\zero-balance\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\savings\\zero-balance\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1546
+  },
+  {
+    "type": "API",
+    "path": "shares\\account-balance\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\shares\\account-balance\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1325
+  },
+  {
+    "type": "API",
+    "path": "shares\\account-listing\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\shares\\account-listing\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1974
+  },
+  {
+    "type": "API",
+    "path": "shares\\account-statement\\export\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\shares\\account-statement\\export\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1913
+  },
+  {
+    "type": "API",
+    "path": "shares\\account-statement\\member\\[accountNumber]\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\shares\\account-statement\\member\\[accountNumber]\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1602
+  },
+  {
+    "type": "API",
+    "path": "shares\\account-statement\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\shares\\account-statement\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 3074
+  },
+  {
+    "type": "API",
+    "path": "shares\\account-statement\\search\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\shares\\account-statement\\search\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1225
+  },
+  {
+    "type": "API",
+    "path": "shares\\batch-totals\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\shares\\batch-totals\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1992
+  },
+  {
+    "type": "API",
+    "path": "shares\\concentration\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\shares\\concentration\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1638
+  },
+  {
+    "type": "API",
+    "path": "shares\\on-hold-closed\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\shares\\on-hold-closed\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1405
+  },
+  {
+    "type": "API",
+    "path": "shares\\share-capital-remittances\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\shares\\share-capital-remittances\\route.ts",
+    "usesDb": true,
+    "hasMockData": false,
+    "size": 6825
+  },
+  {
+    "type": "API",
+    "path": "shares\\top-bottom-shareholders\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\shares\\top-bottom-shareholders\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1308
+  },
+  {
+    "type": "API",
+    "path": "shares\\transactions\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\shares\\transactions\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 2165
+  },
+  {
+    "type": "API",
+    "path": "shares\\zero-balance\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\shares\\zero-balance\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 2030
+  },
+  {
+    "type": "API",
+    "path": "sms-banking\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\sms-banking\\route.ts",
+    "usesDb": true,
+    "hasMockData": false,
+    "size": 2813
+  },
+  {
+    "type": "API",
+    "path": "standing-orders\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\standing-orders\\route.ts",
+    "usesDb": true,
+    "hasMockData": false,
+    "size": 2625
+  },
+  {
+    "type": "API",
+    "path": "statement-of-comprehensive-balance-sheet\\drilldown\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\statement-of-comprehensive-balance-sheet\\drilldown\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1622
+  },
+  {
+    "type": "API",
+    "path": "statement-of-comprehensive-balance-sheet\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\statement-of-comprehensive-balance-sheet\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 3202
+  },
+  {
+    "type": "API",
+    "path": "statement-of-comprehensive-income-and-expenditure\\drilldown\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\statement-of-comprehensive-income-and-expenditure\\drilldown\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1552
+  },
+  {
+    "type": "API",
+    "path": "statement-of-comprehensive-income-and-expenditure\\export\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\statement-of-comprehensive-income-and-expenditure\\export\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 2593
+  },
+  {
+    "type": "API",
+    "path": "statement-of-comprehensive-income-and-expenditure\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\statement-of-comprehensive-income-and-expenditure\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 2989
+  },
+  {
+    "type": "API",
+    "path": "statement-of-comprehensive-trial-balance\\export\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\statement-of-comprehensive-trial-balance\\export\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 2345
+  },
+  {
+    "type": "API",
+    "path": "statement-of-comprehensive-trial-balance\\proof\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\statement-of-comprehensive-trial-balance\\proof\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1357
+  },
+  {
+    "type": "API",
+    "path": "statement-of-comprehensive-trial-balance\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\statement-of-comprehensive-trial-balance\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 2611
+  },
+  {
+    "type": "API",
+    "path": "transactions\\cashier-status\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\transactions\\cashier-status\\route.ts",
+    "usesDb": true,
+    "hasMockData": false,
+    "size": 4162
+  },
+  {
+    "type": "API",
+    "path": "transactions\\cashier-teller-cash-status\\export\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\transactions\\cashier-teller-cash-status\\export\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 2510
+  },
+  {
+    "type": "API",
+    "path": "transactions\\cashier-teller-cash-status\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\transactions\\cashier-teller-cash-status\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 2118
+  },
+  {
+    "type": "API",
+    "path": "transactions\\cashier-teller-cash-status\\tellers\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\transactions\\cashier-teller-cash-status\\tellers\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 1403
+  },
+  {
+    "type": "API",
+    "path": "transactions\\day-sheet\\export\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\transactions\\day-sheet\\export\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 3011
+  },
+  {
+    "type": "API",
+    "path": "transactions\\day-sheet\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\transactions\\day-sheet\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 2604
+  },
+  {
+    "type": "API",
+    "path": "transactions\\daysheet-session\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\transactions\\daysheet-session\\route.ts",
+    "usesDb": true,
+    "hasMockData": false,
+    "size": 4938
+  },
+  {
+    "type": "API",
+    "path": "transactions\\daysheet-transaction\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\transactions\\daysheet-transaction\\route.ts",
+    "usesDb": true,
+    "hasMockData": false,
+    "size": 3153
+  },
+  {
+    "type": "API",
+    "path": "transactions\\general-transaction-register\\export\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\transactions\\general-transaction-register\\export\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 2518
+  },
+  {
+    "type": "API",
+    "path": "transactions\\general-transaction-register\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\transactions\\general-transaction-register\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 2214
+  },
+  {
+    "type": "API",
+    "path": "transactions\\journal-session\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\transactions\\journal-session\\route.ts",
+    "usesDb": true,
+    "hasMockData": false,
+    "size": 3151
+  },
+  {
+    "type": "API",
+    "path": "transactions\\journal-transaction\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\transactions\\journal-transaction\\route.ts",
+    "usesDb": true,
+    "hasMockData": false,
+    "size": 3647
+  },
+  {
+    "type": "API",
+    "path": "transactions\\register-session\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\transactions\\register-session\\route.ts",
+    "usesDb": true,
+    "hasMockData": false,
+    "size": 2966
+  },
+  {
+    "type": "API",
+    "path": "transactions\\register-transaction\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\transactions\\register-transaction\\route.ts",
+    "usesDb": true,
+    "hasMockData": false,
+    "size": 3168
+  },
+  {
+    "type": "API",
+    "path": "transactions\\sequence-session\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\transactions\\sequence-session\\route.ts",
+    "usesDb": true,
+    "hasMockData": false,
+    "size": 3796
+  },
+  {
+    "type": "API",
+    "path": "transactions\\sequence-transaction\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\transactions\\sequence-transaction\\route.ts",
+    "usesDb": true,
+    "hasMockData": false,
+    "size": 3892
+  },
+  {
+    "type": "API",
+    "path": "transactions\\transaction-journal-listing\\export\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\transactions\\transaction-journal-listing\\export\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 2583
+  },
+  {
+    "type": "API",
+    "path": "transactions\\transaction-journal-listing\\route.ts",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\api\\v1\\reports\\transactions\\transaction-journal-listing\\route.ts",
+    "usesDb": false,
+    "hasMockData": true,
+    "size": 2282
+  },
+  {
+    "type": "Page",
+    "path": "activity\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\activity\\page.tsx",
+    "usesFetch": true,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 3752
+  },
+  {
+    "type": "Page",
+    "path": "agent-performance\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\agent-performance\\page.tsx",
+    "usesFetch": true,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 7345
+  },
+  {
+    "type": "Page",
+    "path": "audit-trail\\customer-information\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\audit-trail\\customer-information\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 1352
+  },
+  {
+    "type": "Page",
+    "path": "catalog\\[reportSlug]\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\catalog\\[reportSlug]\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 6353
+  },
+  {
+    "type": "Page",
+    "path": "custom-reports\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\custom-reports\\page.tsx",
+    "usesFetch": true,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 26427
+  },
+  {
+    "type": "Page",
+    "path": "customer-internal-accounting-system\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\customer-internal-accounting-system\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 3368
+  },
+  {
+    "type": "Page",
+    "path": "financial\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\financial\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 158
+  },
+  {
+    "type": "Page",
+    "path": "financial-dashboard\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\financial-dashboard\\page.tsx",
+    "usesFetch": true,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 5948
+  },
+  {
+    "type": "Page",
+    "path": "financial-statements\\balance-sheet-financial-year\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\financial-statements\\balance-sheet-financial-year\\page.tsx",
+    "usesFetch": true,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 26518
+  },
+  {
+    "type": "Page",
+    "path": "financial-statements\\budget-variance\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\financial-statements\\budget-variance\\page.tsx",
+    "usesFetch": true,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 5740
+  },
+  {
+    "type": "Page",
+    "path": "financial-statements\\cash-flow-review-balance-sheet\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\financial-statements\\cash-flow-review-balance-sheet\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 472
+  },
+  {
+    "type": "Page",
+    "path": "financial-statements\\cash-flow-review-profit-loss\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\financial-statements\\cash-flow-review-profit-loss\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 477
+  },
+  {
+    "type": "Page",
+    "path": "financial-statements\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\financial-statements\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 3874
+  },
+  {
+    "type": "Page",
+    "path": "financial-statements\\profit-loss\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\financial-statements\\profit-loss\\page.tsx",
+    "usesFetch": true,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 17154
+  },
+  {
+    "type": "Page",
+    "path": "financial-statements\\profit-loss-financial-year\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\financial-statements\\profit-loss-financial-year\\page.tsx",
+    "usesFetch": true,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 21744
+  },
+  {
+    "type": "Page",
+    "path": "financial-statements\\[reportType]\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\financial-statements\\[reportType]\\page.tsx",
+    "usesFetch": true,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 36188
+  },
+  {
+    "type": "Page",
+    "path": "financial2\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\financial2\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 152
+  },
+  {
+    "type": "Page",
+    "path": "fixed-assets\\depreciation\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\fixed-assets\\depreciation\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 1918
+  },
+  {
+    "type": "Page",
+    "path": "fixed-assets\\disposal\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\fixed-assets\\disposal\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 2007
+  },
+  {
+    "type": "Page",
+    "path": "fixed-assets\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\fixed-assets\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 2310
+  },
+  {
+    "type": "Page",
+    "path": "fixed-assets\\register\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\fixed-assets\\register\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 1932
+  },
+  {
+    "type": "Page",
+    "path": "fixed-concentration\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\fixed-concentration\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 222
+  },
+  {
+    "type": "Page",
+    "path": "fixed-deposits\\active\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\fixed-deposits\\active\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 1682
+  },
+  {
+    "type": "Page",
+    "path": "fixed-deposits\\listing\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\fixed-deposits\\listing\\page.tsx",
+    "usesFetch": true,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 17269
+  },
+  {
+    "type": "Page",
+    "path": "fixed-deposits\\maturing\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\fixed-deposits\\maturing\\page.tsx",
+    "usesFetch": true,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 25351
+  },
+  {
+    "type": "Page",
+    "path": "fixed-deposits\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\fixed-deposits\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 3689
+  },
+  {
+    "type": "Page",
+    "path": "fixed-deposits\\statement\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\fixed-deposits\\statement\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 1772
+  },
+  {
+    "type": "Page",
+    "path": "fixed-deposits\\withdrawn\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\fixed-deposits\\withdrawn\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 221
+  },
+  {
+    "type": "Page",
+    "path": "gl-performance\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\gl-performance\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 860
+  },
+  {
+    "type": "Page",
+    "path": "interest-exposure\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\interest-exposure\\page.tsx",
+    "usesFetch": true,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 19195
+  },
+  {
+    "type": "Page",
+    "path": "loans\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\loans\\page.tsx",
+    "usesFetch": true,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 7278
+  },
+  {
+    "type": "Page",
+    "path": "manager\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\manager\\page.tsx",
+    "usesFetch": true,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 8048
+  },
+  {
+    "type": "Page",
+    "path": "member-ledger\\top-bottom-savers\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\member-ledger\\top-bottom-savers\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 2895
+  },
+  {
+    "type": "Page",
+    "path": "member-ledger\\top-bottom-share-holders\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\member-ledger\\top-bottom-share-holders\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 2921
+  },
+  {
+    "type": "Page",
+    "path": "page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 15149
+  },
+  {
+    "type": "Page",
+    "path": "performance-monitoring\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\performance-monitoring\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 3279
+  },
+  {
+    "type": "Page",
+    "path": "personal-ledger\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\personal-ledger\\page.tsx",
+    "usesFetch": true,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 29558
+  },
+  {
+    "type": "Page",
+    "path": "sacco-internal-control-checklist\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\sacco-internal-control-checklist\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 1174
+  },
+  {
+    "type": "Page",
+    "path": "savings\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\savings\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 4401
+  },
+  {
+    "type": "Page",
+    "path": "savings\\savings-account-statement\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\savings\\savings-account-statement\\page.tsx",
+    "usesFetch": true,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 24986
+  },
+  {
+    "type": "Page",
+    "path": "savings\\savings-batch-totals\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\savings\\savings-batch-totals\\page.tsx",
+    "usesFetch": true,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 13328
+  },
+  {
+    "type": "Page",
+    "path": "savings\\savings-listing\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\savings\\savings-listing\\page.tsx",
+    "usesFetch": true,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 25019
+  },
+  {
+    "type": "Page",
+    "path": "savings\\[reportType]\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\savings\\[reportType]\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 4500
+  },
+  {
+    "type": "Page",
+    "path": "savings-shares-reports\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\savings-shares-reports\\page.tsx",
+    "usesFetch": true,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 35817
+  },
+  {
+    "type": "Page",
+    "path": "savings-shares-reports\\savings\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\savings-shares-reports\\savings\\page.tsx",
+    "usesFetch": true,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 43578
+  },
+  {
+    "type": "Page",
+    "path": "savings-shares-reports\\share-capital-remittances\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\savings-shares-reports\\share-capital-remittances\\page.tsx",
+    "usesFetch": true,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 6437
+  },
+  {
+    "type": "Page",
+    "path": "savings-shares-reports\\shares\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\savings-shares-reports\\shares\\page.tsx",
+    "usesFetch": true,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 20762
+  },
+  {
+    "type": "Page",
+    "path": "shares\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\shares\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 4088
+  },
+  {
+    "type": "Page",
+    "path": "shares\\share-account-balance\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\shares\\share-account-balance\\page.tsx",
+    "usesFetch": true,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 12540
+  },
+  {
+    "type": "Page",
+    "path": "shares\\share-account-statement\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\shares\\share-account-statement\\page.tsx",
+    "usesFetch": true,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 45434
+  },
+  {
+    "type": "Page",
+    "path": "shares\\share-accounts-listing\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\shares\\share-accounts-listing\\page.tsx",
+    "usesFetch": true,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 19989
+  },
+  {
+    "type": "Page",
+    "path": "shares\\share-batch-totals\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\shares\\share-batch-totals\\page.tsx",
+    "usesFetch": true,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 18146
+  },
+  {
+    "type": "Page",
+    "path": "shares\\share-transactions\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\shares\\share-transactions\\page.tsx",
+    "usesFetch": true,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 21604
+  },
+  {
+    "type": "Page",
+    "path": "shares\\share-zero-balance\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\shares\\share-zero-balance\\page.tsx",
+    "usesFetch": true,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 17534
+  },
+  {
+    "type": "Page",
+    "path": "shares\\[reportType]\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\shares\\[reportType]\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 2133
+  },
+  {
+    "type": "Page",
+    "path": "sms-banking\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\sms-banking\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 1599
+  },
+  {
+    "type": "Page",
+    "path": "standing-orders\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\standing-orders\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 1936
+  },
+  {
+    "type": "Page",
+    "path": "statement-of-comprehensive-balance-sheet\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\statement-of-comprehensive-balance-sheet\\page.tsx",
+    "usesFetch": true,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 33425
+  },
+  {
+    "type": "Page",
+    "path": "statement-of-comprehensive-income-and-expenditure\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\statement-of-comprehensive-income-and-expenditure\\page.tsx",
+    "usesFetch": true,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 33787
+  },
+  {
+    "type": "Page",
+    "path": "statement-of-comprehensive-trial-balance\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\statement-of-comprehensive-trial-balance\\page.tsx",
+    "usesFetch": true,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 25384
+  },
+  {
+    "type": "Page",
+    "path": "transactions\\cashier-status\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\transactions\\cashier-status\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 204
+  },
+  {
+    "type": "Page",
+    "path": "transactions\\cashier-teller-cash-status-by-session-date\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\transactions\\cashier-teller-cash-status-by-session-date\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 50
+  },
+  {
+    "type": "Page",
+    "path": "transactions\\daysheet-session\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\transactions\\daysheet-session\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 208
+  },
+  {
+    "type": "Page",
+    "path": "transactions\\daysheet-transaction\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\transactions\\daysheet-transaction\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 208
+  },
+  {
+    "type": "Page",
+    "path": "transactions\\general-transaction-register-by-transaction-date\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\transactions\\general-transaction-register-by-transaction-date\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 250
+  },
+  {
+    "type": "Page",
+    "path": "transactions\\journal-session\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\transactions\\journal-session\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 79
+  },
+  {
+    "type": "Page",
+    "path": "transactions\\journal-transaction\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\transactions\\journal-transaction\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 231
+  },
+  {
+    "type": "Page",
+    "path": "transactions\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\transactions\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 4411
+  },
+  {
+    "type": "Page",
+    "path": "transactions\\register-session\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\transactions\\register-session\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 1460
+  },
+  {
+    "type": "Page",
+    "path": "transactions\\register-transaction\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\transactions\\register-transaction\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 84
+  },
+  {
+    "type": "Page",
+    "path": "transactions\\sequence-session\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\transactions\\sequence-session\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 3221
+  },
+  {
+    "type": "Page",
+    "path": "transactions\\sequence-transaction\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\transactions\\sequence-transaction\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 2285
+  },
+  {
+    "type": "Page",
+    "path": "transactions\\transaction-journal-listing-by-session-date\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\transactions\\transaction-journal-listing-by-session-date\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 243
+  },
+  {
+    "type": "Page",
+    "path": "transactions\\trx-day-sheet-by-session-date\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\transactions\\trx-day-sheet-by-session-date\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 52
+  },
+  {
+    "type": "Page",
+    "path": "transactions\\trx-day-sheet-by-transaction-date\\page.tsx",
+    "fullPath": "D:\\projects\\bukonzemergency\\app\\(dashboard)\\dashboard\\reports\\transactions\\trx-day-sheet-by-transaction-date\\page.tsx",
+    "usesFetch": false,
+    "usesDb": false,
+    "usesMockData": false,
+    "size": 56
+  }
+]

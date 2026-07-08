@@ -1,0 +1,25 @@
+
+> next-admin@0.1.0 build E:\developemet\projexts\bukonzemergency
+> next build
+
+   ▲ Next.js 15.1.9
+   - Environments: .env
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+Failed to compile.
+
+./actions/loanprocess/loanRepaymentRequests.ts:308:11
+Type error: Type 'string | null' is not assignable to type 'string | undefined'.
+  Type 'null' is not assignable to type 'string | undefined'.
+
+[0m [90m 306 |[39m       [36mconst[39m repayment [33m=[39m [36mawait[39m tx[33m.[39mloanRepayment[33m.[39mcreate({[0m
+[0m [90m 307 |[39m         data[33m:[39m {[0m
+[0m[31m[1m>[22m[39m[90m 308 |[39m           loanId[33m:[39m repaymentRequest[33m.[39mloanId[33m,[39m[0m
+[0m [90m     |[39m           [31m[1m^[22m[39m[0m
+[0m [90m 309 |[39m           memberId[33m:[39m repaymentRequest[33m.[39mmemberId[33m,[39m[0m
+[0m [90m 310 |[39m           amount[33m:[39m repaymentRequest[33m.[39mamount[33m,[39m[0m
+[0m [90m 311 |[39m           repaymentDate[33m:[39m [36mnew[39m [33mDate[39m()[33m,[39m[0m
+Next.js build worker exited with code: 1 and signal: null
+ ELIFECYCLE  Command failed with exit code 1.

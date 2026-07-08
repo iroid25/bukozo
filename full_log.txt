@@ -1,0 +1,32 @@
+--- Starting Maturity Logic Test ---
+Creating test user: test-maturity-961766@example.com
+Using Voluntary Type: Voluntary Savings Account
+Created FD Account FD-961766 with Balance 500000 and End Date 2026-02-13T19:56:08.546Z
+PRE-CHECK VS Found: No
+Running processMaturedFixedDeposits...
+Found 1 matured fixed deposit accounts to process
+Processing FD FD-961766 (Member: cmlmqlgzu0002w7hog01wdpmv). Searching savings with: {
+  "status": "ACTIVE",
+  "accountType": {
+    "name": {
+      "in": [
+        "VOLUNTARY_SAVINGS",
+        "Voluntary Savings",
+        "Savings Account",
+        "Voluntary Savings Account"
+      ]
+    }
+  },
+  "memberId": "cmlmqlgzu0002w7hog01wdpmv"
+}
+✓ Processed maturity for account FD-961766: 505,000
+Maturity processing complete: 1 processed, 0 failed
+Result: {
+  "processed": 1,
+  "failed": 0,
+  "errors": []
+}
+✅ FD Account is CLOSED and Zero Balance
+✅ Voluntary Savings Balance is Correct: 506000
+Cleaning up...
+Done.

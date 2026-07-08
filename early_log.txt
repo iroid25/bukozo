@@ -1,0 +1,40 @@
+--- Starting Early Withdrawal Test ---
+Creating test user: test-early-626149@example.com
+Created FD FD-626149 with Balance 500000. Maturity: 2027-02-15T06:23:51.269Z
+Attempting Early Withdrawal (Transfer 500,000 to VS)...
+Transfer Result: {
+  "ok": true,
+  "data": {
+    "id": "cmlnd0s6n0008w7n8r7szhgan",
+    "transactionRef": "TRF-1771136632750-6MZMVN",
+    "memberId": "cmlnd0pry0002w7n8rblou64h",
+    "accountId": "cmlnd0r1j0006w7n876jc65kk",
+    "type": "TRANSFER",
+    "amount": 500000,
+    "currency": "UGX",
+    "exchangeRate": 1,
+    "status": "COMPLETED",
+    "description": "Early Withdrawal Test",
+    "transactionDate": "2026-02-15T06:23:52.751Z",
+    "valueDate": null,
+    "processedByUserId": "cmlnd0oa80000w7n8burw9784",
+    "branchId": null,
+    "customerId": null,
+    "loanId": null,
+    "scheduleId": null,
+    "paymentMethod": null,
+    "paymentReference": null,
+    "notes": null,
+    "relatedTransactionId": null,
+    "externalReference": null,
+    "channel": "INTERNAL",
+    "institutionId": null,
+    "creditAccountId": null,
+    "debitAccountId": null
+  }
+}
+✅ FD Balance is 0 (Principal withdrawn)
+✅ VS Balance correct (Only Principal received)
+FD Status: ACTIVE
+Cleaning up...
+Done.

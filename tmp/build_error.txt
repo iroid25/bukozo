@@ -1,0 +1,21 @@
+   ▲ Next.js 15.1.9
+   - Environments: .env
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+Failed to compile.
+
+./scripts/e2e-testing-seed.ts:73:10
+Type error: Type '{ userId: string; registrationNumber: string; institutionNumber: string; institutionName: string; institutionType: string; isApproved: true; }' is not assignable to type '(Without<InstitutionCreateInput, InstitutionUncheckedCreateInput> & InstitutionUncheckedCreateInput) | (Without<...> & InstitutionCreateInput)'.
+  Type '{ userId: string; registrationNumber: string; institutionNumber: string; institutionName: string; institutionType: string; isApproved: true; }' is not assignable to type 'Without<InstitutionCreateInput, InstitutionUncheckedCreateInput> & InstitutionUncheckedCreateInput'.
+    Type '{ userId: string; registrationNumber: string; institutionNumber: string; institutionName: string; institutionType: string; isApproved: true; }' is missing the following properties from type 'InstitutionUncheckedCreateInput': primaryContactPerson, primaryContactPhone, institutionPhone, institutionEmail
+
+[0m [90m 71 |[39m          where[33m:[39m { userId[33m:[39m instUser[33m.[39mid }[33m,[39m[0m
+[0m [90m 72 |[39m          update[33m:[39m {}[33m,[39m[0m
+[0m[31m[1m>[22m[39m[90m 73 |[39m          create[33m:[39m {[0m
+[0m [90m    |[39m          [31m[1m^[22m[39m[0m
+[0m [90m 74 |[39m             userId[33m:[39m instUser[33m.[39mid[33m,[39m[0m
+[0m [90m 75 |[39m             registrationNumber[33m:[39m [32m`REG-${branch.location.substring(0,3)}-${i}`[39m[33m,[39m[0m
+[0m [90m 76 |[39m             institutionNumber[33m:[39m [32m`INST-${branch.location.substring(0,3)}-${i}`[39m[33m,[39m[0m
+Next.js build worker exited with code: 1 and signal: null

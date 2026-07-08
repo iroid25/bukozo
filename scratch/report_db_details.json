@@ -1,0 +1,423 @@
+{
+  "activity-report.ts": {
+    "dbCalls": [
+      "db.auditLog",
+      "db.transaction"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 8012
+  },
+  "base-generator.ts": {
+    "dbCalls": [],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 2873
+  },
+  "cash-flow-review-report.ts": {
+    "dbCalls": [
+      "db.branch",
+      "db.journalEntry",
+      "db.chartOfAccount"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 15834
+  },
+  "customer-internal-accounting-report.ts": {
+    "dbCalls": [
+      "db.account",
+      "db.deposit",
+      "db.withdrawal",
+      "db.loan",
+      "db.loanRepayment"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 8873
+  },
+  "exporters\\csv-exporter.ts": {
+    "dbCalls": [],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 2507
+  },
+  "exporters\\excel-exporter.ts": {
+    "dbCalls": [],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 4582
+  },
+  "exporters\\pdf-exporter.ts": {
+    "dbCalls": [],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 4179
+  },
+  "financial-year-balance-sheet-report.ts": {
+    "dbCalls": [
+      "db.financialPeriod",
+      "db.journalEntry",
+      "db.chartOfAccount",
+      "db.branch"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 11626
+  },
+  "fixed-deposits-report.ts": {
+    "dbCalls": [
+      "db.branch",
+      "db.fixedDeposit"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 34949
+  },
+  "generators\\dormant-accounts.ts": {
+    "dbCalls": [
+      "db.savingsAccount"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 3841
+  },
+  "generators\\interest-paid-report.ts": {
+    "dbCalls": [
+      "db.savingsTransaction"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 3760
+  },
+  "generators\\manager-dashboard-stats.ts": {
+    "dbCalls": [
+      "db.savingsAccount",
+      "db.shareAccount",
+      "db.member"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 2629
+  },
+  "generators\\member-statement-pdf.ts": {
+    "dbCalls": [],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 5711
+  },
+  "generators\\on-hold-closed-status.ts": {
+    "dbCalls": [
+      "db.savingsAccount"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 3398
+  },
+  "generators\\overdrawn-accounts.ts": {
+    "dbCalls": [
+      "db.savingsAccount"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 3010
+  },
+  "generators\\savings-account-balance.ts": {
+    "dbCalls": [
+      "db.savingsAccount"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 4683
+  },
+  "generators\\savings-account-listing.ts": {
+    "dbCalls": [
+      "db.savingsAccount"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 3591
+  },
+  "generators\\savings-account-statement.ts": {
+    "dbCalls": [
+      "db.account"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 18713
+  },
+  "generators\\savings-batch-totals.ts": {
+    "dbCalls": [
+      "db.transactionBatch",
+      "db.savingsTransaction"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 11498
+  },
+  "generators\\savings-transactions.ts": {
+    "dbCalls": [
+      "db.savingsTransaction"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 4051
+  },
+  "generators\\share-account-balance.ts": {
+    "dbCalls": [
+      "db.shareAccount"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 4256
+  },
+  "generators\\share-account-listing.ts": {
+    "dbCalls": [
+      "db.shareAccount"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 2720
+  },
+  "generators\\share-account-statement.ts": {
+    "dbCalls": [
+      "db.shareAccount"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 4806
+  },
+  "generators\\share-batch-totals.ts": {
+    "dbCalls": [
+      "db.transactionBatch"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 3178
+  },
+  "generators\\share-concentration.ts": {
+    "dbCalls": [
+      "db.shareAccount"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 1917
+  },
+  "generators\\share-on-hold-closed.ts": {
+    "dbCalls": [
+      "db.shareAccount"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 3331
+  },
+  "generators\\top-bottom-savers.ts": {
+    "dbCalls": [
+      "db.savingsAccount"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 4540
+  },
+  "generators\\top-bottom-shareholders.ts": {
+    "dbCalls": [
+      "db.shareAccount"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 2256
+  },
+  "generators\\zero-balance-accounts.ts": {
+    "dbCalls": [
+      "db.savingsAccount"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 2787
+  },
+  "income-expense-report.ts": {
+    "dbCalls": [
+      "db.branch",
+      "db.journalEntry",
+      "db.chartOfAccount"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 20039
+  },
+  "interest-exposure-report.ts": {
+    "dbCalls": [
+      "db.branch",
+      "db.fixedDeposit"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 16849
+  },
+  "member-ledger-utils.ts": {
+    "dbCalls": [],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 4305
+  },
+  "performance-monitoring-report.ts": {
+    "dbCalls": [
+      "db.member",
+      "db.branch",
+      "db.loan",
+      "db.savingsAccount",
+      "db.shareAccount",
+      "db.loanRepayment",
+      "db.loanWriteOff"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 35434
+  },
+  "personal-ledger-report.ts": {
+    "dbCalls": [
+      "db.savingsTransaction",
+      "db.shareTransaction",
+      "db.loanLedgerTransaction",
+      "db.member",
+      "db.savingsAccount",
+      "db.shareAccount",
+      "db.fixedDeposit"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 41183
+  },
+  "profit-loss-report.ts": {
+    "dbCalls": [
+      "db.financialPeriod",
+      "db.budgetCategory",
+      "db.incomeRecord",
+      "db.expenditureRecord"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 24180
+  },
+  "query-builder.ts": {
+    "dbCalls": [],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 3621
+  },
+  "report-pdf.ts": {
+    "dbCalls": [],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 1909
+  },
+  "sacco-internal-control-checklist-report.ts": {
+    "dbCalls": [
+      "db.branch",
+      "db.auditLog"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 6762
+  },
+  "savings-listing-report.ts": {
+    "dbCalls": [
+      "db.account",
+      "db.chartOfAccount",
+      "db.branch"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 22474
+  },
+  "savings-transactions-report.ts": {
+    "dbCalls": [
+      "db.savingsTransaction",
+      "db.transaction",
+      "db.savingsAccount"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 40350
+  },
+  "share-account-statement-report.ts": {
+    "dbCalls": [
+      "db.shareAccount",
+      "db.chartOfAccount"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 25550
+  },
+  "share-concentration-report.ts": {
+    "dbCalls": [
+      "db.branch",
+      "db.shareAccount",
+      "db.shareTransaction"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 18214
+  },
+  "share-movement-reports.ts": {
+    "dbCalls": [
+      "db.shareAccount",
+      "db.shareTransaction"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 24022
+  },
+  "share-portfolio-reports.ts": {
+    "dbCalls": [
+      "db.branch",
+      "db.shareAccount",
+      "db.shareTransaction"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 22492
+  },
+  "statement-of-comprehensive-balance-sheet.ts": {
+    "dbCalls": [
+      "db.journalEntry",
+      "db.chartOfAccount",
+      "db.branch",
+      "db.financialPeriod"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 16237
+  },
+  "top-bottom-savers-report.ts": {
+    "dbCalls": [
+      "db.savingsAccount",
+      "db.shareAccount"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 19972
+  },
+  "transaction-journal-reports.ts": {
+    "dbCalls": [
+      "db.branch",
+      "db.journalEntry",
+      "db.transactionSession",
+      "db.user",
+      "db.transaction"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 49158
+  },
+  "trial-balance-report.ts": {
+    "dbCalls": [
+      "db.branch",
+      "db.journalEntry",
+      "db.chartOfAccount"
+    ],
+    "mockReferences": 0,
+    "dummyReferences": 0,
+    "size": 14011
+  }
+}

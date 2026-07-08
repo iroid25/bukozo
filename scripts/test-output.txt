@@ -1,0 +1,56 @@
+[dotenv@17.3.1] injecting env (23) from .env -- tip: ⚙️  override existing env vars with { override: true }
+🔧 MTN MoMo Sandbox Integration Test
+=====================================
+
+=== Testing Collections ===
+API User: f78db82c-9493-4522-b569-14cf88f6620a
+Sub Key: 1bf2a7b0...
+
+1. Getting Collections token...
+✅ Token acquired: eyJ0eXAiOiJKV1QiLCJh...
+
+2. Sending Request to Pay...
+✅ Request to Pay submitted. Reference: 1414eb04-5e32-4068-bf1a-a0cd91174dd3
+
+3. Checking transaction status...
+✅ Transaction status: PENDING
+   Full response: {
+  "externalId": "TEST-001",
+  "amount": "1000",
+  "currency": "EUR",
+  "payer": {
+    "partyIdType": "MSISDN",
+    "partyId": "46733123453"
+  },
+  "payerMessage": "Test payment from SACCO",
+  "payeeNote": "Sandbox test",
+  "status": "PENDING"
+}
+
+=== Testing Disbursements ===
+API User: c7468a8f-bfe7-4c76-8854-94cf5b2dce4a
+Sub Key: dbc7dd63...
+
+1. Getting Disbursements token...
+✅ Token acquired: eyJ0eXAiOiJKV1QiLCJh...
+
+2. Sending Transfer...
+✅ Transfer submitted. Reference: 0a531934-783a-4827-a8cd-b46498e7e1d0
+
+3. Checking transfer status...
+✅ Transfer status: PENDING
+   Full response: {
+  "amount": "500",
+  "currency": "EUR",
+  "externalId": "TEST-DISB-001",
+  "payee": {
+    "partyIdType": "MSISDN",
+    "partyId": "46733123453"
+  },
+  "payerMessage": "Test disbursement from SACCO",
+  "payeeNote": "Sandbox test",
+  "status": "PENDING"
+}
+
+=====================================
+🏁 Test complete!

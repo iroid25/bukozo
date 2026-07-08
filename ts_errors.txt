@@ -1,0 +1,4 @@
+services/loan.service.ts(1697,38): error TS2352: Conversion of type 'string | number | boolean | JsonObject | JsonArray | null' to type 'PenaltyTier[]' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type 'JsonArray' is not comparable to type 'PenaltyTier[]'.
+    Type 'JsonValue' is not comparable to type 'PenaltyTier'.
+      Type 'JsonValue[]' is missing the following properties from type 'PenaltyTier': minDays, maxDays, penaltyRate

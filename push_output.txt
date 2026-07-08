@@ -1,0 +1,26 @@
+warn The configuration property `package.json#prisma` is deprecated and will be removed in Prisma 7. Please migrate to a Prisma config file (e.g., `prisma.config.ts`).
+For more information, see: https://pris.ly/prisma-config
+
+Environment variables loaded from .env
+Prisma schema loaded from prisma\schema.prisma
+Datasource "db": PostgreSQL database "neondb", schema "public" at "ep-delicate-sound-ahzx25zg-pooler.c-3.us-east-1.aws.neon.tech"
+
+⚠️  There might be data loss when applying the changes:
+
+  • The `details` column on the `AuditLog` table would be dropped and recreated. This will lead to data loss.
+
+  • A unique constraint covering the columns `[transactionId]` on the table `LoanRepayment` will be added. If there are existing duplicate values, this will fail.
+
+
+
+Your database is now in sync with your Prisma schema. Done in 19.70s
+
+Running generate... (Use --skip-generate to skip the generators)
+[2K[1A[2K[GRunning generate... - Prisma Client
+[2K[1A[2K[GEPERM: operation not permitted, rename 'D:\anti gravv\mm intergration 
+buttsac\butsacco-dec-2\node_modules\.pnpm\@prisma+client@6.19.1_prisma@6.19.1_ty
+pescript@5.7.3__typescript@5.7.3\node_modules\.prisma\client\query_engine-window
+s.dll.node.tmp33652' -> 'D:\anti gravv\mm intergration buttsac\butsacco-dec-2\no
+de_modules\.pnpm\@prisma+client@6.19.1_prisma@6.19.1_typescript@5.7.3__typescrip
+t@5.7.3\node_modules\.prisma\client\query_engine-windows.dll.node'
+

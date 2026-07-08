@@ -1,0 +1,2252 @@
+// =====================
+// Prisma Schema
+// =====================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =====================
+// Enums
+// =====================
+
+enum UserRole {
+  ADMIN
+  BRANCH_MANAGER
+  TELLER
+  AGENT
+  MEMBER
+  ACCOUNTANT
+  LOAN_OFFICER
+  INSTITUTION
+  AUDITOR
+}
+
+enum AccountStatus {
+  ACTIVE
+  INACTIVE
+  CLOSED
+  SUSPENDED
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  LOAN_DISBURSEMENT
+  LOAN_REPAYMENT
+  FLOAT_ALLOCATION
+  FLOAT_PURCHASE
+  FLOAT_RECONCILIATION
+  FEE
+  OTHER
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  APPROVED
+  FAILED
+  REVERSED
+}
+
+enum LoanStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  UNDER_REVIEW
+  DISBURSED
+  REPAID
+  OVERDUE
+  WRITTEN_OFF
+}
+
+enum NotificationType {
+  EMAIL
+  SMS
+  IN_APP
+}
+
+enum LogType {
+  SYSTEM
+  USER_ACTION
+  SECURITY
+  ERROR
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum MaritalStatus {
+  SINGLE
+  MARRIED
+  DIVORCED
+  WIDOWED
+  SEPARATED
+  OTHER
+}
+
+enum OtherSaccosCount {
+  NONE
+  ONE
+  MANY
+}
+
+enum FinancialDiscipline {
+  EXCELLENT
+  NORMAL
+  WANTING
+}
+
+enum ReconciliationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  UNDER_REVIEW
+}
+
+enum ReconciliationType {
+  REGULAR
+  START_OF_DAY
+  END_OF_DAY
+}
+
+enum LoanStage {
+  DRAFT
+  SUBMITTED
+  IN_ANALYSIS
+  FORWARDED_TO_MANAGER
+  APPROVED
+  REJECTED
+  DISBURSED
+  CLOSED
+}
+
+enum CategoryKind {
+  INCOME
+  EXPENSE
+}
+
+enum PaymentMethod {
+  CASH
+  BANK
+  MOBILE_MONEY
+  OTHER
+}
+
+enum RecognitionBasis {
+  CASH
+  ACCRUAL
+  DEDUCTION
+}
+
+enum VaultTransactionType {
+  INITIAL_DEPOSIT
+  FLOAT_ALLOCATION
+  FLOAT_RETURN
+  BANK_DEPOSIT
+  BANK_WITHDRAWAL
+  VAULT_TRANSFER
+  ADJUSTMENT
+  OVERAGE_RECEIVED
+  SHORTAGE_WRITTEN_OFF
+}
+
+// =====================
+// Core Models
+// =====================
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id              String    @id @default(cuid())
+  name            String
+  firstName       String
+  lastName        String
+  phone           String?   @unique
+  email           String    @unique
+  dateOfBirth     DateTime?
+  address         String?
+  nationalId      String?   @unique
+  lastLogin       DateTime?
+  isActive        Boolean   @default(true)
+  emailVerified   DateTime?
+  image           String?
+  jobTitle        String?
+  areaOfOperation String?
+  role            UserRole  @default(MEMBER)
+  password        String?
+
+  sessions  Session[]
+  auditLogs AuditLog[]
+
+  branchId String?
+  branch   Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  loanWriteOffsRequested LoanWriteOff[] @relation("WriteOffRequestedBy")
+  loanWriteOffsApproved  LoanWriteOff[] @relation("WriteOffApprovedBy")
+
+  notifications           Notification[]
+  approvedReconciliations FloatReconciliation[] @relation("ReconciliationApprover")
+
+  userFloat   UserFloat?
+  deposits    Deposit[]    @relation("DepositHandler")
+  withdrawals Withdrawal[] @relation("WithdrawalHandler")
+
+  loanDisbursements       Loan[]            @relation("LoanDisburser")
+  loanApplications        LoanApplication[] @relation("LoanApplicant")
+  loanApprovals           LoanApplication[] @relation("LoanApprover")
+  allocatedTellerLoans    LoanApplication[] @relation("LoanAllocatedTeller")
+  loanOfficerApplications LoanApplication[] @relation("LoanOfficer")
+  loanRepayments          LoanRepayment[]   @relation("RepaymentHandler")
+  allocatedLoans          Loan[]            @relation("LoanManager")
+
+  loanRepaymentRequests LoanRepaymentRequest[] @relation("RepaymentRequestedBy")
+
+  member                      Member?
+  institution                 Institution?
+  isVerified                  Boolean                  @default(false)
+  token                       String?
+  createdAt                   DateTime                 @default(now())
+  updatedAt                   DateTime                 @updatedAt
+  transactions                Transaction[]
+  floatTransactions           FloatTransaction[]       @relation("AgentFloat")
+  floatAllocationsAsTeller    FloatAllocation[]        @relation("TellerAgent")
+  floatAllocationsAsAllocator FloatAllocation[]        @relation("Allocator")
+  floatReconciliation         FloatReconciliation[]
+  statements                  Statement[]
+  withdrawalVerifications     WithdrawalVerification[] @relation("WithdrawalVerificationHandler")
+
+  expendituresSubmitted ExpenditureRecord[] @relation("ExpSubmittedBy")
+  expendituresApproved  ExpenditureRecord[] @relation("ExpApprovedBy")
+  incomeRecordsReceived IncomeRecord[]      @relation("IncomeRecordReceivedBy")
+
+  vaultsCustodian              Vault[]               @relation("VaultCustodian")
+  vaultTransactionsPerformed   VaultTransaction[]    @relation("VaultTransactionPerformedBy")
+  vaultTransactionsRelated     VaultTransaction[]    @relation("VaultTransactionUser")
+  vaultReconciliations         VaultReconciliation[] @relation("VaultReconciler")
+  vaultReconciliationsApproved VaultReconciliation[] @relation("VaultReconciliationApprover")
+
+  // Suspense Account Relations
+  suspenseTransactionsPerformed SuspenseTransaction[] @relation("SuspenseTransactionPerformedBy")
+  suspenseTransactionsResolved  SuspenseTransaction[] @relation("SuspenseTransactionResolver")
+
+  // Cash Shortage Relations
+  cashShortagesReported CashShortage[] @relation("ShortageReporter")
+  cashShortagesOwned    CashShortage[] @relation("ShortageUser")
+  cashShortagesResolved CashShortage[] @relation("ShortageResolver")
+
+  // Insurance Relations
+  insuranceContributions InsuranceContribution[]
+  JournalEntry           JournalEntry[]
+  AccountTransaction     AccountTransaction[]
+
+  // Extended Account Relations (Manager Reports)
+  savingsTransactions     SavingsTransaction[]  @relation("SavingsTeller")
+  shareTransactions       ShareTransaction[]    @relation("ShareTeller")
+
+  // Batch & Session Relations (Manager Reports)
+  batchesProcessed        TransactionBatch[]    @relation("BatchProcessor")
+  batchesApproved         TransactionBatch[]    @relation("BatchApprover")
+  tellerSessions          TransactionSession[]  @relation("SessionTeller")
+
+  // Fixed Asset Relations (Manager Reports)
+  assetsResponsible       FixedAsset[]          @relation("AssetResponsible")
+
+  // Standing Order Relations (Manager Reports)
+  standingOrdersCreated   StandingOrder[]       @relation("StandingOrderCreator")
+
+  // Customer Feedback Relations (Manager Reports)
+  feedbackAssigned        CustomerFeedback[]    @relation("FeedbackAssignee")
+  feedbackResolved        CustomerFeedback[]    @relation("FeedbackResolver")
+}
+
+// Replace your existing Branch model with this complete version
+
+model Branch {
+  id            String   @id @default(cuid())
+  name          String   @unique
+  location      String
+  contactPerson String?
+  contactPhone  String?
+  email         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  users              User[]
+  accounts           Account[]
+  loans              Loan[]
+  floatAllocations   FloatAllocation[]
+  incomeRecords      IncomeRecord[]
+  expenditureRecords ExpenditureRecord[]
+  vaults             Vault[]
+  budgets            Budget[]
+  suspenseAccounts   SuspenseAccount[]
+
+  // Extended Account Relations (Manager Reports)
+  savingsAccounts     SavingsAccount[]
+  shareAccounts       ShareAccount[]
+  fixedDeposits       FixedDeposit[]
+
+  // Session Relations (Manager Reports)
+  tellerSessions      TransactionSession[]
+
+  // Fixed Asset Relations (Manager Reports)
+  fixedAssets         FixedAsset[]
+
+  @@index([name])
+}
+
+// =====================
+// Institution
+// =====================
+
+// model Institution {
+//   id                 String   @id @default(cuid())
+//   userId             String   @unique
+//   user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+//   institutionNumber  String   @unique
+//   registrationDate   DateTime @default(now())
+//   isApproved         Boolean  @default(false)
+
+//   institutionName        String
+//   institutionType        String
+//   registrationNumber     String?
+//   tinNumber              String?
+
+//   legalStatus            String?
+//   yearEstablished        Int?
+//   businessSector         String?
+//   numberOfEmployees      Int?
+//   majorObjective         String?
+//   majorActivities        String?
+//   founderNames           String?
+
+//  accounts               Account[]
+//   plotNumber       String?
+//   street           String?
+//   village          String?
+//   parish           String?
+//   subCounty        String?
+//   constituency     String?
+//   town             String?
+//   district         String?
+//   postalAddress    String?
+
+//   primaryContactPerson  String
+//   primaryContactTitle   String?
+//   primaryContactPhone   String
+//   primaryContactEmail   String?
+//   institutionPhone      String
+//   institutionEmail      String
+
+//   bankName              String?
+//   bankAccountNumber     String?
+
+//   accountTitle          String?
+//   accountType           String?
+//   operatingInstructions String?
+//   signatoryChangeRules  String?
+
+//   administrators        Json?
+
+//   entryFee              Float?
+//   initialDeposit        Float?
+
+//   approvalDate          DateTime?
+//   rejectionReason       String?
+//   approvedBySignature   String?
+//   cashierSignature      String?
+//   officialStamp         String?
+
+//   registrationCertPath  String?
+//   lcRecommendationPath  String?
+//   minutesPath           String?
+//   bylawsPath            String?
+//   additionalDocs        String[]
+
+//   withdrawals         Withdrawal[] 
+
+//   // accounts              Account[]
+//   transactions          Transaction[] @relation("InstitutionTransactions")
+// deposits              Deposit[]     @relation("InstitutionDeposits")  // ✅ ADD THIS LINE
+//   createdAt             DateTime @default(now())
+//   updatedAt             DateTime @updatedAt
+
+//   @@index([institutionNumber])
+//   @@index([registrationDate])
+//   @@index([userId])
+// }
+
+// =====================
+// Vault Models
+// =====================
+
+model Vault {
+  id           String    @id @default(cuid())
+  name         String    @unique
+  branchId     String?
+  branch       Branch?   @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  balance      Float     @default(0)
+  physicalCash Float     @default(0)
+  lastVerified DateTime?
+  isActive     Boolean   @default(true)
+  location     String?
+
+  custodianUserId String?
+  custodian       User?   @relation("VaultCustodian", fields: [custodianUserId], references: [id], onDelete: SetNull)
+
+  vaultTransactions    VaultTransaction[]
+  vaultReconciliations VaultReconciliation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([branchId])
+  @@index([isActive])
+}
+
+model VaultTransaction {
+  id              String               @id @default(cuid())
+  vaultId         String
+  vault           Vault                @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  type            VaultTransactionType
+  amount          Float
+  balanceBefore   Float
+  balanceAfter    Float
+  transactionDate DateTime             @default(now())
+  description     String?
+
+  relatedFloatAllocationId     String?
+  relatedFloatReconciliationId String?
+  relatedUserId                String?
+  relatedUser                  User?   @relation("VaultTransactionUser", fields: [relatedUserId], references: [id], onDelete: SetNull)
+
+  performedByUserId String
+  performedBy       User   @relation("VaultTransactionPerformedBy", fields: [performedByUserId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([vaultId])
+  @@index([type])
+  @@index([transactionDate])
+}
+
+model VaultReconciliation {
+  id                 String   @id @default(cuid())
+  vaultId            String
+  vault              Vault    @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  reconciliationDate DateTime @default(now())
+
+  systemBalance Float
+  physicalCash  Float
+  difference    Float
+  isBalanced    Boolean
+
+  reconciledByUserId String
+  reconciledBy       User   @relation("VaultReconciler", fields: [reconciledByUserId], references: [id], onDelete: Cascade)
+
+  status           ReconciliationStatus @default(PENDING)
+  approvedByUserId String?
+  approvedBy       User?                @relation("VaultReconciliationApprover", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  approvalDate     DateTime?
+
+  notes String?
+
+  @@index([vaultId])
+  @@index([reconciliationDate])
+  @@index([status])
+}
+
+// =====================
+// Notification & Audit
+// =====================
+
+model Notification {
+  id            String           @id @default(cuid())
+  userId        String?
+  user          User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  type          NotificationType
+  subject       String?
+  message       String
+  sentAt        DateTime         @default(now())
+  isRead        Boolean          @default(false)
+  targetAddress String?
+  status        String?
+
+  @@index([userId])
+  @@index([type])
+  @@index([sentAt])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action     String
+  entityType String
+  entityId   String?
+  oldValue   Json?
+  newValue   Json?
+  timestamp  DateTime @default(now())
+  ipAddress  String?
+  browser    String?
+  os         String?
+  details    String?
+
+  @@index([userId])
+  @@index([entityType])
+  @@index([timestamp])
+}
+
+model ApiKey {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  name      String
+  createdAt DateTime @default(now())
+}
+
+// =====================
+// Member Models
+// =====================
+
+model Member {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  memberNumber     String   @unique
+  registrationDate DateTime @default(now())
+  isApproved       Boolean  @default(false)
+
+  surname       String?
+  otherNames    String?
+  age           Int?
+  gender        Gender?
+  maritalStatus MaritalStatus?
+  maritalOther  String?
+
+  nokName            String?
+  nokRelationship    String?
+  nokPhone           String?
+  numberOfChildren   Int?
+  numberOfDependants Int?
+
+  levelOfEducation           String?
+  citizenship                String?
+  occupation                 String?
+  otherFinancialInstitutions String?
+  fatherName                 String?
+  motherName                 String?
+
+  village       String?
+  parish        String?
+  subCounty     String?
+  constituency  String?
+  town          String?
+  district      String?
+  postalAddress String?
+
+  nin      String?
+  typeOfId String?
+
+  certifiedBy        String?
+  certifierAccountNo String?
+  certifierPhone     String?
+  certifierSignature String?
+  certificationDate  DateTime?
+
+  withdrawalInstructions String?
+
+  applicantOccupationLC String?
+  designationLC         String?
+  locationLC            String?
+  otherSaccosCount      OtherSaccosCount?
+  financialDiscipline   FinancialDiscipline?
+  recommenderName       String?
+  recommenderTitle      String?
+  recommenderPhone      String?
+  recommenderSignature  String?
+  recommendationDate    DateTime?
+
+  entryFee           Float?
+  initialSavings     Float?
+  nominee            String?
+  applicantSignature String?
+
+  approvalDate         DateTime?
+  rejectionReason      String?
+  savingsAccountNumber String?
+  managerSignature     String?
+  cashierSignature     String?
+  officialStamp        String?
+
+  passportPhoto  String?
+  idCopyPath     String?
+  additionalDocs String[]
+
+  accounts                Account[]
+  loanApplications        LoanApplication[]        @relation("MemberLoanApplications")
+  loanRepayments          LoanRepayment[]          @relation("MemberLoanRepayments")
+  transactions            Transaction[]            @relation("MemberTransactions")
+  statements              Statement[]
+  deposits                Deposit[]                @relation("MemberDeposits")
+  withdrawals             Withdrawal[]             @relation("MemberWithdrawals")
+  loans                   Loan[]
+  withdrawalVerifications WithdrawalVerification[]
+  loanAppeals             LoanAppeal[]             @relation("MemberLoanAppeals")
+  incomeRecords           IncomeRecord[]           @relation("MemberIncomeRecords")
+
+  // Insurance Relations
+  insuranceContributions InsuranceContribution[]
+
+  // ✅ ADD THIS LINE (without @relation name)
+  loanRepaymentRequests LoanRepaymentRequest[]
+
+  // Extended Account Relations (Manager Reports)
+  savingsAccounts         SavingsAccount[]
+  shareAccounts           ShareAccount[]
+  fixedDeposits           FixedDeposit[]
+
+  // SMS & Feedback Relations (Manager Reports)
+  smsLogs                 SmsLog[]
+  customerFeedback        CustomerFeedback[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([memberNumber])
+  @@index([registrationDate])
+  @@index([userId])
+}
+
+// =====================
+// Account Modelsx`x`x`
+// =====================
+
+model AccountType {
+  id             String  @id @default(cuid())
+  name           String  @unique
+  interestRate   Float   @default(0)
+  interestPeriod String  @default("MONTHLY")
+  minBalance     Float   @default(0)
+  isDefault      Boolean @default(false)
+  maxWithdrawal  Float?
+  isLoanEligible Boolean @default(true)
+
+  monthlyCharge               Float?
+  withdrawalFeeTiers          String?
+  flatWithdrawalFee           Float?
+  withdrawalFrequencyDays     Int?
+  maxWithdrawalsPerDay        Int?
+  hasFixedPeriod              Boolean @default(false)
+  fixedPeriodMonths           Int?
+  maturityTransferAccountType String?
+  isShareAccount              Boolean @default(false)
+  canWithdraw                 Boolean @default(true)
+  earnsDividends              Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  accounts Account[]
+
+  @@index([name])
+}
+
+model Account {
+  id            String @id @default(cuid())
+  accountNumber String @unique
+
+  memberId String?
+  member   Member? @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  institutionId String?
+  institution   Institution? @relation(fields: [institutionId], references: [id], onDelete: SetNull)
+
+  accountTypeId String
+  accountType   AccountType   @relation(fields: [accountTypeId], references: [id], onDelete: Cascade)
+  balance       Float         @default(0)
+  status        AccountStatus @default(ACTIVE)
+  openedAt      DateTime      @default(now())
+  closedAt      DateTime?
+  branchId      String
+  branch        Branch        @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  transactions            Transaction[]
+  deposits                Deposit[]
+  withdrawals             Withdrawal[]
+  withdrawalVerifications WithdrawalVerification[]
+  incomeRecords           IncomeRecord[]           @relation("AccountIncomeRecords")
+
+  // Insurance Relations
+  insuranceContributions InsuranceContribution[]
+
+  loanRepaymentRequests LoanRepaymentRequest[]
+
+  @@index([accountNumber])
+  @@index([memberId])
+  @@index([institutionId])
+  @@index([accountTypeId])
+  @@index([branchId])
+}
+
+// =====================
+// Transaction Models
+// =====================
+
+model Transaction {
+  id                   String            @id @default(cuid())
+  transactionRef       String            @unique
+  memberId             String?           @map("sourceMemberId")
+  member               Member?           @relation("MemberTransactions", fields: [memberId], references: [id], onDelete: Cascade)
+  accountId            String            @map("targetAccountId")
+  account              Account           @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  type                 TransactionType
+  amount               Float             @default(0)
+  currency             String            @default("UGX")
+  exchangeRate         Float             @default(1.0)
+  status               TransactionStatus @default(PENDING)
+  description          String?
+  transactionDate      DateTime          @default(now())
+  valueDate            DateTime?
+  processedByUserId    String?
+  processedByUser      User?             @relation(fields: [processedByUserId], references: [id], onDelete: SetNull)
+  branchId             String?
+  customerId           String?
+  loanId               String?
+  scheduleId           String?
+  paymentMethod        String?
+  paymentReference     String?
+  notes                String?
+  relatedTransactionId String?
+  externalReference    String?
+  channel              String?
+
+  institutionId String?
+  institution   Institution? @relation("InstitutionTransactions", fields: [institutionId], references: [id], onDelete: SetNull)
+
+  deposit    Deposit?
+  withdrawal Withdrawal?
+
+  // Chart of Accounts relations
+  debitAccountId      String?
+  debitAccount        ChartOfAccount?      @relation("TransactionDebit", fields: [debitAccountId], references: [id], onDelete: SetNull)
+  creditAccountId     String?
+  creditAccount       ChartOfAccount?      @relation("TransactionCredit", fields: [creditAccountId], references: [id], onDelete: SetNull)
+  journalEntries      JournalEntry[]
+  accountTransactions AccountTransaction[]
+
+  @@index([memberId])
+  @@index([accountId])
+  @@index([type])
+  @@index([transactionDate])
+  @@index([status])
+  @@index([institutionId])
+}
+
+model Deposit {
+  id            String      @id @default(cuid())
+  transactionId String      @unique
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+
+  institutionId  String?
+  institution    Institution? @relation("InstitutionDeposits", fields: [institutionId], references: [id], onDelete: Cascade)
+  memberId       String?
+  member         Member?      @relation("MemberDeposits", fields: [memberId], references: [id], onDelete: Cascade)
+  accountId      String
+  account        Account      @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  amount         Float
+  depositDate    DateTime     @default(now())
+  handlerUserId  String
+  handler        User         @relation("DepositHandler", fields: [handlerUserId], references: [id], onDelete: Cascade)
+  channel        String
+  mobileMoneyRef String?
+
+  depositorName String? // Name of person bringing the money
+
+  @@index([memberId])
+  @@index([handlerUserId])
+}
+
+model Withdrawal {
+  id            String      @id @default(cuid())
+  transactionId String      @unique
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+
+  memberId String?
+  member   Member? @relation("MemberWithdrawals", fields: [memberId], references: [id], onDelete: Cascade)
+
+  institutionId String?
+  institution   Institution? @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+
+  accountId String
+  account   Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  amount         Float
+  withdrawalDate DateTime @default(now())
+
+  handlerUserId String
+  handler       User   @relation("WithdrawalHandler", fields: [handlerUserId], references: [id], onDelete: Cascade)
+
+  channel        String
+  mobileMoneyRef String?
+
+  @@index([memberId])
+  @@index([institutionId])
+  @@index([handlerUserId])
+}
+
+model WithdrawalVerification {
+  id               String   @id @default(cuid())
+  memberId         String
+  member           Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  accountId        String
+  account          Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  amount           Float
+  channel          String
+  mobileMoneyRef   String?
+  description      String?
+  verificationCode String
+  handlerUserId    String
+  handler          User     @relation("WithdrawalVerificationHandler", fields: [handlerUserId], references: [id], onDelete: Cascade)
+  expiresAt        DateTime
+  emailSent        Boolean  @default(false)
+  smsSent          Boolean  @default(false)
+  isUsed           Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([memberId])
+  @@index([accountId])
+  @@index([handlerUserId])
+  @@index([verificationCode])
+  @@index([expiresAt])
+  @@index([isUsed])
+}
+
+// =====================
+// Loan Models
+// =====================
+
+model LoanProduct {
+  id                  String   @id @default(cuid())
+  name                String   @unique
+  minAmount           Float
+  maxAmount           Float
+  interestRate        Float
+  repaymentPeriodDays Int
+  description         String?
+  isActive            Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  loanApplications            LoanApplication[]
+  institutionLoanApplications InstitutionLoanApplication[]
+
+  @@index([name])
+}
+
+model LoanApplication {
+  id            String      @id @default(cuid())
+  loanProductId String
+  loanProduct   LoanProduct @relation(fields: [loanProductId], references: [id], onDelete: Cascade)
+  memberId      String
+  loanOfficerId String?
+  loanOfficer   User?       @relation("LoanOfficer", fields: [loanOfficerId], references: [id], onDelete: SetNull)
+  member        Member      @relation("MemberLoanApplications", fields: [memberId], references: [id], onDelete: Cascade)
+
+  amountApplied   Float
+  applicationDate DateTime   @default(now())
+  status          LoanStatus @default(PENDING)
+  stage           LoanStage  @default(DRAFT)
+  purpose         String?
+
+  applicantId       String?
+  applicant         User?   @relation("LoanApplicant", fields: [applicantId], references: [id], onDelete: SetNull)
+  approverId        String?
+  approver          User?   @relation("LoanApprover", fields: [approverId], references: [id], onDelete: SetNull)
+  allocatedTellerId String?
+  allocatedTeller   User?   @relation("LoanAllocatedTeller", fields: [allocatedTellerId], references: [id], onDelete: SetNull)
+
+  employer           String?
+  employmentStatus   String?
+  grossMonthlyIncome Float?
+  netMonthlyIncome   Float?
+
+  repaymentPeriodMonths Int?
+  repaymentStartDate    DateTime?
+  modeOfRepayment       String?
+  collateralOffered     String?
+
+  guarantors Json?
+
+  appraisalScore       Float?
+  debtToIncomeRatio    Float?
+  recommendedAmount    Float?
+  interestRateOverride Float?
+  decisionNotes        String?
+  disbursementMethod   String?
+
+  approvalDate    DateTime?
+  approvedAmount  Float?
+  rejectionReason String?
+
+  forwardedAt  DateTime?
+  inAnalysisAt DateTime?
+  submittedAt  DateTime?
+  disbursedAt  DateTime?
+
+  // Deduction Fields
+  applyLoanProcessingFee      Boolean? @default(false)
+  loanProcessingFeePercentage Float?
+  applyLoanInsurance          Boolean? @default(false)
+  loanInsurancePercentage     Float?
+  applyShareDeduction         Boolean? @default(false)
+  shareAmount                 Float?
+
+  // Collateral Fields
+  collateralType     String?
+  collateralValue    Float?
+  forcedSaleValue    Float?
+  collateralLocation String?
+  collateralDetails  String?
+
+  // Financial Obligation Fields
+  hasExistingLoanWithSacco      Boolean? @default(false)
+  existingLoanBalance           Float?
+  hasOtherLoansWithInstitutions Boolean? @default(false)
+  otherLoanInstitutionName      String?
+  otherLoanBalance              Float?
+  otherLoanMonthlyInstallment   Float?
+  otherMonthlyObligations       String?
+
+  // Bank & Payment Fields
+  bankName          String?
+  bankBranch        String?
+  bankAccountNumber String?
+  mobileMoneyNumber String?
+
+  // Declaration Fields
+  applicantDeclaration       Boolean?  @default(false)
+  applicantSignature         String?
+  applicantSignatureDate     DateTime?
+  guarantorAgreementAccepted Boolean?  @default(false)
+  guarantorSignatureDate     DateTime?
+
+  loan    Loan?
+  appeals LoanAppeal[]
+
+  // Insurance Relations
+  insuranceContributions InsuranceContribution[]
+
+  @@index([memberId])
+  @@index([loanProductId])
+  @@index([status])
+  @@index([stage])
+}
+
+model Loan {
+  id                 String          @id @default(cuid())
+  loanApplicationId  String          @unique
+  loanApplication    LoanApplication @relation(fields: [loanApplicationId], references: [id], onDelete: Cascade)
+  memberId           String
+  member             Member          @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  amountGranted      Float
+  interestAmount     Float?
+  interestRate       Float
+  totalAmountDue     Float
+  amountPaid         Float           @default(0)
+  allocatedTellerId  String?
+  allocatedTeller    User?           @relation("LoanManager", fields: [allocatedTellerId], references: [id], onDelete: SetNull)
+  outstandingBalance Float
+  disbursementDate   DateTime        @default(now())
+  dueDate            DateTime
+  status             LoanStatus      @default(DISBURSED)
+  disbursedByUserId  String
+  disbursedByUser    User            @relation("LoanDisburser", fields: [disbursedByUserId], references: [id], onDelete: Cascade)
+  disbursementMethod String?
+  repayments         LoanRepayment[]
+
+  repaymentRequests LoanRepaymentRequest[]
+  writeOffs         LoanWriteOff[]
+  branchId          String?
+  branch            Branch?                @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  isRescheduled     Boolean                @default(false)
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  @@index([memberId])
+  @@index([status])
+  @@index([disbursementDate])
+}
+
+model LoanRepayment {
+  id             String   @id @default(cuid())
+  loanId         String
+  loan           Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  memberId       String
+  member         Member   @relation("MemberLoanRepayments", fields: [memberId], references: [id], onDelete: Cascade)
+  amount         Float
+  repaymentDate  DateTime @default(now())
+  handlerUserId  String
+  handler        User     @relation("RepaymentHandler", fields: [handlerUserId], references: [id], onDelete: Cascade)
+  channel        String
+  mobileMoneyRef String?
+
+  @@index([loanId])
+  @@index([memberId])
+  @@index([repaymentDate])
+}
+
+model LoanAppeal {
+  id            String          @id @default(cuid())
+  applicationId String
+  application   LoanApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  memberId String
+  member   Member @relation("MemberLoanAppeals", fields: [memberId], references: [id], onDelete: Cascade)
+
+  reason        String
+  submittedAt   DateTime @default(now())
+  status        String   @default("PENDING")
+  reviewerNotes String?
+}
+
+// =====================
+// Float Management Models
+// =====================
+
+model UserFloat {
+  id                 String    @id @default(cuid())
+  userId             String    @unique
+  balance            Float     @default(0)
+  lastReconciliation DateTime?
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  floatTransactions   FloatTransaction[]
+  floatReconciliation FloatReconciliation[]
+
+  currentDayStarted     DateTime?
+  isActiveForDay        Boolean   @default(false)
+  lastDayReconciled     DateTime?
+  canStartNewDay        Boolean   @default(true)
+  pendingReconciliation Boolean   @default(false)
+
+  @@index([userId])
+}
+
+model FloatTransaction {
+  id                   String          @id @default(cuid())
+  floatId              String
+  float                UserFloat       @relation(fields: [floatId], references: [id], onDelete: Cascade)
+  type                 TransactionType
+  amount               Float
+  transactionDate      DateTime        @default(now())
+  description          String?
+  relatedTransactionId String?
+  performedByUserId    String
+  performedByUser      User            @relation("AgentFloat", fields: [performedByUserId], references: [id], onDelete: Cascade)
+
+  @@index([floatId])
+  @@index([type])
+  @@index([transactionDate])
+}
+
+model FloatAllocation {
+  id       String @id @default(cuid())
+  branchId String
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  tellerAgentId String
+  tellerAgent   User   @relation(name: "TellerAgent", fields: [tellerAgentId], references: [id], onDelete: Cascade)
+
+  amount         Float
+  allocationDate DateTime @default(now())
+
+  allocatedByUserId String
+  allocatedByUser   User   @relation(name: "Allocator", fields: [allocatedByUserId], references: [id], onDelete: Cascade)
+
+  description String?
+
+  @@index([branchId])
+  @@index([tellerAgentId])
+  @@index([allocationDate])
+}
+
+// Add these fields to your FloatReconciliation model in schema.prisma
+
+model FloatReconciliation {
+  id                 String    @id @default(cuid())
+  floatId            String
+  float              UserFloat @relation(fields: [floatId], references: [id], onDelete: Cascade)
+  reconciliationDate DateTime  @default(now())
+
+  actualCash    Float
+  systemBalance Float
+  difference    Float
+  isBalanced    Boolean
+
+  // Add these new fields
+  cashOnHand         Float   @default(0)
+  floatReturned      Float   @default(0)
+  reconciliationType String  @default("REGULAR")
+  isEndOfDay         Boolean @default(false)
+  rejectionReason    String?
+
+  reconciledByUserId String
+  reconciledByUser   User   @relation(fields: [reconciledByUserId], references: [id], onDelete: Cascade)
+
+  status ReconciliationStatus @default(PENDING)
+  type   ReconciliationType   @default(REGULAR)
+
+  approvedByUserId String?
+  approvedBy       User?     @relation("ReconciliationApprover", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  approvalDate     DateTime?
+
+  dayStart DateTime?
+  dayEnd   DateTime?
+  notes    String?
+
+  @@index([floatId])
+  @@index([reconciliationDate])
+  @@index([status])
+  @@index([isEndOfDay])
+}
+
+// =====================
+// Statement Models
+// =====================
+
+model Statement {
+  id          String    @id @default(cuid())
+  memberId    String
+  member      Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  userId      String?
+  user        User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startDate   DateTime
+  endDate     DateTime?
+  generatedAt DateTime  @default(now())
+  pdfPath     String?
+
+  emailLogs StatementEmailLog[]
+
+  @@index([memberId])
+  @@index([userId])
+  @@index([generatedAt])
+}
+
+// =====================
+// Income & Expenditure Models
+// =====================
+
+model IncomeCategory {
+  id          String       @id @default(cuid())
+  name        String       @unique
+  kind        CategoryKind @default(INCOME)
+  description String?
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  incomeRecords IncomeRecord[]
+
+  @@index([name])
+  @@index([kind])
+}
+
+model IncomeRecord {
+  id               String            @id @default(cuid())
+  categoryId       String?
+  category         IncomeCategory?   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  budgetCategoryId String?
+  budgetCategory   BudgetCategory?   @relation("BudgetCategoryIncome", fields: [budgetCategoryId], references: [id], onDelete: SetNull)
+  amount           Float
+  date             DateTime          @default(now())
+  recordDate       DateTime          @default(now())
+  description      String?
+  paymentMethod    PaymentMethod     @default(CASH)
+  recognitionBasis RecognitionBasis  @default(CASH)
+  receivedByUserId String
+  receivedBy       User              @relation("IncomeRecordReceivedBy", fields: [receivedByUserId], references: [id], onDelete: Cascade)
+  branchId         String?
+  branch           Branch?           @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  memberId         String?
+  member           Member?           @relation("MemberIncomeRecords", fields: [memberId], references: [id], onDelete: SetNull)
+  accountId        String?
+  account          Account?          @relation("AccountIncomeRecords", fields: [accountId], references: [id], onDelete: SetNull)
+  periodId         String?
+  period           FinancialPeriod?  @relation(fields: [periodId], references: [id], onDelete: SetNull)
+  status           TransactionStatus @default(PENDING)
+  receiptNumber    String?
+  receiptNo        String?
+  referenceNumber  String?
+  externalRef      String?
+  notes            String?
+
+  // ✅ ✅ ✅ ONLY THESE 2 LINES ARE NEW ✅ ✅ ✅
+  depositorName    String? // Name of person making payment
+  depositorContact String? // Phone or email of depositor
+  // ✅ ✅ ✅ END OF CHANGES ✅ ✅ ✅
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([categoryId])
+  @@index([budgetCategoryId])
+  @@index([date])
+  @@index([recordDate])
+  @@index([receivedByUserId])
+  @@index([branchId])
+  @@index([memberId])
+  @@index([periodId])
+  @@index([status])
+}
+
+model ExpenditureCategory {
+  id          String       @id @default(cuid())
+  name        String       @unique
+  code        String?      @unique // ADD THIS
+  kind        CategoryKind @default(EXPENSE)
+  description String?
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  expenditureRecords ExpenditureRecord[]
+
+  @@index([name])
+  @@index([kind])
+  @@index([code]) // ADD THIS
+}
+
+model ExpenditureRecord {
+  id         String              @id @default(cuid())
+  categoryId String
+  category   ExpenditureCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  // Add BudgetCategory relation
+  budgetCategoryId String?
+  budgetCategory   BudgetCategory? @relation("BudgetCategoryExpenditure", fields: [budgetCategoryId], references: [id], onDelete: SetNull)
+
+  amount      Float
+  date        DateTime @default(now())
+  recordDate  DateTime @default(now()) // ADD THIS
+  description String?
+  payee       String? // ADD THIS
+
+  paymentMethod    PaymentMethod    @default(CASH)
+  recognitionBasis RecognitionBasis @default(CASH)
+  basis            String? // ADD THIS (or use recognitionBasis)
+
+  submittedByUserId String
+  submittedBy       User   @relation("ExpSubmittedBy", fields: [submittedByUserId], references: [id], onDelete: Cascade)
+
+  approvedByUserId String?
+  approvedBy       User?     @relation("ExpApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  approvalDate     DateTime?
+  approvedAt       DateTime? // ADD THIS (or use approvalDate)
+
+  branchId String?
+  branch   Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  // Add FinancialPeriod relation
+  periodId String?
+  period   FinancialPeriod? @relation(fields: [periodId], references: [id], onDelete: SetNull)
+
+  status          TransactionStatus @default(PENDING) // CHANGE from String to TransactionStatus
+  receiptNumber   String?
+  voucherNo       String? // ADD THIS
+  referenceNumber String?
+  externalRef     String? // ADD THIS
+  rejectionReason String? // ADD THIS
+  notes           String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([categoryId])
+  @@index([budgetCategoryId])
+  @@index([date])
+  @@index([recordDate])
+  @@index([submittedByUserId])
+  @@index([branchId])
+  @@index([periodId])
+  @@index([status])
+}
+
+// =====================
+// Budget Category Model (Unified for Income & Expense)
+// =====================
+// =====================
+// Budget Model
+// =====================
+
+model Budget {
+  id         String         @id @default(cuid())
+  categoryId String
+  category   BudgetCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  year   Int
+  amount Float
+
+  branchId String?
+  branch   Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  isActive Boolean @default(true)
+  notes    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([categoryId, year, branchId])
+  @@index([categoryId])
+  @@index([year])
+  @@index([branchId])
+}
+
+model BudgetCategory {
+  id          String       @id @default(cuid())
+  name        String
+  code        String?      @unique
+  kind        CategoryKind
+  description String?
+  isActive    Boolean      @default(true)
+
+  parentId String?
+  parent   BudgetCategory?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children BudgetCategory[] @relation("CategoryHierarchy")
+
+  incomeRecords      IncomeRecord[]      @relation("BudgetCategoryIncome")
+  expenditureRecords ExpenditureRecord[] @relation("BudgetCategoryExpenditure")
+  budgets            Budget[] // ✅ ADD THIS LINE
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([name, kind, parentId])
+  @@index([kind])
+  @@index([parentId])
+  @@index([isActive])
+  @@index([code])
+}
+
+// =====================
+// Financial Period Model (for accounting periods)
+// =====================
+
+model FinancialPeriod {
+  id             String    @id @default(cuid())
+  name           String    @unique
+  startDate      DateTime
+  endDate        DateTime
+  isClosed       Boolean   @default(false)
+  closedAt       DateTime?
+  closedByUserId String?
+  description    String?
+
+  incomeRecords      IncomeRecord[]
+  expenditureRecords ExpenditureRecord[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([startDate])
+  @@index([endDate])
+  @@index([isClosed])
+}
+
+// Add these models to your schema.prisma file
+// Place them after the Vault models section
+
+// =====================
+// Suspense Account & Shortage Models
+// =====================
+
+model SuspenseAccount {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  branchId    String?
+  branch      Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  balance     Float   @default(0)
+  isActive    Boolean @default(true)
+  description String?
+
+  suspenseTransactions SuspenseTransaction[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([branchId])
+  @@index([isActive])
+}
+
+model SuspenseTransaction {
+  id                String          @id @default(cuid())
+  suspenseAccountId String
+  suspenseAccount   SuspenseAccount @relation(fields: [suspenseAccountId], references: [id], onDelete: Cascade)
+
+  type            TransactionType
+  amount          Float
+  transactionDate DateTime        @default(now())
+  description     String?
+
+  performedByUserId String
+  performedBy       User   @relation("SuspenseTransactionPerformedBy", fields: [performedByUserId], references: [id], onDelete: Cascade)
+
+  referenceId   String?
+  referenceType String?
+  status        String  @default("PENDING_INVESTIGATION")
+
+  resolvedAt       DateTime?
+  resolvedByUserId String?
+  resolvedBy       User?     @relation("SuspenseTransactionResolver", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
+  resolutionNotes  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([suspenseAccountId])
+  @@index([type])
+  @@index([transactionDate])
+  @@index([status])
+  @@index([referenceId])
+}
+
+model CashShortage {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation("ShortageUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  amount           Float
+  reportedByUserId String
+  reportedBy       User   @relation("ShortageReporter", fields: [reportedByUserId], references: [id], onDelete: Cascade)
+
+  reconciliationId String?
+  description      String?
+  status           String  @default("PENDING")
+
+  investigationNotes String?
+  resolvedAt         DateTime?
+  resolvedByUserId   String?
+  resolvedBy         User?     @relation("ShortageResolver", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
+  resolutionAction   String?
+
+  reportedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId])
+  @@index([reportedByUserId])
+  @@index([reconciliationId])
+  @@index([status])
+  @@index([reportedAt])
+}
+
+model StatementEmailLog {
+  id             String   @id @default(cuid())
+  statementId    String
+  recipientEmail String
+  sentAt         DateTime @default(now())
+  status         String // SENT, FAILED
+  errorMessage   String?  @db.Text
+
+  statement Statement @relation(fields: [statementId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([statementId])
+  @@index([recipientEmail])
+  @@index([sentAt])
+}
+
+// Replace your existing Institution model with this updated version
+
+model Institution {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  institutionNumber String   @unique
+  registrationDate  DateTime @default(now())
+  isApproved        Boolean  @default(false)
+
+  institutionName    String
+  institutionType    String
+  registrationNumber String?
+  tinNumber          String?
+
+  legalStatus       String?
+  yearEstablished   Int?
+  businessSector    String?
+  numberOfEmployees Int?
+  majorObjective    String?
+  majorActivities   String?
+  founderNames      String?
+
+  accounts      Account[]
+  plotNumber    String?
+  street        String?
+  village       String?
+  parish        String?
+  subCounty     String?
+  constituency  String?
+  town          String?
+  district      String?
+  postalAddress String?
+
+  primaryContactPerson String
+  primaryContactTitle  String?
+  primaryContactPhone  String
+  primaryContactEmail  String?
+  institutionPhone     String
+  institutionEmail     String
+
+  bankName          String?
+  bankAccountNumber String?
+
+  accountTitle          String?
+  accountType           String?
+  operatingInstructions String?
+  signatoryChangeRules  String?
+
+  administrators Json?
+
+  entryFee       Float?
+  initialDeposit Float?
+
+  approvalDate        DateTime?
+  rejectionReason     String?
+  approvedBySignature String?
+  cashierSignature    String?
+  officialStamp       String?
+
+  registrationCertPath String?
+  lcRecommendationPath String?
+  minutesPath          String?
+  bylawsPath           String?
+  additionalDocs       String[]
+
+  withdrawals  Withdrawal[]
+  transactions Transaction[] @relation("InstitutionTransactions")
+  deposits     Deposit[]     @relation("InstitutionDeposits")
+
+  // ✅ ADD THESE THREE RELATIONS BACK
+  institutionLoanApplications InstitutionLoanApplication[] @relation("InstitutionLoanApplications")
+  institutionLoans            InstitutionLoan[]            @relation("InstitutionLoans")
+  institutionLoanRepayments   InstitutionLoanRepayment[]   @relation("InstitutionRepayments")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([institutionNumber])
+  @@index([registrationDate])
+  @@index([userId])
+}
+
+// =====================
+// Institution Loan Models
+// =====================
+
+model InstitutionLoanApplication {
+  id            String      @id @default(cuid())
+  institutionId String
+  institution   Institution @relation("InstitutionLoanApplications", fields: [institutionId], references: [id], onDelete: Cascade)
+
+  loanProductId   String
+  loanProduct     LoanProduct @relation(fields: [loanProductId], references: [id], onDelete: Cascade)
+  amountApplied   Float
+  applicationDate DateTime    @default(now())
+  status          LoanStatus  @default(PENDING)
+  stage           LoanStage   @default(SUBMITTED)
+  purpose         String?
+
+  repaymentPeriodMonths Int?
+  repaymentStartDate    DateTime?
+  collateralOffered     String?
+
+  approvalDate    DateTime?
+  approvedAmount  Float?
+  rejectionReason String?
+
+  institutionLoan InstitutionLoan?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([institutionId])
+  @@index([status])
+  @@index([loanProductId])
+  @@index([stage])
+  @@index([applicationDate])
+}
+
+model InstitutionLoan {
+  id            String                     @id @default(cuid())
+  applicationId String                     @unique
+  application   InstitutionLoanApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  institutionId String
+  institution   Institution @relation("InstitutionLoans", fields: [institutionId], references: [id], onDelete: Cascade)
+
+  amountGranted      Float
+  interestRate       Float
+  totalAmountDue     Float
+  amountPaid         Float @default(0)
+  outstandingBalance Float
+
+  disbursementDate DateTime   @default(now())
+  dueDate          DateTime
+  status           LoanStatus @default(DISBURSED)
+
+  repayments InstitutionLoanRepayment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([institutionId])
+  @@index([status])
+  @@index([disbursementDate])
+  @@index([dueDate])
+}
+
+model InstitutionLoanRepayment {
+  id     String          @id @default(cuid())
+  loanId String
+  loan   InstitutionLoan @relation(fields: [loanId], references: [id], onDelete: Cascade)
+
+  institutionId String
+  institution   Institution @relation("InstitutionRepayments", fields: [institutionId], references: [id], onDelete: Cascade)
+
+  amount         Float
+  repaymentDate  DateTime @default(now())
+  channel        String
+  mobileMoneyRef String?
+  description    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([loanId])
+  @@index([institutionId])
+  @@index([repaymentDate])
+}
+
+// =====================
+// ADD THIS ENUM TO YOUR ENUMS SECTION (around line 50-130)
+// =====================
+
+enum InsuranceContributionType {
+  CONTRIBUTION // Money collected from members (loan insurance deductions)
+  PAYMENT_OUT // Money paid to insurance company
+}
+
+// =====================
+// ADD THIS MODEL AT THE END OF YOUR SCHEMA (after InstitutionLoanRepayment model)
+// =====================
+
+model InsuranceContribution {
+  id          String                    @id @default(cuid())
+  amount      Float
+  type        InsuranceContributionType
+  description String
+  reference   String?
+
+  // Member who contributed (for CONTRIBUTION type)
+  memberId String?
+  member   Member? @relation(fields: [memberId], references: [id], onDelete: SetNull)
+
+  // Account this came from/went to
+  accountId String
+  account   Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  // Loan application this is related to (if from loan insurance)
+  loanApplicationId String?
+  loanApplication   LoanApplication? @relation(fields: [loanApplicationId], references: [id], onDelete: SetNull)
+
+  // Who created this record
+  createdById String
+  createdBy   User   @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([memberId])
+  @@index([accountId])
+  @@index([loanApplicationId])
+  @@index([type])
+  @@index([createdAt])
+  @@index([createdById])
+}
+
+// Add this enum to your enums section
+enum RepaymentRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+// Add this model at the end of your schema
+model LoanRepaymentRequest {
+  id     String @id @default(cuid())
+  loanId String
+  loan   Loan   @relation(fields: [loanId], references: [id], onDelete: Cascade)
+
+  memberId String
+  member   Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  accountId String
+  account   Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  amount            Float
+  requestedByUserId String
+  requestedBy       User   @relation("RepaymentRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Cascade)
+
+  status        RepaymentRequestStatus @default(PENDING)
+  approvalToken String                 @unique
+  smsCode       String?
+
+  requestedAt DateTime  @default(now())
+  expiresAt   DateTime
+  approvedAt  DateTime?
+  rejectedAt  DateTime?
+
+  rejectionReason String?
+  notes           String?
+
+  emailSent Boolean @default(false)
+  smsSent   Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([loanId])
+  @@index([memberId])
+  @@index([accountId])
+  @@index([status])
+  @@index([approvalToken])
+  @@index([expiresAt])
+}
+
+// Add to your schema.prisma
+
+enum WriteOffStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model LoanWriteOff {
+  id     String @id @default(cuid())
+  loanId String
+  loan   Loan   @relation(fields: [loanId], references: [id], onDelete: Cascade)
+
+  amountDisbursed  Float
+  principalPaid    Float
+  interestPaid     Float
+  penaltyPaid      Float
+  totalPaid        Float
+  principalBalance Float
+  interestBalance  Float
+  penaltyBalance   Float
+  totalBalance     Float
+
+  // requestedBy      String
+  reason         String
+  minuteNumber   String?
+  dateWrittenOff DateTime?
+
+  requestedByUserId String
+  requestedBy       User   @relation("WriteOffRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Cascade)
+
+  approvedByUserId String?
+  approvedBy       User?   @relation("WriteOffApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+
+  status          WriteOffStatus @default(PENDING)
+  requestedAt     DateTime       @default(now())
+  approvedAt      DateTime?
+  rejectionReason String?
+
+  supportingDocs String[]
+  notes          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([loanId])
+  @@index([status])
+  @@index([requestedByUserId])
+  @@index([approvedByUserId])
+  @@index([requestedAt])
+}
+
+// Add these relations to existing models:
+// In User model: 
+// loanWriteOffsRequested  LoanWriteOff[] @relation("WriteOffRequestedBy")
+// loanWriteOffsApproved   LoanWriteOff[] @relation("WriteOffApprovedBy")
+
+// In Loan model:
+// writeOffs              LoanWriteOff[]
+// Add these relations to existing models:
+
+// =====================
+// Update User Model Relations
+// =====================
+// Add these relations to your existing User model:
+
+// suspenseTransactionsPerformed  SuspenseTransaction[] @relation("SuspenseTransactionPerformedBy")
+// suspenseTransactionsResolved   SuspenseTransaction[] @relation("SuspenseTransactionResolver")
+// cashShortagesReported          CashShortage[]        @relation("ShortageReporter")
+// cashShortagesOwned             CashShortage[]        @relation("ShortageUser")
+// cashShortagesResolved          CashShortage[]        @relation("ShortageResolver")
+
+// =====================
+// Update Branch Model Relations
+// =====================
+// Add this relation to your existing Branch model:
+
+// suspenseAccounts    SuspenseAccount[]
+// =====================
+// Chart of Accounts
+// =====================
+
+enum AccountLedgerType {
+  ASSETS
+  LIABILITIES
+  EQUITY
+  INCOME
+  EXPENSES
+}
+
+model ChartOfAccount {
+  id          String @id @default(cuid())
+  accountCode String @unique
+  accountName String
+  fullCode    String @unique
+
+  // Hierarchy
+  parentId String?
+  parent   ChartOfAccount?  @relation("AccountHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children ChartOfAccount[] @relation("AccountHierarchy")
+  level    Int
+
+  // Classification
+  ledgerType AccountLedgerType
+  category   String?
+  product    String?
+
+  // Properties
+  currency    String  @default("UGX")
+  debitCredit String?
+  isActive    Boolean @default(true)
+  isSystem    Boolean @default(false)
+
+  // Balance tracking
+  balance       Float @default(0)
+  debitBalance  Float @default(0)
+  creditBalance Float @default(0)
+
+  // Metadata
+  description String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  journalEntries     JournalEntry[]
+  debitTransactions  AccountTransaction[] @relation("DebitAccount")
+  creditTransactions AccountTransaction[] @relation("CreditAccount")
+  transactionDebits  Transaction[]        @relation("TransactionDebit")
+  transactionCredits Transaction[]        @relation("TransactionCredit")
+
+  @@index([accountCode])
+  @@index([ledgerType])
+  @@index([parentId])
+  @@index([isActive])
+}
+
+model JournalEntry {
+  id          String   @id @default(cuid())
+  entryNumber String   @unique
+  entryDate   DateTime @default(now())
+  description String
+  reference   String?
+
+  // Relations
+  accountId String
+  account   ChartOfAccount @relation(fields: [accountId], references: [id])
+
+  debitAmount  Float @default(0)
+  creditAmount Float @default(0)
+
+  // Transaction link
+  transactionId String?
+  transaction   Transaction? @relation(fields: [transactionId], references: [id])
+
+  // Audit
+  createdByUserId String
+  createdBy       User     @relation(fields: [createdByUserId], references: [id])
+  createdAt       DateTime @default(now())
+
+  @@index([accountId])
+  @@index([entryDate])
+  @@index([transactionId])
+}
+
+model AccountTransaction {
+  id             String @id @default(cuid())
+  transactionRef String @unique
+
+  // Double-entry accounts
+  debitAccountId String
+  debitAccount   ChartOfAccount @relation("DebitAccount", fields: [debitAccountId], references: [id])
+
+  creditAccountId String
+  creditAccount   ChartOfAccount @relation("CreditAccount", fields: [creditAccountId], references: [id])
+
+  amount          Float
+  description     String
+  transactionDate DateTime @default(now())
+
+  // Link to existing transaction
+  linkedTransactionId String?
+  linkedTransaction   Transaction? @relation(fields: [linkedTransactionId], references: [id])
+
+  // Audit
+  createdByUserId String
+  createdBy       User     @relation(fields: [createdByUserId], references: [id])
+  createdAt       DateTime @default(now())
+
+  @@index([debitAccountId])
+  @@index([creditAccountId])
+  @@index([transactionDate])
+}
+// =====================
+// Savings, Shares & Fixed Deposits - New Enums
+// =====================
+
+enum AccountCategory {
+  SAVINGS
+  SHARES
+  FIXED_DEPOSIT
+}
+
+enum SavingsAccountStatus {
+  ACTIVE
+  ON_HOLD
+  CLOSED
+  DORMANT
+  FROZEN
+}
+
+enum SavingsTransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  INTEREST
+  FEE
+  TRANSFER_IN
+  TRANSFER_OUT
+  REVERSAL
+}
+
+enum ShareTransactionType {
+  PURCHASE
+  SALE
+  TRANSFER_IN
+  TRANSFER_OUT
+  DIVIDEND
+  REVERSAL
+}
+
+enum FixedDepositStatus {
+  ACTIVE
+  MATURED
+  WITHDRAWN
+  REVERSED
+  RENEWED
+}
+
+enum BatchStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  POSTED
+}
+
+enum SessionStatus {
+  OPEN
+  CLOSED
+  RECONCILED
+}
+
+// =====================
+// Savings, Shares & Fixed Deposits - Models
+// =====================
+
+model AccountType {
+  id                String            @id @default(cuid())
+  name              String            @unique
+  code              String            @unique
+  description       String?
+  accountCategory   AccountCategory
+  interestRate      Float             @default(0)
+  minBalance        Float             @default(0)
+  maxBalance        Float?
+  minDeposit        Float             @default(0)
+  withdrawalLimit   Float?
+  isActive          Boolean           @default(true)
+  
+  savingsAccounts   SavingsAccount[]
+  shareAccounts     ShareAccount[]
+  
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  
+  @@index([accountCategory])
+}
+
+model SavingsAccount {
+  id                  String                  @id @default(cuid())
+  accountNumber       String                  @unique
+  memberId            String
+  member              Member                  @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  accountTypeId       String
+  accountType         AccountType             @relation(fields: [accountTypeId], references: [id])
+  branchId            String?
+  branch              Branch?                 @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  
+  balance             Float                   @default(0)
+  availableBalance    Float                   @default(0)
+  holdAmount          Float                   @default(0)
+  
+  status              SavingsAccountStatus    @default(ACTIVE)
+  isDormant           Boolean                 @default(false)
+  isOverdrawn         Boolean                 @default(false)
+  
+  interestRate        Float
+  lastInterestDate    DateTime?
+  totalInterestPaid   Float                   @default(0)
+  
+  openedDate          DateTime                @default(now())
+  closedDate          DateTime?
+  lastTransactionDate DateTime?
+  
+  transactions        SavingsTransaction[]
+  
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+  
+  @@index([memberId])
+  @@index([accountNumber])
+  @@index([status])
+  @@index([isDormant])
+  @@index([branchId])
+}
+
+model SavingsTransaction {
+  id                String                  @id @default(cuid())
+  accountId         String
+  account           SavingsAccount          @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  
+  transactionType   SavingsTransactionType
+  amount            Float
+  balanceBefore     Float
+  balanceAfter      Float
+  
+  transactionDate   DateTime                @default(now())
+  valueDate         DateTime?
+  
+  reference         String?
+  description       String?
+  
+  tellerId          String?
+  teller            User?                   @relation(\"SavingsTeller\", fields: [tellerId], references: [id], onDelete: SetNull)
+  
+  batchId           String?
+  sessionId         String?
+  
+  isReversed        Boolean                 @default(false)
+  reversedDate      DateTime?
+  reversedBy        String?
+  
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  
+  @@index([accountId])
+  @@index([transactionDate])
+  @@index([transactionType])
+  @@index([batchId])
+}
+
+model ShareAccount {
+  id                  String                @id @default(cuid())
+  accountNumber       String                @unique
+  memberId            String
+  member              Member                @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  accountTypeId       String
+  accountType         AccountType           @relation(fields: [accountTypeId], references: [id])
+  branchId            String?
+  branch              Branch?               @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  
+  numberOfShares      Int                   @default(0)
+  shareValue          Float
+  totalValue          Float                 @default(0)
+  
+  status              SavingsAccountStatus  @default(ACTIVE)
+  
+  openedDate          DateTime              @default(now())
+  closedDate          DateTime?
+  lastTransactionDate DateTime?
+  
+  transactions        ShareTransaction[]
+  
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  
+  @@index([memberId])
+  @@index([accountNumber])
+  @@index([status])
+  @@index([branchId])
+}
+
+model ShareTransaction {
+  id                String                @id @default(cuid())
+  accountId         String
+  account           ShareAccount          @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  
+  transactionType   ShareTransactionType
+  shares            Int
+  shareValue        Float
+  amount            Float
+  
+  sharesBefore      Int
+  sharesAfter       Int
+  
+  transactionDate   DateTime              @default(now())
+  reference         String?
+  description       String?
+  
+  tellerId          String?
+  teller            User?                 @relation(\"ShareTeller\", fields: [tellerId], references: [id], onDelete: SetNull)
+  
+  batchId           String?
+  
+  isReversed        Boolean               @default(false)
+  reversedDate      DateTime?
+  
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  
+  @@index([accountId])
+  @@index([transactionDate])
+  @@index([transactionType])
+}
+
+model FixedDeposit {
+  id                String              @id @default(cuid())
+  accountNumber     String              @unique
+  memberId          String
+  member            Member              @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  branchId          String?
+  branch            Branch?             @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  
+  principalAmount   Float
+  interestRate      Float
+  termMonths        Int
+  
+  startDate         DateTime            @default(now())
+  maturityDate      DateTime
+  maturityAmount    Float
+  
+  status            FixedDepositStatus  @default(ACTIVE)
+  
+  isWithdrawn       Boolean             @default(false)
+  withdrawnDate     DateTime?
+  withdrawnAmount   Float?
+  
+  isReversed        Boolean             @default(false)
+  reversedDate      DateTime?
+  reversalReason    String?
+  
+  autoRenew         Boolean             @default(false)
+  renewedToId       String?
+  
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  
+  @@index([memberId])
+  @@index([accountNumber])
+  @@index([status])
+  @@index([maturityDate])
+  @@index([branchId])
+}
+
+model TransactionBatch {
+  id                String        @id @default(cuid())
+  batchNumber       String        @unique
+  batchType         String
+  
+  totalTransactions Int           @default(0)
+  totalAmount       Float         @default(0)
+  
+  processedBy       String
+  processor         User          @relation(\"BatchProcessor\", fields: [processedBy], references: [id])
+  
+  processedDate     DateTime      @default(now())
+  status            BatchStatus   @default(PENDING)
+  
+  approvedBy        String?
+  approver          User?         @relation(\"BatchApprover\", fields: [approvedBy], references: [id])
+  approvedDate      DateTime?
+  
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  
+  @@index([batchNumber])
+  @@index([status])
+  @@index([processedDate])
+}
+
+model TransactionSession {
+  id                String          @id @default(cuid())
+  sessionNumber     String          @unique
+  tellerId          String
+  teller            User            @relation(\"SessionTeller\", fields: [tellerId], references: [id])
+  branchId          String?
+  branch            Branch?         @relation(fields: [branchId], references: [id])
+  
+  openedAt          DateTime        @default(now())
+  closedAt          DateTime?
+  
+  openingCash       Float           @default(0)
+  closingCash       Float?
+  
+  totalDeposits     Float           @default(0)
+  totalWithdrawals  Float           @default(0)
+  totalTransactions Int             @default(0)
+  
+  status            SessionStatus   @default(OPEN)
+  
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  
+  @@index([tellerId])
+  @@index([sessionNumber])
+  @@index([status])
+  @@index([openedAt])
+}

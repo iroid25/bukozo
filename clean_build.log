@@ -1,0 +1,25 @@
+
+> next-admin@0.1.0 build E:\developemet\projexts\bukonzemergency
+> next build
+
+   ▲ Next.js 15.1.9
+   - Environments: .env
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+Failed to compile.
+
+./app/api/v1/loan-repayments/requests/route.ts:99:42
+Type error: Property 'institution' does not exist on type '({ institution: { user: { name: string; id: string; firstName: string; lastName: string; phone: string | null; email: string | null; dateOfBirth: Date | null; address: string | null; ... 18 more ...; passwordResetToken: string | null; }; accounts: { ...; }[]; } & { ...; }; application: { ...; } & { ...; }; } & { ......'.
+  Property 'institution' does not exist on type '{ loanApplication: { loanProduct: { name: string; id: string; isActive: boolean; createdAt: Date; updatedAt: Date; description: string | null; interestRate: number; interestPeriod: InterestPeriod; ... 7 more ...; feeAccountId: string | null; }; } & { ...; }; member: { ...; } & { ...; }; } & { ...; }'.
+
+[0m [90m  97 |[39m     }[0m
+[0m [90m  98 |[39m[0m
+[0m[31m[1m>[22m[39m[90m  99 |[39m     [36mconst[39m account [33m=[39m isInstitution [33m?[39m loan[33m.[39minstitution[33m.[39maccounts[[35m0[39m] [33m:[39m loan[33m.[39mmember[33m.[39maccounts[[35m0[39m][33m;[39m[0m
+[0m [90m     |[39m                                          [31m[1m^[22m[39m[0m
+[0m [90m 100 |[39m     [36mconst[39m user [33m=[39m isInstitution [33m?[39m loan[33m.[39minstitution[33m.[39muser [33m:[39m loan[33m.[39mmember[33m.[39muser[33m;[39m[0m
+[0m [90m 101 |[39m[0m
+[0m [90m 102 |[39m     [36mif[39m (amount [33m>[39m [33mNumber[39m((loan[33m.[39moutstandingBalance [33m+[39m [35m0.1[39m)[33m.[39mtoFixed([35m2[39m))) {[0m
+Next.js build worker exited with code: 1 and signal: null
+ ELIFECYCLE  Command failed with exit code 1.

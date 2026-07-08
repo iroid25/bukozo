@@ -1,0 +1,173 @@
+On branch main
+Your branch and 'origin/main' have diverged,
+and have 1 and 8 different commits each, respectively.
+  (use "git pull" if you want to integrate the remote branch with yours)
+
+All conflicts fixed but you are still merging.
+  (use "git commit" to conclude merge)
+
+Changes to be committed:
+	modified:   actions/chart-of-accounts.ts
+	modified:   actions/deposits.ts
+	modified:   actions/float.ts
+	modified:   actions/incomeandexp/budget-categories.ts
+	deleted:    actions/incomeandexp/expenditure.ts
+	deleted:    actions/incomeandexp/income.ts
+	modified:   actions/loanReports.ts
+	modified:   actions/loans.ts
+	modified:   actions/reconciliation.ts
+	modified:   actions/withdraws.ts
+	modified:   actions/withdrawsTest.ts
+	modified:   app/(dashboard)/dashboard/accounting/chart-of-accounts/components/COATree.tsx
+	modified:   app/(dashboard)/dashboard/accounting/chart-of-accounts/components/NewAccountForm.tsx
+	modified:   app/(dashboard)/dashboard/accounting/chart-of-accounts/page.tsx
+	modified:   app/(dashboard)/dashboard/accounts/expenditures/[id]/edit/page.tsx
+	modified:   app/(dashboard)/dashboard/accounts/expenditures/[id]/page.tsx
+	modified:   app/(dashboard)/dashboard/accounts/expenditures/components/ExpenditureListings.tsx
+	modified:   app/(dashboard)/dashboard/accounts/expenditures/new/ExpenditureRecordForm.tsx
+	modified:   app/(dashboard)/dashboard/accounts/expenditures/new/components/ExpenditureRecordDetail.tsx
+	new file:   app/(dashboard)/dashboard/accounts/fixed-deposits/components/FixedDepositListing.tsx
+	modified:   app/(dashboard)/dashboard/accounts/fixed-deposits/components/FixedDepositTransferForm.tsx
+	modified:   app/(dashboard)/dashboard/accounts/fixed-deposits/page.tsx
+	modified:   app/(dashboard)/dashboard/accounts/incomes/[id]/page.tsx
+	modified:   app/(dashboard)/dashboard/accounts/incomes/components/IncomeListings.tsx
+	modified:   app/(dashboard)/dashboard/accounts/incomes/new/CategoryQuickAdd.tsx
+	modified:   app/(dashboard)/dashboard/accounts/incomes/new/IncomeRecordForm.tsx
+	modified:   app/(dashboard)/dashboard/accounts/incomes/page.tsx
+	modified:   app/(dashboard)/dashboard/deposits/components/DepositCreateForm.tsx
+	modified:   app/(dashboard)/dashboard/deposits/monthlydeposits/page.tsx
+	modified:   app/(dashboard)/dashboard/deposits/page.tsx
+	modified:   app/(dashboard)/dashboard/deposits/todaysdeposits/page.tsx
+	modified:   app/(dashboard)/dashboard/deposits/totaldeposits/page.tsx
+	modified:   app/(dashboard)/dashboard/loan-applications/components/LoanApplicationCreateForm.tsx
+	modified:   app/(dashboard)/dashboard/loan-applications/components/LoanApplicationDetailsDialog.tsx
+	modified:   app/(dashboard)/dashboard/loan-applications/components/LoanApplicationListing.tsx
+	modified:   app/(dashboard)/dashboard/loan-repayments/initiate/InitiateRepaymentClient.tsx
+	modified:   app/(dashboard)/dashboard/loans/components/LoanListing.tsx
+	modified:   app/(dashboard)/dashboard/pages/branch-manager/components/BranchDashboardView.tsx
+	modified:   app/(dashboard)/dashboard/reports/gl-performance/components/GLPerformanceClient.tsx
+	modified:   app/(dashboard)/dashboard/reports/savings-shares-reports/page.tsx
+	modified:   app/(dashboard)/dashboard/settings/fees/fees-client.tsx
+	modified:   app/(dashboard)/dashboard/settings/fees/page.tsx
+	modified:   app/(dashboard)/dashboard/users/institutions/page.tsx
+	modified:   app/(dashboard)/dashboard/users/members/page.tsx
+	modified:   app/(dashboard)/dashboard/withdraw-test/WithdrawListingTest.tsx
+	modified:   app/(dashboard)/dashboard/withdraw-test/WithdrawTestCreateForm.tsx
+	modified:   app/(dashboard)/dashboard/withdraw-test/page.tsx
+	modified:   app/(dashboard)/dashboard/withdrawals/components/WithdrawListing.tsx
+	modified:   app/api/auth/forgot-password/route.ts
+	modified:   app/api/v1/accounting/coa/route.ts
+	modified:   app/api/v1/accounts/expenditures/create/route.ts
+	modified:   app/api/v1/accounts/expenditures/route.ts
+	new file:   app/api/v1/accounts/fixed-deposits/stats/route.ts
+	modified:   app/api/v1/accounts/route.ts
+	modified:   app/api/v1/auth/forgot-password/route.ts
+	modified:   app/api/v1/branch-manager/dashboard/route.ts
+	modified:   app/api/v1/chart-of-accounts/[id]/items/route.ts
+	modified:   app/api/v1/chart-of-accounts/route.ts
+	new file:   app/api/v1/deposits/accounts/route.ts
+	new file:   app/api/v1/deposits/float/route.ts
+	new file:   app/api/v1/deposits/institutions/route.ts
+	new file:   app/api/v1/deposits/members/route.ts
+	modified:   app/api/v1/deposits/route.ts
+	new file:   app/api/v1/deposits/stats/route.ts
+	new file:   app/api/v1/diagnostics/vault-audit/route.ts
+	new file:   app/api/v1/diagnostics/vault-remediate/route.ts
+	modified:   app/api/v1/expenditure/[id]/approve/route.ts
+	modified:   app/api/v1/expenditure/categories/route.ts
+	modified:   app/api/v1/expenditure/route.ts
+	modified:   app/api/v1/fixed-deposits/route.ts
+	modified:   app/api/v1/floats/allocate/route.ts
+	modified:   app/api/v1/floats/reconcile/route.ts
+	modified:   app/api/v1/income/route.ts
+	modified:   app/api/v1/institutions/active/route.ts
+	modified:   app/api/v1/journal-entries/auto/expenditure/route.ts
+	modified:   app/api/v1/loan-repayments/requests/route.ts
+	modified:   app/api/v1/loanRepaymentRequests/route.ts
+	modified:   app/api/v1/loans/[id]/penalty/route.ts
+	modified:   app/api/v1/loans/[id]/route.ts
+	modified:   app/api/v1/loans/[id]/schedule/route.ts
+	modified:   app/api/v1/loans/calculate-schedule/route.ts
+	modified:   app/api/v1/loans/schedule/preview/route.ts
+	new file:   app/api/v1/members/active/route.ts
+	modified:   app/api/v1/members/route.ts
+	modified:   app/api/v1/reports/comprehensive/route.ts
+	modified:   app/api/v1/reports/custom/profit-loss/route.ts
+	modified:   app/api/v1/reports/financial-year/profit-loss/route.ts
+	modified:   app/api/v1/reports/financial/performance/route.ts
+	modified:   app/api/v1/reports/financial/summary/route.ts
+	modified:   app/api/v1/reports/financial/trends/route.ts
+	modified:   app/api/v1/reports/fixed-deposits/active/route.ts
+	modified:   app/api/v1/reports/fixed-deposits/listing/route.ts
+	modified:   app/api/v1/reports/fixed-deposits/maturing/route.ts
+	modified:   app/api/v1/reports/fixed-deposits/withdrawn/route.ts
+	modified:   app/api/v1/reports/generate/route.ts
+	modified:   app/api/v1/reports/gl-performance/route.ts
+	modified:   app/api/v1/settings/fees/route.ts
+	modified:   app/api/v1/statements/[id]/email/route.ts
+	modified:   app/api/v1/transactions/[id]/edit/route.ts
+	modified:   app/api/v1/users/route.ts
+	new file:   app/api/v1/withdrawals/confirm/route.ts
+	modified:   app/api/v1/withdrawals/route.ts
+	new file:   app/api/v1/withdrawals/stats/route.ts
+	new file:   app/api/v1/withdrawals/verify/route.ts
+	new file:   category_check_results.json
+	modified:   components/reports/ReportPageLayout.tsx
+	modified:   components/ui/data-table/data-table.tsx
+	modified:   config/fees.ts
+	modified:   lib/email.ts
+	modified:   lib/journal-entries-extended.ts
+	modified:   lib/journal-entries.ts
+	modified:   lib/loan-calculations.ts
+	new file:   lib/penalty-calculations.ts
+	modified:   lib/services/chartOfAccounts.ts
+	modified:   lib/services/coa-tree.ts
+	modified:   lib/services/loan-reports.ts
+	modified:   package.json
+	modified:   prisma/schema.prisma
+	modified:   prisma/seed-chart-of-accounts.ts
+	new file:   scripts/analyze-vaults.ts
+	new file:   scripts/check-categories.ts
+	new file:   scripts/check-floats.js
+	new file:   scripts/e2e-testing-seed-v2.ts
+	new file:   scripts/e2e-testing-seed.ts
+	new file:   scripts/finalize_insurance.ts
+	new file:   scripts/fix-coa-hierarchy.ts
+	new file:   scripts/fix-loan-codes.ts
+	new file:   scripts/reclassify_insurance.ts
+	modified:   scripts/seed-coa.ts
+	modified:   scripts/seed-sub-accounts.js
+	modified:   scripts/update-coa-expenses-v2.js
+	modified:   scripts/update-coa-expenses.ts
+	new file:   scripts/verify-penalty-compounding.ts
+	modified:   services/accounting.service.ts
+	new file:   services/expenditure.service.ts
+	new file:   services/income.service.ts
+	modified:   services/loan.service.ts
+	modified:   services/report.service.ts
+	modified:   services/transaction.service.ts
+	new file:   tmp/build_error.txt
+	new file:   tmp/build_error_2.txt
+	new file:   tmp/build_error_3.txt
+	new file:   tmp/calculate_branch_balances.ts
+	new file:   tmp/check_coa.ts
+	new file:   tmp/check_fd.mjs
+	new file:   tmp/find_insurance.mjs
+	new file:   tmp/find_insurance.ts
+	new file:   tmp/find_pillars.mjs
+	new file:   tmp/find_roots.mjs
+	new file:   tmp/income_research.txt
+	new file:   tmp/migrate_insurance.mjs
+	new file:   tmp/research_db.ts
+	new file:   tmp/research_output.txt
+	new file:   tmp/seed_error.txt
+	new file:   tmp/seed_output.txt
+	new file:   tmp/update_insurance_config.mjs
+	new file:   ts_errors.txt
+	modified:   types/withdraw.ts
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	status.txt
+	tmp_status.txt
+

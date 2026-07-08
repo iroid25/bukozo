@@ -1,0 +1,25 @@
+
+> next-admin@0.1.0 build E:\developemet\projexts\bukonzemergency
+> next build
+
+   ▲ Next.js 15.1.9
+   - Environments: .env
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+Failed to compile.
+
+./actions/incomeandexp/loanRepaymentRequests.ts:478:7
+Type error: Argument of type 'string | null' is not assignable to parameter of type 'string'.
+  Type 'null' is not assignable to type 'string'.
+
+[0m [90m 476 |[39m       repaymentRequest[33m.[39mid[33m,[39m[0m
+[0m [90m 477 |[39m       user[33m.[39mid[33m,[39m[0m
+[0m[31m[1m>[22m[39m[90m 478 |[39m       repaymentRequest[33m.[39mloanId[33m,[39m[0m
+[0m [90m     |[39m       [31m[1m^[22m[39m[0m
+[0m [90m 479 |[39m       repaymentRequest[33m.[39mmemberId[33m,[39m[0m
+[0m [90m 480 |[39m       repaymentRequest[33m.[39maccountId[33m,[39m[0m
+[0m [90m 481 |[39m       repaymentRequest[33m.[39mamount[33m,[39m[0m
+Next.js build worker exited with code: 1 and signal: null
+ ELIFECYCLE  Command failed with exit code 1.

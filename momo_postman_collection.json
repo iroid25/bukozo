@@ -1,0 +1,553 @@
+{
+  "info": {
+    "name": "MTN MoMo Sandbox - SACCO",
+    "_postman_id": "momo-sacco-sandbox-v2",
+    "description": "MTN MoMo Sandbox API Testing Collection for Bukonzemergency SACCO",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://sandbox.momodeveloper.mtn.com",
+      "type": "string"
+    },
+    {
+      "key": "collectionsSubKey",
+      "value": "1bf2a7b028c34b06b286019e89eb4556",
+      "type": "string"
+    },
+    {
+      "key": "disbursementsSubKey",
+      "value": "dbc7dd6301004477b2c5968a32ab6f7d",
+      "type": "string"
+    },
+    {
+      "key": "collectionsApiUser",
+      "value": "f0db85fc-f43b-4276-b1a6-34291021ee5b",
+      "type": "string"
+    },
+    {
+      "key": "collectionsApiKey",
+      "value": "de018f0b75ea4dc7a97177e31fb1513f",
+      "type": "string"
+    },
+    {
+      "key": "disbursementsApiUser",
+      "value": "a2de5de1-44aa-4ecd-90e1-8e32a55afd38",
+      "type": "string"
+    },
+    {
+      "key": "disbursementsApiKey",
+      "value": "ecc55a5719fc4211803540aeb21019e0",
+      "type": "string"
+    },
+    {
+      "key": "collectionsToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "disbursementsToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "paymentReferenceId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "transferReferenceId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Collections (Deposits & Repayments)",
+      "item": [
+        {
+          "name": "1.1 Get Collections Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.collectionVariables.set('collectionsToken', jsonData.access_token);",
+                  "pm.test('Token acquired', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(jsonData.access_token).to.not.be.empty;",
+                  "});",
+                  "console.log('Collections Token saved automatically.');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Ocp-Apim-Subscription-Key",
+                "value": "{{collectionsSubKey}}"
+              }
+            ],
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "{{collectionsApiUser}}",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "{{collectionsApiKey}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "https://sandbox.momodeveloper.mtn.com/collection/token/",
+              "protocol": "https",
+              "host": [
+                "sandbox",
+                "momodeveloper",
+                "mtn",
+                "com"
+              ],
+              "path": [
+                "collection",
+                "token",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "1.2 Request to Pay (Collect Money)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "var referenceId = pm.variables.replaceIn('{{$guid}}');",
+                  "pm.collectionVariables.set('paymentReferenceId', referenceId);",
+                  "console.log('Generated Reference ID:', referenceId);"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Request to Pay accepted', function () {",
+                  "    pm.response.to.have.status(202);",
+                  "});",
+                  "console.log('Payment Reference:', pm.collectionVariables.get('paymentReferenceId'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Reference-Id",
+                "value": "{{paymentReferenceId}}"
+              },
+              {
+                "key": "X-Target-Environment",
+                "value": "sandbox"
+              },
+              {
+                "key": "Ocp-Apim-Subscription-Key",
+                "value": "{{collectionsSubKey}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{collectionsToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": \"1000\",\n  \"currency\": \"EUR\",\n  \"externalId\": \"SACCO-DEP-001\",\n  \"payer\": {\n    \"partyIdType\": \"MSISDN\",\n    \"partyId\": \"46733123453\"\n  },\n  \"payerMessage\": \"SACCO Deposit Payment\",\n  \"payeeNote\": \"Deposit to member account\"\n}"
+            },
+            "url": {
+              "raw": "https://sandbox.momodeveloper.mtn.com/collection/v1_0/requesttopay",
+              "protocol": "https",
+              "host": [
+                "sandbox",
+                "momodeveloper",
+                "mtn",
+                "com"
+              ],
+              "path": [
+                "collection",
+                "v1_0",
+                "requesttopay"
+              ]
+            }
+          }
+        },
+        {
+          "name": "1.3 Check Payment Status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.test('Status retrieved', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "console.log('Payment Status:', jsonData.status);",
+                  "console.log('Amount:', jsonData.amount, jsonData.currency);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Target-Environment",
+                "value": "sandbox"
+              },
+              {
+                "key": "Ocp-Apim-Subscription-Key",
+                "value": "{{collectionsSubKey}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{collectionsToken}}"
+              }
+            ],
+            "url": {
+              "raw": "https://sandbox.momodeveloper.mtn.com/collection/v1_0/requesttopay/{{paymentReferenceId}}",
+              "protocol": "https",
+              "host": [
+                "sandbox",
+                "momodeveloper",
+                "mtn",
+                "com"
+              ],
+              "path": [
+                "collection",
+                "v1_0",
+                "requesttopay",
+                "{{paymentReferenceId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "1.4 Request to Pay (FAIL - Insufficient Funds)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "pm.collectionVariables.set('paymentReferenceId', pm.variables.replaceIn('{{$guid}}'));"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Request accepted (will fail async)', function () {",
+                  "    pm.response.to.have.status(202);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Reference-Id",
+                "value": "{{paymentReferenceId}}"
+              },
+              {
+                "key": "X-Target-Environment",
+                "value": "sandbox"
+              },
+              {
+                "key": "Ocp-Apim-Subscription-Key",
+                "value": "{{collectionsSubKey}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{collectionsToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": \"1000\",\n  \"currency\": \"EUR\",\n  \"externalId\": \"SACCO-FAIL-001\",\n  \"payer\": {\n    \"partyIdType\": \"MSISDN\",\n    \"partyId\": \"46733123454\"\n  },\n  \"payerMessage\": \"This will fail - insufficient funds\",\n  \"payeeNote\": \"Test failure scenario\"\n}"
+            },
+            "url": {
+              "raw": "https://sandbox.momodeveloper.mtn.com/collection/v1_0/requesttopay",
+              "protocol": "https",
+              "host": [
+                "sandbox",
+                "momodeveloper",
+                "mtn",
+                "com"
+              ],
+              "path": [
+                "collection",
+                "v1_0",
+                "requesttopay"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Disbursements (Withdrawals)",
+      "item": [
+        {
+          "name": "2.1 Get Disbursements Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.collectionVariables.set('disbursementsToken', jsonData.access_token);",
+                  "pm.test('Token acquired', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(jsonData.access_token).to.not.be.empty;",
+                  "});",
+                  "console.log('Disbursements Token saved automatically.');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Ocp-Apim-Subscription-Key",
+                "value": "{{disbursementsSubKey}}"
+              }
+            ],
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "{{disbursementsApiUser}}",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "{{disbursementsApiKey}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "https://sandbox.momodeveloper.mtn.com/disbursement/token/",
+              "protocol": "https",
+              "host": [
+                "sandbox",
+                "momodeveloper",
+                "mtn",
+                "com"
+              ],
+              "path": [
+                "disbursement",
+                "token",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "2.2 Transfer (Send Money)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "var referenceId = pm.variables.replaceIn('{{$guid}}');",
+                  "pm.collectionVariables.set('transferReferenceId', referenceId);",
+                  "console.log('Generated Transfer Reference:', referenceId);"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Transfer accepted', function () {",
+                  "    pm.response.to.have.status(202);",
+                  "});",
+                  "console.log('Transfer Reference:', pm.collectionVariables.get('transferReferenceId'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Reference-Id",
+                "value": "{{transferReferenceId}}"
+              },
+              {
+                "key": "X-Target-Environment",
+                "value": "sandbox"
+              },
+              {
+                "key": "Ocp-Apim-Subscription-Key",
+                "value": "{{disbursementsSubKey}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{disbursementsToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": \"5000\",\n  \"currency\": \"EUR\",\n  \"externalId\": \"SACCO-WITHDRAW-001\",\n  \"payee\": {\n    \"partyIdType\": \"MSISDN\",\n    \"partyId\": \"46733123453\"\n  },\n  \"payerMessage\": \"SACCO Withdrawal\",\n  \"payeeNote\": \"Withdrawal from member account\"\n}"
+            },
+            "url": {
+              "raw": "https://sandbox.momodeveloper.mtn.com/disbursement/v1_0/transfer",
+              "protocol": "https",
+              "host": [
+                "sandbox",
+                "momodeveloper",
+                "mtn",
+                "com"
+              ],
+              "path": [
+                "disbursement",
+                "v1_0",
+                "transfer"
+              ]
+            }
+          }
+        },
+        {
+          "name": "2.3 Check Transfer Status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.test('Status retrieved', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "console.log('Transfer Status:', jsonData.status);",
+                  "console.log('Amount:', jsonData.amount, jsonData.currency);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Target-Environment",
+                "value": "sandbox"
+              },
+              {
+                "key": "Ocp-Apim-Subscription-Key",
+                "value": "{{disbursementsSubKey}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{disbursementsToken}}"
+              }
+            ],
+            "url": {
+              "raw": "https://sandbox.momodeveloper.mtn.com/disbursement/v1_0/transfer/{{transferReferenceId}}",
+              "protocol": "https",
+              "host": [
+                "sandbox",
+                "momodeveloper",
+                "mtn",
+                "com"
+              ],
+              "path": [
+                "disbursement",
+                "v1_0",
+                "transfer",
+                "{{transferReferenceId}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Balance & Validation",
+      "item": [
+        {
+          "name": "3.1 Get Disbursements Balance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Target-Environment",
+                "value": "sandbox"
+              },
+              {
+                "key": "Ocp-Apim-Subscription-Key",
+                "value": "{{disbursementsSubKey}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{disbursementsToken}}"
+              }
+            ],
+            "url": {
+              "raw": "https://sandbox.momodeveloper.mtn.com/disbursement/v1_0/account/balance",
+              "protocol": "https",
+              "host": [
+                "sandbox",
+                "momodeveloper",
+                "mtn",
+                "com"
+              ],
+              "path": [
+                "disbursement",
+                "v1_0",
+                "account",
+                "balance"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

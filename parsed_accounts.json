@@ -1,0 +1,2762 @@
+[
+  {
+    "accountCode": "100000  ASSETS",
+    "accountName": "",
+    "ledgerType": "",
+    "product": "",
+    "debitCredit": "",
+    "currency": ""
+  },
+  {
+    "accountCode": "100911  EMPLOYEED",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "Loans",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "101000  FIXED ASSETS",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": ""
+  },
+  {
+    "accountCode": "101001  LAND IN KAJWENGE",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "101002  MOTORCYCLE",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "101003  FURNITURE AND FITTINGS",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "101004  BANKING SOFTWARE",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "101005  BARCLAYS",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "101006  BUILDINGS",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "102000  CURRENT ASSETS",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": ""
+  },
+  {
+    "accountCode": "102001  CASH AT HAND",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "102002  POST BANK (TRANSACTION A/C)",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "102003  POST BANK (POS)",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "102004  CENTENARY BANK",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "102005  MOBILE MONEY FLOAT",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "102006  SMART MONEY FLOAT",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "102007  INTEREST TO BE RECEIVED",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "102008  PREPAID RENT",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "102009  CENTENARY (POS) A/C",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "102010  CENTENARY CURRENT A/C",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "102011  CENTEAGENT BANKING",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "102012  FOUNDERS A/C",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "102013  STANBIC AGENT BANKING",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "102014  WENDI FLOAT",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "102015  STANBIC ACCOUNT",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "102016  MOBILE BANKING A/C",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "102017  PRIDE MICROFINANCE",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "102018  UNIT TRUST FUND A/C",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "102019  UNIT TRUST INVESTMENT A/C",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "103000  INVESTMENTS",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": ""
+  },
+  {
+    "accountCode": "103001  UNATU SACCO",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "103002  UCSCU",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "103003  CIC SHARES",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "103004  UCCFS",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "103005  AGRI EVOLVE COFFEE SUPPLY",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "104000  OFFICE EQUIPMENT",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": ""
+  },
+  {
+    "accountCode": "104001  SAFE",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "104002  COMPUTERS & ACCESSORIES",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "104003  PRINTER",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "104004  GENERATOR",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "104005  MONEY DETECTOR MACHINE",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "104006  OFFICE PHONES",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "104007  OVERHEAD FAN",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "104008  DIGITAL CAMERA",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "104010  PUNCHING MACHINE",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "104012  METAL DETECTOR",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "104013  OTHER OFFICE EQUIPMENTS",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "105000  ADVANCES",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": ""
+  },
+  {
+    "accountCode": "105001  OFFICIAL ADVANCES",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "105002  SALARY ADVANCES",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "105003  MEMBERS ADVANCES",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "106000  STOCK",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": ""
+  },
+  {
+    "accountCode": "106001  HONEY PURCHASES",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "106002  STATIONERY",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "106003  T- SHIRT",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "106004  STOCK OF T-SHIRTS",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "106005  HARDWARE STOCK",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "107000  LOANS",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": ""
+  },
+  {
+    "accountCode": "107001  COMMERCIAL LOANS",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "Loans",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "GL A/C No.",
+    "accountName": "Name",
+    "ledgerType": "General \nLedger Type",
+    "product": "Product",
+    "debitCredit": "Debit/Credit Type",
+    "currency": "Currency \nCode"
+  },
+  {
+    "accountCode": "107002  AGRICULTURE LOANS",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "Loans",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "107003  SCHOOL FEES LOANS",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "Loans",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "107004  SALARY LOANS",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "Loans",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "107005  ASSET ACQUISITION LOAN",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "Loans",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "107006  HOME IMPROVEMENT LOANS",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "Loans",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "107007  EMMERGENCY LOANS",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "Loans",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "107008  REVOVING FUND LOANS",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "Loans",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "107009  UNATU LOAN",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "Loans",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "107010  STAFF LOAN",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "Loans",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "107011  SUPER SAVER LOAN",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "Loans",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "108000  DATA MIGRATION A/C",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "109009  AMORTIZATION FOR SOFTWARE",
+    "accountName": "",
+    "ledgerType": "Assets",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "200000  LIABILITIES",
+    "accountName": "",
+    "ledgerType": "",
+    "product": "",
+    "debitCredit": "",
+    "currency": ""
+  },
+  {
+    "accountCode": "200100  FIXED DEPOSIT SAVINGS",
+    "accountName": "",
+    "ledgerType": "Liabilities",
+    "product": "Fixed Deposit",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "200110  JUNIOR SAVINGS A/C",
+    "accountName": "",
+    "ledgerType": "Liabilities",
+    "product": "Savings",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "200200  VOLUNTARY SAVINGS",
+    "accountName": "",
+    "ledgerType": "Liabilities",
+    "product": "Savings",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "200300  COMPULSORY SAVINGS",
+    "accountName": "",
+    "ledgerType": "Liabilities",
+    "product": "Savings",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "200400  DIVIDEND PAYABLE",
+    "accountName": "",
+    "ledgerType": "Liabilities",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "200502  SUNDRY CREDITORS",
+    "accountName": "",
+    "ledgerType": "",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "200600  LOAN INSURANCE",
+    "accountName": "",
+    "ledgerType": "Liabilities",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "200601  Loan insurance fees",
+    "accountName": "Loan insurance fees",
+    "ledgerType": "Liabilities",
+    "product": "Loans",
+    "debitCredit": "CR",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "200700  ACCUMMULATED DEPN",
+    "accountName": "",
+    "ledgerType": "Liabilities",
+    "product": "",
+    "debitCredit": "",
+    "currency": ""
+  },
+  {
+    "accountCode": "200701  ACCUMMULATED DEPN- MOTORCYCLE",
+    "accountName": "",
+    "ledgerType": "Liabilities",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "200702  ACCUMMULATED DEPN- FURNITURE & FITTINGS",
+    "accountName": "",
+    "ledgerType": "Liabilities",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "200703  ACCUMMULATED DEPN- COMPUTERS",
+    "accountName": "",
+    "ledgerType": "Liabilities",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "200704  ACCUMMULATED DEPN- OTHER OFFICE EQPT",
+    "accountName": "",
+    "ledgerType": "Liabilities",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "200705  ACCUMMULATED DEPN-SAFE",
+    "accountName": "",
+    "ledgerType": "Liabilities",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "200800  EXTERNAL LOAN - WALIMU SACCO",
+    "accountName": "",
+    "ledgerType": "Liabilities",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "200810  EXTERNAL LOAN",
+    "accountName": "",
+    "ledgerType": "Liabilities",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "200900  FOUNDER ACCOUNT",
+    "accountName": "",
+    "ledgerType": "Liabilities",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "300000  EQUITY",
+    "accountName": "",
+    "ledgerType": "",
+    "product": "",
+    "debitCredit": "",
+    "currency": ""
+  },
+  {
+    "accountCode": "300100  STATUTORY RESERVES",
+    "accountName": "",
+    "ledgerType": "Equity",
+    "product": "",
+    "debitCredit": "",
+    "currency": ""
+  },
+  {
+    "accountCode": "300101  COOP. DEV. REVOLVING FUND",
+    "accountName": "",
+    "ledgerType": "Equity",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "300102  SHARE TRANSFER FUNDS",
+    "accountName": "",
+    "ledgerType": "Equity",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "300103  NATIONAL EDUCATION FUND",
+    "accountName": "",
+    "ledgerType": "Equity",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "300104  RESERVE FUND",
+    "accountName": "",
+    "ledgerType": "Equity",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "300105  CAPITAL RESERVES",
+    "accountName": "",
+    "ledgerType": "Equity",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "300300  GRANTS & DONATIONS",
+    "accountName": "",
+    "ledgerType": "Equity",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "300400  RETAINED EARNINGS",
+    "accountName": "",
+    "ledgerType": "Equity",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "300500  SHARE CAPITAL",
+    "accountName": "",
+    "ledgerType": "Equity",
+    "product": "",
+    "debitCredit": "",
+    "currency": ""
+  },
+  {
+    "accountCode": "300503  Loan share capital",
+    "accountName": "Loan share capital",
+    "ledgerType": "Equity",
+    "product": "Shares",
+    "debitCredit": "CR",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "300501  AFFILIATE MEMBERS",
+    "accountName": "",
+    "ledgerType": "Equity",
+    "product": "Shares",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "300502  ORDINARY MEMBERS",
+    "accountName": "",
+    "ledgerType": "Equity",
+    "product": "Shares",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "300503  ASSOCIATE MEMBERS",
+    "accountName": "",
+    "ledgerType": "Equity",
+    "product": "Shares",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "300504  SHARE CAPITAL PURCHASE FROM MEMBERS",
+    "accountName": "",
+    "ledgerType": "Equity",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "400000  INCOME",
+    "accountName": "",
+    "ledgerType": "",
+    "product": "",
+    "debitCredit": "",
+    "currency": ""
+  },
+  {
+    "accountCode": "<info@maripatechagency.com>0  INTEREST ON LOANS",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "400200  ACCOUNT OPENING FEES",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "400300  STATIONERY SALES",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": ""
+  },
+  {
+    "accountCode": "400301  PASS BOOK SALES",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "400302  CLIENT APPLICATION FEES",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "400400  COMMISSION RECEIVED",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": ""
+  },
+  {
+    "accountCode": "400401  FEES COLLECTION",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "400402  MOBILE MONEY COMMISSION",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "400403  POST BANK (POS) COMMISSION",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "400405  CENTENARY (POS) COMMISSION",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "400406  OVERDRAFT COMMISSION",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "400407  CENT AGENCY BANKING COMMISSION",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "400408  COFFEE PROJECT COMMISSION",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "400500  LOAN APPLICATION FEES",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "400600  SUBSCRIPTIONS INCOMES",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "400700  MEMBERSHIP FEES",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "400800  PROJECT INCOME",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": ""
+  },
+  {
+    "accountCode": "400801  T.SALES",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "400802  HONEY SALES",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "400803  WOODLOT",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "GL A/C No.",
+    "accountName": "Name",
+    "ledgerType": "General \nLedger Type",
+    "product": "Product",
+    "debitCredit": "Debit/Credit Type",
+    "currency": "Currency \nCode"
+  },
+  {
+    "accountCode": "400804  WENDI COMMISSION",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "400950  LOAN PROCESSING FEES",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "401000  Loan related income",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "Loans",
+    "debitCredit": "CR",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "401200  SALE OF OLD ASSETS",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "401300  PENALTY",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": ""
+  },
+  {
+    "accountCode": "401301  ABSENTEEISM",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "401302  LATE COMING",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "401303  LOAN  DEFAULTS",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "401304  LEGAL COST INCOME",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "401305  INSUFFICIENT SHARES",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "401306  ACTIVATION FEE",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "401400  LEDGER FEES",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": ""
+  },
+  {
+    "accountCode": "401401  ACCOOUNT SERVICING FEES",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "401402  STATEMENT CHARGE",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "401403  SAVINGS WITHDRAW FEES",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "401500  INTEREST ON BANK DEPOSITS",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "401600  FUNDRAISING INCOMES",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "401700  INTERVIEW FEE",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "401800  WRITTEN OFF LOANS CR",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "401900  LAND INCOME",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "401960  INSURANCE CONTRIBUTION",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "401961  SALE OF T-SHIRTS",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "409301  HARDWARE COMMISSION",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "409302  CONDOLENCE INCOME",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "409303  RENT INCOME",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "409304  CONSTRUCTION FUND",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "409305  SUNDRY INCOME",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "409306  HARDWARE SALES",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "409307  WITH HOLDING INCOME TAX",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "409308  RECOVERY OF FRAUDED MONEY",
+    "accountName": "",
+    "ledgerType": "Income",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500000  EXPENSES",
+    "accountName": "",
+    "ledgerType": "",
+    "product": "",
+    "debitCredit": "",
+    "currency": ""
+  },
+  {
+    "accountCode": "500100  WRITTEN OFF LOANS DR",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500101  SOFTWARE EXPENSE",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500102  SECURITY MEETING",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500103  ELECTRICITY MAINTENACE",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500104  ADMINISTRATION",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500105  HEALTH & SANITATION",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500106  STAFF DISCIPLINARY COMMITTEE MEETING",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500107  INTERVIEW EXPENSES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500108  DEBT SETTLEMENT",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500200  FINANCIAL COSTS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": ""
+  },
+  {
+    "accountCode": "500201  BANK CHARGES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500202  INTEREST ON COMPULSORY SAVINGS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500203  INTEREST ON FIXED SAVINGS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500204  INTEREST ON EXTERNAL LOAN",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500205  EXTERNAL LOAN PROCESSING EXPENSES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500206  SUNDRY EXPENSE",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500207  PURCHASE  OF T-SHIRTS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500500  PRINTING AND STATIONARY",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": ""
+  },
+  {
+    "accountCode": "500501  BOOKS OF ACCOUNTS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500502  REAMS OF PAPER",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500503  COUNTER BOOKS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500504  FILES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500505  PENS & MARK PENS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500506  STAPPLE WIRES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500507  PHOTOCOPYING",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500508  COMPUTER SUPPLIES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500509  ENVELOPES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500600  TRANSPORTATION  OF CASH",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500700  SALARIES AND WAGES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": ""
+  },
+  {
+    "accountCode": "500701  CASHIERS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500702  LOANS OFFICERS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500703  MANAGER",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500704  MOBILE MONEY ATTENDANTS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "GL A/C No.",
+    "accountName": "Name",
+    "ledgerType": "General \nLedger Type",
+    "product": "Product",
+    "debitCredit": "Debit/Credit Type",
+    "currency": "Currency \nCode"
+  },
+  {
+    "accountCode": "500705  SECURITY PERSONNEL",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500706  SHOP ATTENDANT",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500707  KEYHOLDER'S ALLOWANCE",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500708  ANNUAL LEAVE COMPENSATION",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500709  ADMINISTRATORS ALLOWANCE",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500710  NSSF",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500800  MEETINGS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": ""
+  },
+  {
+    "accountCode": "500801  ANNUAL GENERAL MEETING",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500802  MONTHLY MEETINGS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500803  FOUNDATION COMMITTEE MEETINGS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500804  EXECUTIVE COMMITTEE MEETINGS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500805  LOANS/FINANCE COMMITTEE MEETINGS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500806  HUMAN RESOURCE COMMITTEE MEETINGS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500807  PROCUREMENT COMMITTEE MEETINGS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500808  STAFF MEETINGS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500809  SECURITY EXPENSES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500810  SUPERVISORY",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500900  DEPRECIATION EXPENSE",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": ""
+  },
+  {
+    "accountCode": "500901  DEPRECIATION ON MOTORCYCLE",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500902  DEPRECIATION ON FURNITURE",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500903  DEPRECIATION ON SAFE",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500904  DEPRECIATION ON COMPUTERS & ACCESSORIES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500905  DEPRECIATION ON PRINTERS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500906  DEPRECIATION ON GENERATOR",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500907  DEPRECIATION ON OTHER  OFFICE EQUIPMENT",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500908  DEPRECIATION ON MONEY DETECTOR MACHINES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "500909  DEPRECIATION EXPENSE- LAND",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "501000  LEGAL FEES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": ""
+  },
+  {
+    "accountCode": "501001  OPERATION PERMIT",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "501002  COURT FEES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "501003  POLICE FEE",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "501004  INCOME TAX",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "501005  EXCISE DUTY",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "501006  SUBSCRIPTION FEES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "501200  UTILITIES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": ""
+  },
+  {
+    "accountCode": "501201  ELECTRICITY",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "501202  WATER",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "501203  TV SUBSCRIPTION",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "501300  COMMUNICATION",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": ""
+  },
+  {
+    "accountCode": "501301  AIRTIME - COMMUNICATION",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "501302  RADIO ANNOUNCEMENTS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "501303  INTERNET",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "501500  ENTERTAINMENT",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": ""
+  },
+  {
+    "accountCode": "501501  STAFF WELFARE",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "501502  VISITORS, REFRESHMENTS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "501503  MEMBERS' WELFARE",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "501504  STAFF IDENTITY CARDS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "501505  HANDOVER PARTY",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "501506  STAFF SUPPER",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "501507  STAFF LUNCH",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "501508  STAFF INCENTIVES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "501509  PUBLIC HOLIDAYS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "501600  SUPERVISORY MEETING",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "501700  MOBILE MONEY EXPENSES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "501800  OFFICE TEA EXPENSES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "501900  TRAINING EXPENSES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": ""
+  },
+  {
+    "accountCode": "501901  INTERNAL TRAINING EXPENSES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "501902  EXTERNAL TRAINING EXPENSES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "501903  EXCHANGE VISITS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "502200  ADVERTISING AND PUBLICITY",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": ""
+  },
+  {
+    "accountCode": "502201  RADIO TALKSHOWS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "502202  SIGN POSTS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "502203  POSTERS & BROCHURES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "502204  MOBILISATION",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "GL A/C No.",
+    "accountName": "Name",
+    "ledgerType": "General \nLedger Type",
+    "product": "Product",
+    "debitCredit": "Debit/Credit Type",
+    "currency": "Currency \nCode"
+  },
+  {
+    "accountCode": "502205  ADVERTS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "502206  SACCO CALENDERS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "502207  WEBSITE DESIGNING AND HOSTING COSTS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "502400  TRANSPORT AND TRAVELING",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": ""
+  },
+  {
+    "accountCode": "502401  TRANSPORT CHARGE",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "502402  MEALS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "502403  ACCOMMODATION",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "502404  OFFSTATION ALLOWANCE",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "502405  TRANSPORT - BWERA",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "502406  TRANSPORT - KAMPALA",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "502407  TRANSPORT - REGINAL",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "502408  MEALS - BWERA",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "502409  MEALS - KAMPALA",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "502410  OFFSTATION - KASESE",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "502411  OFFSTATION -BWERA",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "502412  OFFSTATION - KAMPALA",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "502413  OFFSTATION - REGINAL",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "502414  ACCOMODATION - REGIONAL",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "502415  ACCOMODATION - KAMPALA",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "502416  TRANSPORT - KASESE",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "502500  PROFESSIONAL FEES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": ""
+  },
+  {
+    "accountCode": "502501  AUDIT FEES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "502502  CONSULTANCY FEES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "502503  RESEARCH & MOBILISATION",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "502600  PUBLIC RELATIONS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": ""
+  },
+  {
+    "accountCode": "502601  CONDOLENCES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "502602  PRESENTS & AWARDS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "502603  SOCIAL CONTRIBUTIONS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "502604  FUNDRAISINGS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "502605  HOSPITALITY",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "502606  WEDDINGS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "502607  THANKS GIVING EXPENSES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "502800  INSURANCE",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "503100  LOAN RECOVERY EXPENSES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": ""
+  },
+  {
+    "accountCode": "503101  TRANSPORT",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "503102  LUNCH",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "503103  OFF-STATION ALLOWANCE",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "503104  FUEL",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "503105  AIRTIME",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "503106  PUBLIC RELATIONS- LOANS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "503107  LEGAL COSTS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "503300  RENT",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "503600  RECRUITMENT EXPENSES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "503800  DIVIDENDS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "503900  PAY AS YOU EARN (PAYE)",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "503901  HARDWARE EXPENSES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "503902  HONEY EXPENSES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "503903  SCREEN REPAIRS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "503904  STAFF CORPERATE WEAR",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "504000  REPAIRS & MAINTAINANCE",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": ""
+  },
+  {
+    "accountCode": "504001  COMPUTER REPAIRS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "504002  FURNITURE REPAIRS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "504003  MOTORCYCLE REPAIRS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "504004  OFFICE RENOVATION",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "504005  WALLCLOCK MAINTENANCE",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "504006  GENERATOR REPAIRS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": ""
+  },
+  {
+    "accountCode": "504007  GENERATOR MANTAINANCE",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "504008  CASH LOSS (THEFT)",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "504009  BUSINESS PLAN",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "504010  CONSTRUCTION COSTS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "504011  INTEREST ON FIXED DEPOSIT",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "504012  URA COSTS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "504013  WOODLOT EXPENSES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "504014  APPRAISAL EXPENSES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "GL A/C No.",
+    "accountName": "Name",
+    "ledgerType": "General \nLedger Type",
+    "product": "Product",
+    "debitCredit": "Debit/Credit Type",
+    "currency": "Currency \nCode"
+  },
+  {
+    "accountCode": "504015  AIRTEL MONEY EXPENSES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "504016  VETTING COMMITTEE MEETING",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "504017  HARDWARE PURCHASES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "504018  COFFEE PROJECT EXPENSES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "504019  BUSINESS PLAN EXPENSES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "505010  FRAUDED MONEY EXPENSES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "505011  KEY HELPER EXPENSES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "505012  INTERNS EXPENSES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "505013  CASH COUNT CERTIFICATE EXPENSES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "505014  MEALS - KASESE",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "505015  COURT BAILIFFS EXPENSES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "505016  VOLUNTEER",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "505017  POLICY FORMULATION/AMENDMENT COSTS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "505018  NETWORK COSTS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "505019  CCTV COSTS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "506001  SOLAR BATTERIES COSTS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "506002  EASTER & CHRISTMASS COSTS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "506004  PROJECT PROPOSALWRITING COSTS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "506005  OFFICE STAMPS EXPENSES",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "506006  PHONE REPAIRS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "506007  STATIONARY COSTS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "506008  OFFICE CURTAINS",
+    "accountName": "",
+    "ledgerType": "Expenses",
+    "product": "",
+    "debitCredit": "",
+    "currency": "UGX"
+  },
+  {
+    "accountCode": "Total: 337",
+    "accountName": "",
+    "ledgerType": "",
+    "product": "",
+    "debitCredit": "",
+    "currency": ""
+  }
+]

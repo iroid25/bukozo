@@ -1,0 +1,289 @@
+(node:8656) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///E:/developemet/projexts/bukonzemergency/tmp/research_db.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to E:\developemet\projexts\bukonzemergency\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+--- Account Types ---
+[
+  {
+    "id": "cml9kcccy0002kz04mxa32tlc",
+    "name": "Ordinary Shares Account",
+    "isShareAccount": true,
+    "earnsDividends": true
+  },
+  {
+    "id": "cml9kdjfb0004kz04usmf24ba",
+    "name": "Affiliate Shares Account",
+    "isShareAccount": true,
+    "earnsDividends": true
+  },
+  {
+    "id": "cml9kelzh0006kz04w2atx9od",
+    "name": "Associate Shares Account",
+    "isShareAccount": true,
+    "earnsDividends": true
+  },
+  {
+    "id": "cmlrvcqyy0005w784n2jpkvyh",
+    "name": "SACCO Insurance Account",
+    "isShareAccount": false,
+    "earnsDividends": false
+  },
+  {
+    "id": "cml9hlnzq000ew7s49ftow4m2",
+    "name": "Share Capital",
+    "isShareAccount": true,
+    "earnsDividends": true
+  },
+  {
+    "id": "cml9hlnu4000dw7s4ous13ro0",
+    "name": "Junior Savings Account",
+    "isShareAccount": false,
+    "earnsDividends": false
+  },
+  {
+    "id": "cml9hlo5b000fw7s4tvxt4mgp",
+    "name": "Fixed Deposit",
+    "isShareAccount": false,
+    "earnsDividends": false
+  },
+  {
+    "id": "cml9ptde60000jr05q3nci0bo",
+    "name": "Compulsory Savings",
+    "isShareAccount": false,
+    "earnsDividends": false
+  },
+  {
+    "id": "cml9hlniz000cw7s41lcb8b14",
+    "name": "Voluntary Savings Account",
+    "isShareAccount": false,
+    "earnsDividends": false
+  },
+  {
+    "id": "cmluutueu001pw70svjjgfzlf",
+    "name": "Loan Insurance Pool",
+    "isShareAccount": false,
+    "earnsDividends": false
+  }
+]
+
+--- Loan Products ---
+[
+  {
+    "id": "cml9hlogh000gw7s4zg20u1ge",
+    "name": "Personal Loan",
+    "interestRate": 15,
+    "minAmount": 100000,
+    "maxAmount": 5000000
+  },
+  {
+    "id": "cml9hlox4000iw7s4trr4bycg",
+    "name": "Emergency Loan",
+    "interestRate": 96,
+    "minAmount": 50000,
+    "maxAmount": 2000000
+  },
+  {
+    "id": "cmmut37c40001w7fccpf9ob8l",
+    "name": "Asset Acquisition/Home Improvement",
+    "interestRate": 30,
+    "minAmount": 1000000,
+    "maxAmount": 20000000
+  },
+  {
+    "id": "cml9k38qh0004la0405y4bh8r",
+    "name": "Boda-boda loan",
+    "interestRate": 18,
+    "minAmount": 50000,
+    "maxAmount": 5000000
+  },
+  {
+    "id": "cmmut37ob0003w7fc5y0qgvmh",
+    "name": "Employed Loan - Category 1",
+    "interestRate": 20.04,
+    "minAmount": 200000,
+    "maxAmount": 10000000
+  },
+  {
+    "id": "cmmut37u30004w7fck7oywl43",
+    "name": "Employed Loan - Category 2",
+    "interestRate": 21.6,
+    "minAmount": 10000000,
+    "maxAmount": 30000000
+  },
+  {
+    "id": "cml9jqape0000la04705a9wrv",
+    "name": "Commercial loan/Business loan",
+    "interestRate": 30,
+    "minAmount": 50000,
+    "maxAmount": 30000000
+  },
+  {
+    "id": "cmmut37in0002w7fc68pwvfum",
+    "name": "School Fees Loan",
+    "interestRate": 21.6,
+    "minAmount": 100000,
+    "maxAmount": 5000000
+  },
+  {
+    "id": "cmmut385e0006w7fcdf30dz2b",
+    "name": "Starter Fund",
+    "interestRate": 12,
+    "minAmount": 50000,
+    "maxAmount": 1000000
+  },
+  {
+    "id": "cmmut38az0007w7fcd9r9b7w4",
+    "name": "Super Saver Loan",
+    "interestRate": 24,
+    "minAmount": 100000,
+    "maxAmount": 5000000
+  }
+]
+
+--- Branches ---
+[
+  {
+    "id": "cmlmq89x10003w7tgd5x3w32v",
+    "name": "Verification Branch",
+    "location": "Test Location"
+  },
+  {
+    "id": "cmmt0j1j70001ju049uh132yt",
+    "name": "Kyarumba",
+    "location": "Kyarumba Town Council"
+  },
+  {
+    "id": "cml9hll3p0001w7s4zmfrers0",
+    "name": "East Branch - Kagando",
+    "location": "Kagando, Kasese District"
+  },
+  {
+    "id": "cml9hlks10000w7s4wdh691cz",
+    "name": "Main Branch - Kisinga",
+    "location": "Kisinga, Kasese District"
+  }
+]
+
+--- Income/Expense Accounts (Sample) ---
+[
+  {
+    "id": "cmlnf3y9w002uw7d83ytmr9n5",
+    "accountName": "income",
+    "accountCode": "400000",
+    "ledgerType": "INCOME"
+  },
+  {
+    "id": "cmlnf3yj0002ww7d80kayv07q",
+    "accountName": "ACCOUNT OPENING FEES",
+    "accountCode": "400200",
+    "ledgerType": "INCOME"
+  },
+  {
+    "id": "cmlnf3ywt002zw7d82pbdrj6w",
+    "accountName": "CLIENT APPLICATION FEES",
+    "accountCode": "400302",
+    "ledgerType": "INCOME"
+  },
+  {
+    "id": "cmlnf4145003gw7d89moe9j3d",
+    "accountName": "LOAN PROCESSING FEES",
+    "accountCode": "400950",
+    "ledgerType": "INCOME"
+  },
+  {
+    "id": "cmlnf418p003hw7d8g4st0a3j",
+    "accountName": "Loan related income",
+    "accountCode": "401000",
+    "ledgerType": "INCOME"
+  },
+  {
+    "id": "cmlnf44tp0049w7d8sw7r9ro9",
+    "accountName": "EXPENSES",
+    "accountCode": "500000",
+    "ledgerType": "EXPENSES"
+  },
+  {
+    "id": "cmlnf44y7004aw7d8w9agft0k",
+    "accountName": "OFFICE STATIONERY",
+    "accountCode": "500100",
+    "ledgerType": "EXPENSES"
+  },
+  {
+    "id": "cmlnf452r004bw7d8ghfwcqk2",
+    "accountName": "SOFTWARE EXPENSE",
+    "accountCode": "500101",
+    "ledgerType": "EXPENSES"
+  },
+  {
+    "id": "cmlnf457g004cw7d80xdnjd9j",
+    "accountName": "SECURITY MEETING",
+    "accountCode": "500102",
+    "ledgerType": "EXPENSES"
+  },
+  {
+    "id": "cmlnf45bz004dw7d8rlvcz1wp",
+    "accountName": "ELECTRICITY MAINTENACE",
+    "accountCode": "500103",
+    "ledgerType": "EXPENSES"
+  },
+  {
+    "id": "cmlnf45gi004ew7d8luv8a56h",
+    "accountName": "ADMINISTRATION",
+    "accountCode": "500104",
+    "ledgerType": "EXPENSES"
+  },
+  {
+    "id": "cmlnf45l1004fw7d86vqxhdr8",
+    "accountName": "HEALTH & SANITATION",
+    "accountCode": "500105",
+    "ledgerType": "EXPENSES"
+  },
+  {
+    "id": "cmlnf45pn004gw7d8tj4wp69t",
+    "accountName": "STAFF DISCIPLINARY COMMITTEE MEETING",
+    "accountCode": "500106",
+    "ledgerType": "EXPENSES"
+  },
+  {
+    "id": "cmlnf45ub004hw7d8c6ahnt9g",
+    "accountName": "INTERVIEW EXPENSES",
+    "accountCode": "500107",
+    "ledgerType": "EXPENSES"
+  },
+  {
+    "id": "cmlnf45yv004iw7d88ptlsnfn",
+    "accountName": "DEBT SETTLEMENT",
+    "accountCode": "500108",
+    "ledgerType": "EXPENSES"
+  },
+  {
+    "id": "cmlnf463h004jw7d8g9bftoso",
+    "accountName": "BOOKS OF ACCOUNTS",
+    "accountCode": "500200",
+    "ledgerType": "EXPENSES"
+  },
+  {
+    "id": "cmlnf467z004kw7d889286atk",
+    "accountName": "BANK CHARGES",
+    "accountCode": "500201",
+    "ledgerType": "EXPENSES"
+  },
+  {
+    "id": "cmlnf46ci004lw7d8ie6mp7pk",
+    "accountName": "INTEREST ON COMPULSORY SAVINGS",
+    "accountCode": "500202",
+    "ledgerType": "EXPENSES"
+  },
+  {
+    "id": "cmlnf46h0004mw7d8gg8i8p4o",
+    "accountName": "INTEREST ON FIXED SAVINGS",
+    "accountCode": "500203",
+    "ledgerType": "EXPENSES"
+  },
+  {
+    "id": "cmlnf46lo004nw7d88wn7qqic",
+    "accountName": "INTEREST ON EXTERNAL LOAN",
+    "accountCode": "500204",
+    "ledgerType": "EXPENSES"
+  }
+]

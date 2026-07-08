@@ -1,0 +1,60 @@
+[dotenv@17.3.1] injecting env (23) from .env -- tip: ⚙️  write to custom object with { processEnv: myObject }
+==========================================================
+  MTN MoMo Sandbox — Full Test Suite
+  Date: 2026-03-30T18:47:01.967Z
+==========================================================
+
+--- COLLECTIONS: Auth Tests ---
+✅ PASS | TC01-01 | Collections Token - Invalid Sub Key | Expected: 401 | Actual: 401 - Access denied due to invalid subscription key. Make sure to provide a valid key for an active subscription.
+❌ FAIL | TC01-02 | Collections Token - Invalid API Key | Expected: 401 | Actual: 500 - {"error":"login_failed"}
+✅ PASS | TC01-04 | Collections - Second Token Before Expiry | Expected: Both tokens valid | Actual: Token1: eyJ0eXAiOiJKV1Q... Token2: eyJ0eXAiOiJKV1Q... Different: true
+
+--- COLLECTIONS: Transaction Tests ---
+❌ FAIL | TC02-02 | Collections - Subscriber Rejects (Insufficient Funds) | Expected: FAILED | Actual: CREATED - reason: {"externalId":"SACCO-REJECT-001","amount":"1000","currency":"EUR","payer":{"partyIdType":"MSISDN","partyId":"46733123454"},"payerMessage":"Test rejected payment","payeeNote":"Rejection test","status":"CREATED"}
+✅ PASS | TC02-03 | Collections - Approval Timeout | Expected: FAILED/TIMEOUT | Actual: FAILED - "EXPIRED"
+✅ PASS | TC-DUP | Collections - Duplicate Reference ID | Expected: 409 Conflict | Actual: 409 - {"message":"Duplicated reference id. Creation of resource failed.","code":"RESOURCE_ALREADY_EXIST"}
+✅ PASS | TC-INC | Collections - Incomplete Info (no payer) | Expected: 400 Bad Request | Actual: 400 - ""
+
+--- DISBURSEMENTS: Auth Tests ---
+✅ PASS | TC01-01 | Disbursements Token - Invalid Sub Key | Expected: 401 | Actual: 401 - Access denied due to invalid subscription key. Make sure to provide a valid key for an active subscription.
+❌ FAIL | TC01-02 | Disbursements Token - Invalid API Key | Expected: 401 | Actual: 500 - {"error":"login_failed"}
+✅ PASS | TC01-04 | Disbursements - Second Token Before Expiry | Expected: Both tokens valid | Actual: Token1: eyJ0eXAiOiJKV1Q... Token2: eyJ0eXAiOiJKV1Q... Different: true
+
+--- DISBURSEMENTS: Transaction Tests ---
+✅ PASS | TC02-02 | Disbursements - Duplicate Reference ID | Expected: 409 Conflict | Actual: 409 - {"message":"Duplicated reference id. Creation of resource failed.","code":"RESOURCE_ALREADY_EXIST"}
+✅ PASS | TC02-03 | Disbursements - Incomplete Info (no payee) | Expected: 400 Bad Request | Actual: 400 - ""
+
+--- BALANCE ---
+❌ FAIL | BAL-COL | Collections - Get Balance | Expected: 200 OK | Actual: 500 - {"message":"An internal error occurred while processing.","code":"INTERNAL_PROCESSING_ERROR"}
+✅ PASS | BAL-DIS | Disbursements - Get Balance | Expected: 200 OK | Actual: 200 - Balance: {"availableBalance":"-25","currency":"EUR"}
+
+--- VALIDATE ACCOUNT ---
+❌ FAIL | VAL-COL | Collections - Validate Account (valid MSISDN) | Expected: 200 OK | Actual: 500 - {"message":"Access to target environment is forbidden.","code":"NOT_ALLOWED_TARGET_ENVIRONMENT"}
+✅ PASS | VAL-COL-INV | Collections - Validate Account (invalid MSISDN) | Expected: 404 or result=false | Actual: 200 - Result: {"result":true}
+❌ FAIL | VAL-DIS | Disbursements - Validate Account (valid MSISDN) | Expected: 200 OK | Actual: 500 - {"message":"Access to target environment is forbidden.","code":"NOT_ALLOWED_TARGET_ENVIRONMENT"}
+
+==========================================================
+  SUMMARY
+==========================================================
+Total: 17 | Passed: 11 | Failed: 6
+
+--- Full Results Table ---
+| TC | Request | Expected | Actual | Status |
+|---|---|---|---|---|
+| TC01-01 | Collections Token - Invalid Sub Key | 401 | 401 - Access denied due to invalid subscription key. Make sure to provide a valid key for an active subscription. | ✅ PASS |
+| TC01-02 | Collections Token - Invalid API Key | 401 | 500 - {"error":"login_failed"} | ❌ FAIL |
+| TC01-04 | Collections - Second Token Before Expiry | Both tokens valid | Token1: eyJ0eXAiOiJKV1Q... Token2: eyJ0eXAiOiJKV1Q... Different: true | ✅ PASS |
+| TC02-02 | Collections - Subscriber Rejects (Insufficient Funds) | FAILED | CREATED - reason: {"externalId":"SACCO-REJECT-001","amount":"1000","currency":"EUR","payer":{"partyIdType":"MSISDN","partyId":"46733123454"},"payerMessage":"Test rejected payment","payeeNote":"Rejection test","status":"CREATED"} | ❌ FAIL |
+| TC02-03 | Collections - Approval Timeout | FAILED/TIMEOUT | FAILED - "EXPIRED" | ✅ PASS |
+| TC-DUP | Collections - Duplicate Reference ID | 409 Conflict | 409 - {"message":"Duplicated reference id. Creation of resource failed.","code":"RESOURCE_ALREADY_EXIST"} | ✅ PASS |
+| TC-INC | Collections - Incomplete Info (no payer) | 400 Bad Request | 400 - "" | ✅ PASS |
+| TC01-01 | Disbursements Token - Invalid Sub Key | 401 | 401 - Access denied due to invalid subscription key. Make sure to provide a valid key for an active subscription. | ✅ PASS |
+| TC01-02 | Disbursements Token - Invalid API Key | 401 | 500 - {"error":"login_failed"} | ❌ FAIL |
+| TC01-04 | Disbursements - Second Token Before Expiry | Both tokens valid | Token1: eyJ0eXAiOiJKV1Q... Token2: eyJ0eXAiOiJKV1Q... Different: true | ✅ PASS |
+| TC02-02 | Disbursements - Duplicate Reference ID | 409 Conflict | 409 - {"message":"Duplicated reference id. Creation of resource failed.","code":"RESOURCE_ALREADY_EXIST"} | ✅ PASS |
+| TC02-03 | Disbursements - Incomplete Info (no payee) | 400 Bad Request | 400 - "" | ✅ PASS |
+| BAL-COL | Collections - Get Balance | 200 OK | 500 - {"message":"An internal error occurred while processing.","code":"INTERNAL_PROCESSING_ERROR"} | ❌ FAIL |
+| BAL-DIS | Disbursements - Get Balance | 200 OK | 200 - Balance: {"availableBalance":"-25","currency":"EUR"} | ✅ PASS |
+| VAL-COL | Collections - Validate Account (valid MSISDN) | 200 OK | 500 - {"message":"Access to target environment is forbidden.","code":"NOT_ALLOWED_TARGET_ENVIRONMENT"} | ❌ FAIL |
+| VAL-COL-INV | Collections - Validate Account (invalid MSISDN) | 404 or result=false | 200 - Result: {"result":true} | ✅ PASS |
+| VAL-DIS | Disbursements - Validate Account (valid MSISDN) | 200 OK | 500 - {"message":"Access to target environment is forbidden.","code":"NOT_ALLOWED_TARGET_ENVIRONMENT"} | ❌ FAIL |
