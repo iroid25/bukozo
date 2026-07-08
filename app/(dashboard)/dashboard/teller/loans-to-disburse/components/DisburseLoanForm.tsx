@@ -78,8 +78,12 @@ export default function DisburseLoanForm({ loan, currentReserve }: Props) {
         throw new Error(data.error || "Failed to disburse loan");
       }
 
+      const grossAmount = Number(data?.grossAmount ?? approvedAmount);
+      const netPaid = Number(data?.netDisbursement ?? netDisbursement);
+      const deductionsPaid = Number(data?.totalDeductions ?? totalDeductions);
+
       toast.success("Loan disbursed successfully", {
-          description: `Approved: UGX ${approvedAmount.toLocaleString()} | Net paid: UGX ${netDisbursement.toLocaleString()}`,
+          description: `Gross: UGX ${grossAmount.toLocaleString()} | Deductions: UGX ${deductionsPaid.toLocaleString()} | Net paid: UGX ${netPaid.toLocaleString()} | Branch reserve debited: UGX ${netPaid.toLocaleString()}`,
       });
       setOpen(false);
       router.refresh();

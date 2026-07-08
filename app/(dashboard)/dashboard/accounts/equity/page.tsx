@@ -303,7 +303,9 @@ export default function EquityPage() {
         throw new Error("Invalid response format");
       }
 
-      setAccounts(data.data);
+      setAccounts(
+        data.data.filter((account: ChartOfAccount) => account.accountCode !== "301004"),
+      );
       setShareCapitalGroups(
         Array.isArray(data.groups?.shareCapital?.items)
           ? data.groups.shareCapital.items
@@ -1097,7 +1099,7 @@ export default function EquityPage() {
         <CardHeader className="border-b bg-muted/10">
           <CardTitle>Equity Structure</CardTitle>
           <CardDescription>
-            Review the equity control account and its five core buckets.
+            Review the equity control account and its core buckets.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6 p-6">

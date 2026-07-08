@@ -90,13 +90,13 @@ export default function TellerLoansClient({ userId }: Props) {
                 <div className="flex justify-between items-start">
                   <div>
                     <CardTitle className="text-lg flex items-center gap-2">
-                      {loan.member.user.name}
+                      {loan.member?.user?.name || "Unknown member"}
                       <Badge variant="outline" className="font-normal">
-                        #{loan.member.memberNumber}
+                        #{loan.member?.memberNumber || "N/A"}
                       </Badge>
                     </CardTitle>
                     <p className="text-sm text-muted-foreground mt-1">
-                      {loan.loanApplication.loanProduct.name}
+                      {loan.loanApplication?.loanProduct?.name || "Loan"}
                     </p>
                   </div>
                   <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100 border-orange-200">
@@ -115,7 +115,7 @@ export default function TellerLoansClient({ userId }: Props) {
                   <div>
                     <span className="text-sm text-muted-foreground">Approval Date</span>
                     <p className="font-medium">
-                      {loan.loanApplication.approvalDate
+                      {loan.loanApplication?.approvalDate
                         ? format(new Date(loan.loanApplication.approvalDate), "PPP")
                         : "N/A"}
                     </p>
@@ -123,7 +123,7 @@ export default function TellerLoansClient({ userId }: Props) {
                   <div>
                     <span className="text-sm text-muted-foreground">Disbursement Method</span>
                     <p className="font-medium capitalize">
-                      {loan.loanApplication.disbursementMethod || "Cash"}
+                      {loan.loanApplication?.disbursementMethod || "Cash"}
                     </p>
                   </div>
                 </div>

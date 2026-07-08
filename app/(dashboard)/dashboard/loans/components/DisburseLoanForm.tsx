@@ -125,7 +125,13 @@ export default function DisburseLoanForm({ loan, memberAccounts }: DisburseLoanF
         throw new Error(data.error || "Failed to disburse loan");
       }
 
-      toast.success("Loan disbursed successfully");
+      const grossAmountFromResponse = Number(data?.grossAmount ?? grossAmount);
+      const netPaid = Number(data?.netDisbursement ?? netAmount);
+      const deductionsPaid = Number(data?.totalDeductions ?? deductions.total);
+
+      toast.success("Loan disbursed successfully", {
+        description: `Gross: ${formatCurrency(grossAmountFromResponse)} | Deductions: ${formatCurrency(deductionsPaid)} | Net paid: ${formatCurrency(netPaid)} | Branch reserve debited: ${formatCurrency(netPaid)}`,
+      });
       setIsOpen(false);
       router.refresh();
     } catch (error) {

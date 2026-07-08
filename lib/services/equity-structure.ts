@@ -101,10 +101,6 @@ export async function ensureEquityStructure() {
       name: "Statutory reserves",
     },
     {
-      code: SACCO_RESERVES_CODE,
-      name: "Sacco reserves",
-    },
-    {
       code: GRANTS_AND_DONATIONS_CODE,
       name: "Grants and donations",
     },

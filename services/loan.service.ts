@@ -1293,8 +1293,11 @@ export class LoanService {
 
           return {
             ...updatedLoan,
+            grossAmount: amountGranted,
             netDisbursement,
             totalDeductions,
+            deductions,
+            branchReserveDebited: netDisbursement,
             processingFee: deductions.processingFee,
           };
         },
@@ -1919,7 +1922,14 @@ export class LoanService {
             );
           }
 
-          return { loanId: loan.id, netDisbursement };
+          return {
+            loanId: loan.id,
+            grossAmount: amountGranted,
+            netDisbursement,
+            totalDeductions,
+            deductions,
+            branchReserveDebited: netDisbursement,
+          };
         },
         { timeout: 60000 },
       );
@@ -2731,9 +2741,11 @@ export class LoanService {
             member: { include: { user: true } },
             loanApplication: {
               select: {
+                id: true,
                 loanProduct: true,
                 amountApplied: true,
                 approvedAmount: true,
+                approvalDate: true,
                 loanOfficer: { select: { id: true, name: true, email: true } },
                 approver: { select: { id: true, name: true, role: true } },
                 applicant: { select: { id: true, name: true, role: true } },
@@ -2749,6 +2761,7 @@ export class LoanService {
                 repaymentStartDate: true,
                 gracePeriod: true,
                 disbursementMethod: true,
+                modeOfRepayment: true,
               },
             },
             branch: true,

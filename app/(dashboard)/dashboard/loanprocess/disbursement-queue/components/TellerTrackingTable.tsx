@@ -19,7 +19,7 @@ export default function TellerTrackingTable({ loans, currentReserve }: TellerTra
       cell: (row: any) => (
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
-            <span className="font-medium">{row.member.user.name}</span>
+            <span className="font-medium">{row.member?.user?.name || "Unknown member"}</span>
             {row.isInstitution && (
               <Badge variant="secondary" className="text-[10px] h-4 px-1 bg-blue-100 text-blue-700 border-blue-200">
                 Institution
@@ -27,7 +27,7 @@ export default function TellerTrackingTable({ loans, currentReserve }: TellerTra
             )}
           </div>
           <span className="text-xs text-muted-foreground">
-            #{row.member.memberNumber}
+            #{row.member?.memberNumber || "N/A"}
           </span>
         </div>
       ),
@@ -36,7 +36,7 @@ export default function TellerTrackingTable({ loans, currentReserve }: TellerTra
       header: "Loan Product",
       accessorKey: "loanApplication.loanProduct.name",
       cell: (row) => (
-        <Badge variant="outline">{row.loanApplication.loanProduct.name}</Badge>
+        <Badge variant="outline">{row.loanApplication?.loanProduct?.name || "Loan"}</Badge>
       ),
     },
     {

@@ -2,9 +2,8 @@ import { Metadata } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
 import { redirect } from "next/navigation";
-import { AlertCircle, Wallet } from "lucide-react";
-import TellerTrackingTable from "./components/TellerTrackingTable";
-import { serverFetch } from "@/lib/server-fetch";
+import { AlertCircle } from "lucide-react";
+import DisbursementQueueClient from "./DisbursementQueueClient";
 
 export const metadata: Metadata = {
   title: "Disbursement Queue | Loan Process",
@@ -12,86 +11,51 @@ export const metadata: Metadata = {
 };
 
 export default async function DisbursementQueuePage() {
-  const session = await getServerSession(authOptions);
+  try {
+    const session = await getServerSession(authOptions);
 
-  if (!session?.user) {
-    redirect("/auth/login");
-  }
+    if (!session?.user) {
+      redirect("/auth/login");
+      return;
+    }
 
-  const userRole = session.user.role;
-  const branchId = (session.user as any).branchId as string | undefined;
+    const userRole = session.user.role;
+    const branchId = (session.user as any).branchId as string | undefined;
 
-  if (!["TELLER", "ADMIN", "BRANCHMANAGER", "LOANOFFICER"].includes(userRole)) {
+    if (!["TELLER", "ADMIN", "BRANCHMANAGER", "LOANOFFICER"].includes(userRole)) {
+      return (
+        <div className="container mx-auto py-10">
+          <div className="flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-4 text-red-700">
+            <AlertCircle className="h-5 w-5" />
+            <p>You do not have permission to view this page. Required roles: LOAN OFFICER, TELLER, or MANAGER</p>
+          </div>
+        </div>
+      );
+    }
+
     return (
-      <div className="container mx-auto py-10">
-        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-md flex items-center gap-2">
-          <AlertCircle className="h-5 w-5" />
-          <p>You do not have permission to view this page. Required roles: LOAN OFFICER, TELLER, or MANAGER</p>
+      <DisbursementQueueClient
+        userRole={userRole}
+        branchId={branchId}
+      />
+    );
+  } catch (error) {
+    if ((error as any)?.digest?.startsWith?.("NEXT_REDIRECT")) {
+      throw error;
+    }
+    console.error("DisbursementQueuePage error:", error);
+    return (
+      <div className="container mx-auto py-8 space-y-6">
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700 flex items-start gap-3">
+          <AlertCircle className="mt-0.5 h-5 w-5" />
+          <div>
+            <p className="font-semibold">Unable to load disbursement queue</p>
+            <p className="text-sm">
+              {error instanceof Error ? error.message : "An unexpected error occurred. Please try again."}
+            </p>
+          </div>
         </div>
       </div>
     );
   }
-
-  // ADMIN with no branch sees all approved loans; branch staff filter by branch; tellers by assignment
-  let loansQuery: string;
-  if (userRole === "ADMIN" && !branchId) {
-    loansQuery = `/api/v1/loans?status=APPROVED`;
-  } else if (["ADMIN", "BRANCHMANAGER"].includes(userRole) && branchId) {
-    loansQuery = `/api/v1/loans?branchId=${branchId}&status=APPROVED`;
-  } else {
-    loansQuery = `/api/v1/loans?allocatedTellerId=${session.user.id}&status=APPROVED`;
-  }
-
-  // Branch loan processing uses branch reserve; admin without branch uses organisational reserve.
-  const usesOrganisationalReserve = userRole === "ADMIN" && !branchId;
-  const balanceEndpoint = usesOrganisationalReserve ? "/api/v1/dashboard/reserve" : "/api/v1/vault/balance";
-
-  const [loansRes, balanceRes] = await Promise.all([
-    serverFetch(loansQuery),
-    serverFetch(balanceEndpoint),
-  ]);
-
-  const loansJson = loansRes.ok ? await loansRes.json() : { success: false, data: [] };
-  const loans = loansJson.success ? (loansJson.data ?? []) : [];
-
-  let balanceAmount = 0;
-  let balanceLabel = "Branch Reserve Balance";
-
-  if (usesOrganisationalReserve) {
-    const balJson = balanceRes.ok ? await balanceRes.json() : {};
-    balanceAmount = balJson.data?.organisationalReserve?.balance ?? 0;
-    balanceLabel = "Organisational Reserve Balance";
-  } else {
-    const balJson = balanceRes.ok ? await balanceRes.json() : {};
-    balanceAmount = balJson.balance ?? 0;
-    balanceLabel = "Branch Reserve Balance";
-  }
-
-  return (
-    <div className="container mx-auto py-8 space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Disbursement Queue</h1>
-          <p className="text-muted-foreground">
-            {usesOrganisationalReserve
-              ? "Manage and disburse loans from the organisational reserve."
-              : "Track and disburse loans assigned to your branch reserve."}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-lg border border-blue-100">
-          <Wallet className="h-5 w-5 text-blue-600" />
-          <div className="flex flex-col">
-            <span className="text-xs text-blue-600 font-medium">{balanceLabel}</span>
-            <span className="text-lg font-bold text-blue-800">
-              UGX {balanceAmount.toLocaleString()}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-card rounded-lg border shadow-sm">
-        <TellerTrackingTable loans={loans} currentReserve={balanceAmount} />
-      </div>
-    </div>
-  );
 }
