@@ -154,18 +154,22 @@ export default function DisburseLoanForm({ loan, memberAccounts }: DisburseLoanF
         <DialogHeader>
           <DialogTitle>Disburse Loan</DialogTitle>
           <DialogDescription>
-            Review the disbursement details and confirm to credit the member's account.
+            Review the gross approved loan, deductions, and net amount that will be credited to the member's account.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-            <div className="space-y-2 bg-gray-50 p-4 rounded-lg">
+            <div className="space-y-2 rounded-lg border bg-gray-50 p-4">
+            <div className="flex items-center justify-between border-b border-gray-200 pb-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">Approved Loan Summary</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Gross first, deductions second</span>
+            </div>
             <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Total Loan Requested:</span>
+                <span className="text-gray-500">Total Loan Requested</span>
                 <span className="font-medium">{formatCurrency(requestedAmount)}</span>
             </div>
             <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Gross Amount Before Deductions:</span>
+                <span className="text-gray-500">Gross Approved Amount</span>
                 <span className="font-medium">{formatCurrency(grossAmount)}</span>
             </div>
             
@@ -213,7 +217,7 @@ export default function DisburseLoanForm({ loan, memberAccounts }: DisburseLoanF
             </div>
 
             <div className="border-t border-gray-300 pt-2 flex justify-between font-bold text-lg">
-                <span>Net Cash to Client:</span>
+                <span>Net Amount Credited to Member</span>
                 <span className="text-green-700">{formatCurrency(netAmount)}</span>
             </div>
           </div>
@@ -235,6 +239,9 @@ export default function DisburseLoanForm({ loan, memberAccounts }: DisburseLoanF
                 ))}
               </SelectContent>
             </Select>
+            <p className="text-[10px] text-gray-400 italic">
+              This account receives the net amount only. The deductions go to their respective GL destinations.
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-4 text-sm">

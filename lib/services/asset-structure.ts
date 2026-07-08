@@ -3,9 +3,9 @@ import { db } from "@/prisma/db";
 export const ASSET_ROOT_CODE = "100000";
 export const FIXED_ASSETS_CODE = "101000";
 export const CURRENT_ASSETS_CODE = "102000";
-export const LOAN_PORTFOLIO_CODE = "102003";
 export const MOBILE_MONEY_FLOAT_CODE = "102004";
 export const CASH_AT_HAND_CODE = "101100";
+export const LOAN_PORTFOLIO_CODE = "102003";
 
 export async function ensureAssetStructure() {
   const root = await db.chartOfAccount.upsert({
@@ -101,7 +101,6 @@ export async function ensureAssetStructure() {
     { accountCode: "102002", accountName: "Cash at bank" },
     { accountCode: MOBILE_MONEY_FLOAT_CODE, accountName: "Mobile Money Float" },
     { accountCode: "107000", accountName: "Loans" },
-    { accountCode: LOAN_PORTFOLIO_CODE, accountName: "Loan Portfolio" },
   ] as const;
 
   for (const child of fixedChildren) {
@@ -161,6 +160,21 @@ export async function ensureAssetStructure() {
       },
     });
   }
+
+  // Retire the old loan portfolio bucket now that repayments/disbursements
+  // are tracked through 107000 Loans.
+  await db.chartOfAccount.updateMany({
+    where: {
+      accountCode: LOAN_PORTFOLIO_CODE,
+      ledgerType: "ASSETS",
+    },
+    data: {
+      isActive: false,
+      parentId: current.id,
+      category: current.accountName,
+      description: "Deprecated loan portfolio bucket replaced by 107000 Loans",
+    },
+  });
 
   return { root, fixed, current };
 }

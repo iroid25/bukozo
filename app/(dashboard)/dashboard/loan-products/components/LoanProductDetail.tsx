@@ -91,8 +91,8 @@ export default function LoanProductDetails({
   loanProduct,
   stats,
 }: LoanProductDetailsProps) {
-  const STANDARD_LEDGER_ACCOUNT_CODES = ["107000", "102003"] as const;
-  const STANDARD_LEDGER_ACCOUNT_NAME = "Loan Portfolio";
+  const STANDARD_LEDGER_ACCOUNT_CODES = ["107000"] as const;
+  const STANDARD_LEDGER_ACCOUNT_NAME = "Loans";
   const STANDARD_INTEREST_ACCOUNT_CODE = "401001";
   const STANDARD_INTEREST_ACCOUNT_NAME = "Interest paid";
   const STANDARD_FEE_ACCOUNT_CODE = "401002";
@@ -296,7 +296,7 @@ export default function LoanProductDetails({
     if (!standardLoanAssetClassification?.id) {
       setMessage({
         type: "error",
-        text: "Loan portfolio account (107000 or 102003) is missing or inactive.",
+        text: "Loan account (107000) is missing or inactive.",
       });
       setTimeout(() => setMessage(null), 5000);
       return;

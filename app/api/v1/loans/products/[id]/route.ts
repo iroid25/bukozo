@@ -10,7 +10,7 @@ const STANDARD_LOAN_INTEREST_ACCOUNT_CODE = "401001";
 const STANDARD_LOAN_INTEREST_ACCOUNT_NAME = "Interest paid";
 const STANDARD_LOAN_FEE_ACCOUNT_CODE = "401002";
 const STANDARD_LOAN_FEE_ACCOUNT_NAME = "Loan processing fees";
-const STANDARD_LOAN_LEDGER_ACCOUNT_CODES = ["107000", "102003"] as const;
+const STANDARD_LOAN_LEDGER_ACCOUNT_CODES = ["107000"] as const;
 
 async function resolveStandardLoanLedgerAccount(tx: typeof db) {
   for (const accountCode of STANDARD_LOAN_LEDGER_ACCOUNT_CODES) {
@@ -25,7 +25,7 @@ async function resolveStandardLoanLedgerAccount(tx: typeof db) {
   }
 
   throw new Error(
-    "Loan portfolio account (107000 or 102003) is missing or inactive."
+    "Loan account (107000) is missing or inactive."
   );
 }
 

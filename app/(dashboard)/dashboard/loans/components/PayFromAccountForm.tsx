@@ -54,6 +54,8 @@ export default function PayFromAccountForm({
   const [notes, setNotes] = useState<string>("");
 
   const selectedAccount = memberAccounts.find((a) => a.id === selectedAccountId);
+  const totalSplit = interestPaid + penaltyPaid + principalPaid;
+  const remainingAfterPayment = Math.max(0, totalDue - parseFloat(amount || "0"));
 
   // Auto-calculate split when amount changes - Proportional Method
   useEffect(() => {
@@ -110,7 +112,6 @@ export default function PayFromAccountForm({
     }
 
     // Validation for manual split sum
-    const totalSplit = interestPaid + penaltyPaid + principalPaid;
     if (Math.abs(totalSplit - amountValue) > 0.01) {
       toast.error("Total split does not match repayment amount", {
         description: `Split total: ${formatCurrency(totalSplit)}, Amount: ${formatCurrency(amountValue)}`
@@ -170,6 +171,49 @@ export default function PayFromAccountForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="space-y-4">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                Repayment Snapshot
+              </p>
+              <p className="text-sm text-slate-600">
+                The selected source account will be debited, then the payment is split into principal, interest, and penalty against the loan.
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                Remaining After
+              </p>
+              <p className="text-lg font-black text-emerald-700">
+                {formatCurrency(remainingAfterPayment)}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+            <div className="rounded-xl bg-white p-3 border">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Outstanding</p>
+              <p className="mt-1 text-sm font-black text-slate-900">{formatCurrency(totalDue)}</p>
+            </div>
+            <div className="rounded-xl bg-white p-3 border">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Principal</p>
+              <p className="mt-1 text-sm font-black text-rose-700">{formatCurrency(principalPaid)}</p>
+            </div>
+            <div className="rounded-xl bg-white p-3 border">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Interest</p>
+              <p className="mt-1 text-sm font-black text-amber-700">{formatCurrency(interestPaid)}</p>
+            </div>
+            <div className="rounded-xl bg-white p-3 border">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Penalty</p>
+              <p className="mt-1 text-sm font-black text-blue-700">{formatCurrency(penaltyPaid)}</p>
+            </div>
+          </div>
+          <div className="mt-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+            Posting logic: source account debit, loan principal credit to 107000 Loans, interest to income, penalty to penalty income.
+          </div>
+        </div>
+
         <div className="space-y-2">
           <Label className="text-sm font-semibold">Source Account</Label>
           <Select
@@ -193,6 +237,11 @@ export default function PayFromAccountForm({
               )}
             </SelectContent>
           </Select>
+          {selectedAccount && (
+            <p className="text-[10px] text-muted-foreground">
+              Selected source balance: {formatCurrency(selectedAccount.balance)}
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -265,10 +314,15 @@ export default function PayFromAccountForm({
               </div>
             </div>
 
-            <p className="text-[10px] text-slate-500 flex items-center gap-1.5 bg-white/50 p-2 rounded-lg border border-slate-100">
-              <Info className="h-3.3 w-3.5 text-indigo-400 flex-shrink-0" />
-              Allocated automatically based on "Interest-First" rule. You may override these values if necessary.
-            </p>
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-white/50 p-2">
+              <p className="text-[10px] text-slate-500 flex items-center gap-1.5">
+                <Info className="h-3.3 w-3.5 text-indigo-400 flex-shrink-0" />
+                Allocated automatically based on the repayment split rule. You may override these values if necessary.
+              </p>
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                Total Split: {formatCurrency(totalSplit)}
+              </span>
+            </div>
           </div>
         )}
       </div>

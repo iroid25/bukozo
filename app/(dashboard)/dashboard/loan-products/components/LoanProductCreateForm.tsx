@@ -78,8 +78,8 @@ export default function LoanProductCreateForm({
   isOpen,
   onClose,
 }: LoanProductCreateFormProps) {
-  const STANDARD_LEDGER_ACCOUNT_CODES = ["107000", "102003"] as const;
-  const STANDARD_LEDGER_ACCOUNT_NAME = "Loan Portfolio";
+  const STANDARD_LEDGER_ACCOUNT_CODES = ["107000"] as const;
+  const STANDARD_LEDGER_ACCOUNT_NAME = "Loans";
   const STANDARD_INTEREST_ACCOUNT_CODE = "401001";
   const STANDARD_INTEREST_ACCOUNT_NAME = "Interest paid";
   const STANDARD_FEE_ACCOUNT_CODE = "401002";
@@ -228,7 +228,7 @@ export default function LoanProductCreateForm({
       if (!standardLoanAssetClassification?.id) {
         toast.error("Principal account setup is incomplete", {
           description:
-            "Loan portfolio account (107000 or 102003) is missing or inactive.",
+            "Loan account (107000) is missing or inactive.",
         });
         setLoading(false);
         return;

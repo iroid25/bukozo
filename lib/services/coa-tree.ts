@@ -16,6 +16,13 @@ export type COANode = {
   children: COANode[];
 };
 
+const isDeprecatedLoanPortfolioAccount = (account: {
+  accountCode: string;
+  accountName: string;
+}) =>
+  account.accountCode === "102003" ||
+  account.accountName.toLowerCase().includes("loan portfolio");
+
 export async function getCOATree(branchId?: string) {
   await ensureCoreChartOfAccountsStructure();
 
@@ -31,9 +38,13 @@ export async function getCOATree(branchId?: string) {
     },
   });
 
+  const visibleAccounts = accounts.filter(
+    (account) => !isDeprecatedLoanPortfolioAccount(account),
+  );
+
   const hydratedAccounts = branchId
     ? await hydrateAccountsWithJournalBalances(
-        accounts.map((account) => ({
+        visibleAccounts.map((account) => ({
           id: account.id,
           ledgerType: account.ledgerType,
           balance: account.balance,
@@ -49,7 +60,7 @@ export async function getCOATree(branchId?: string) {
   const rootNodes: COANode[] = [];
 
   // Initialize all nodes
-  accounts.forEach((acc) => {
+  visibleAccounts.forEach((acc) => {
     const hydrated = hydratedMap.get(acc.id);
     nodesMap.set(acc.id, {
       ...acc,
@@ -61,7 +72,7 @@ export async function getCOATree(branchId?: string) {
   });
 
   // Build the tree
-  accounts.forEach((acc) => {
+  visibleAccounts.forEach((acc) => {
     const node = nodesMap.get(acc.id)!;
     if (acc.parentId && nodesMap.has(acc.parentId)) {
       const parent = nodesMap.get(acc.parentId)!;

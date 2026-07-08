@@ -6,6 +6,13 @@ import { hydrateAccountsWithJournalBalances } from "@/lib/services/chartOfAccoun
 import { ensureCoreChartOfAccountsStructure } from "@/lib/services/chart-of-accounts-bootstrap";
 import { resolveBranchScope } from "@/lib/services/branch-scope";
 
+const isDeprecatedLoanPortfolioAccount = (account: {
+  accountCode: string;
+  accountName: string;
+}) =>
+  account.accountCode === "102003" ||
+  account.accountName.toLowerCase().includes("loan portfolio");
+
 // GET /api/v1/chart-of-accounts/[id] - Get single account
 export async function GET(
   request: NextRequest,
@@ -69,6 +76,13 @@ export async function GET(
       );
     }
 
+    if (isDeprecatedLoanPortfolioAccount(account)) {
+      return NextResponse.json(
+        { error: "Account not found" },
+        { status: 404 }
+      );
+    }
+
     const [hydratedAccount] = await hydrateAccountsWithJournalBalances([
       {
         id: account.id,
@@ -82,6 +96,11 @@ export async function GET(
     return NextResponse.json({
       data: {
         ...account,
+        children: Array.isArray(account.children)
+          ? account.children.filter(
+              (child) => !isDeprecatedLoanPortfolioAccount(child),
+            )
+          : [],
         balance: hydratedAccount?.balance ?? account.balance,
         debitBalance: hydratedAccount?.debitBalance ?? account.debitBalance,
         creditBalance: hydratedAccount?.creditBalance ?? account.creditBalance,

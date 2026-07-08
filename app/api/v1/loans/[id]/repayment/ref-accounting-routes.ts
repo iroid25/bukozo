@@ -4,6 +4,8 @@ import { authOptions } from "@/config/auth";
 import { db } from "@/prisma/db";
 import { TransactionType, TransactionStatus } from "@prisma/client";
 import { successResponse, ApiErrors, validateRequired } from "@/lib/api-utils";
+import { createSplitLoanRepaymentJournalEntry } from "@/lib/journal-entries-extended";
+import { LoanService } from "@/services/loan.service";
 
 // POST /api/v1/loans/{loanId}/repayments - Make loan repayment
 export async function POST(
@@ -82,40 +84,19 @@ export async function POST(
       );
     }
 
-    // Fetch Chart of Accounts
-    const [cashAccount, loansReceivableAccount, interestIncomeAccount] = await Promise.all([
-      db.chartOfAccount.findFirst({
-        where: { accountCode: "102001", isActive: true },
-      }),
-      db.chartOfAccount.findFirst({
-        where: {
-          ledgerType: "ASSETS",
-          accountName: { contains: "LOAN", mode: "insensitive" },
-          isActive: true,
-        },
-      }),
-      db.chartOfAccount.findFirst({
-        where: {
-          ledgerType: "INCOME",
-          accountName: { contains: "INTEREST", mode: "insensitive" },
-          isActive: true,
-        },
-      }),
-    ]);
-
     // Execute repayment in transaction
     const result = await db.$transaction(async (tx) => {
       const transactionRef = `LRP-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
-      const entryNumber = `JE-LRP-${Date.now()}`;
 
-      // Calculate principal and interest portions
-      const interestRate = loan.interestRate / 100;
-      const totalInterest = loan.totalAmountDue - loan.amountGranted;
-      const interestPortion = Math.min(
-        amount * (totalInterest / loan.totalAmountDue),
-        totalInterest - (loan.interestPaid || 0)
-      );
-      const principalPortion = amount - interestPortion;
+      const {
+        interest: interestPortion,
+        penalty: penaltyPortion,
+        principal: principalPortion,
+      } = await LoanService.calculateRepaymentSplit(loan, amount, {
+        interestAmount: body.interestAmount,
+        penaltyAmount: body.penaltyAmount,
+        principalAmount: body.principalAmount,
+      });
 
       // Create transaction record
       const transaction = await tx.transaction.create({
@@ -166,69 +147,25 @@ export async function POST(
         },
       });
 
-      // Create journal entries
-      if (cashAccount && loansReceivableAccount && interestIncomeAccount) {
-        // Dr: Cash (Asset increases)
-        // Cr: Loans Receivable (Asset decreases) - Principal portion
-        // Cr: Interest Income (Income) - Interest portion
-
-        await tx.journalEntry.createMany({
-          data: [
-            {
-              entryNumber,
-              accountId: cashAccount.id,
-              debitAmount: amount,
-              creditAmount: 0,
-              description: `Loan repayment - ${transactionRef}`,
-              transactionId: transaction.id,
-              createdByUserId: handlerUserId,
-            },
-            {
-              entryNumber,
-              accountId: loansReceivableAccount.id,
-              debitAmount: 0,
-              creditAmount: principalPortion,
-              description: `Principal repayment - ${transactionRef}`,
-              transactionId: transaction.id,
-              createdByUserId: handlerUserId,
-            },
-            {
-              entryNumber,
-              accountId: interestIncomeAccount.id,
-              debitAmount: 0,
-              creditAmount: interestPortion,
-              description: `Interest income - ${transactionRef}`,
-              transactionId: transaction.id,
-              createdByUserId: handlerUserId,
-            },
-          ],
-        });
-
-        // Update Chart of Accounts balances
-        await tx.chartOfAccount.update({
-          where: { id: cashAccount.id },
-          data: {
-            debitBalance: { increment: amount },
-            balance: { increment: amount },
-          },
-        });
-
-        await tx.chartOfAccount.update({
-          where: { id: loansReceivableAccount.id },
-          data: {
-            creditBalance: { increment: principalPortion },
-            balance: { decrement: principalPortion },
-          },
-        });
-
-        await tx.chartOfAccount.update({
-          where: { id: interestIncomeAccount.id },
-          data: {
-            creditBalance: { increment: interestPortion },
-            balance: { increment: interestPortion },
-          },
-        });
-      }
+      // Create journal entries using the shared repayment splitter so principal,
+      // interest, and penalty all hit the right accounting buckets.
+      await createSplitLoanRepaymentJournalEntry(
+        {
+          principalAmount: principalPortion,
+          interestAmount: interestPortion,
+          penaltyAmount: penaltyPortion,
+          description: `Loan repayment - ${transactionRef}`,
+          reference: transactionRef,
+          transactionId: transaction.id,
+          userId: handlerUserId,
+          entryDate: new Date(),
+          branchId: loan.branchId || undefined,
+          ledgerAccountId: loan.loanApplication?.loanProduct?.ledgerAccountId || undefined,
+          interestAccountId: loan.loanApplication?.loanProduct?.interestAccountId || undefined,
+          penaltyAccountId: loan.loanApplication?.loanProduct?.penaltyAccountId || undefined,
+        },
+        tx,
+      );
 
       // Update handler float if CASH
       if (channel === "CASH") {

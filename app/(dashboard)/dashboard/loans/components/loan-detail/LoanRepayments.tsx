@@ -13,6 +13,19 @@ export default function LoanRepayments({ repayments }: LoanRepaymentsProps) {
   const formatCurrency = (amount: number) =>
     `USh ${amount.toLocaleString("en-UG", { minimumFractionDigits: 0 })}`;
 
+  const totalPrincipal = repayments.reduce(
+    (sum, payment) => sum + Number(payment.principalPaid || 0),
+    0,
+  );
+  const totalInterest = repayments.reduce(
+    (sum, payment) => sum + Number(payment.interestPaid || 0),
+    0,
+  );
+  const totalPenalty = repayments.reduce(
+    (sum, payment) => sum + Number(payment.penaltyPaid || 0),
+    0,
+  );
+
   return (
     <Card className="rounded-xl border-neutral-100 shadow-sm overflow-hidden border-t-4 border-t-emerald-500">
       <CardHeader className="flex flex-row items-center justify-between border-b border-neutral-50 pb-6">
@@ -22,10 +35,10 @@ export default function LoanRepayments({ repayments }: LoanRepaymentsProps) {
           </div>
           <div>
             <CardTitle className="text-lg font-bold flex items-center gap-2">
-              Transaction Ledger
+              Repayment Ledger
             </CardTitle>
             <CardDescription className="text-xs font-medium italic mt-1 text-emerald-600/70 uppercase tracking-tighter">
-              Real-time audit of recoveries
+              Principal reduces 107000 Loans. Interest and penalty post to income.
             </CardDescription>
           </div>
         </div>
@@ -40,6 +53,32 @@ export default function LoanRepayments({ repayments }: LoanRepaymentsProps) {
           <div className="px-6 py-4 bg-neutral-50/50 flex items-center gap-2 border-b border-neutral-50 text-[10px] font-black text-muted-foreground uppercase tracking-widest">
             <History className="h-3.5 w-3.5" /> Historical Recoveries
           </div>
+          <div className="grid grid-cols-1 gap-3 border-b border-neutral-50 bg-white px-6 py-4 sm:grid-cols-3">
+            <div className="rounded-xl border border-rose-100 bg-rose-50/60 px-4 py-3">
+              <p className="text-[10px] font-black uppercase tracking-widest text-rose-500">
+                Principal Applied
+              </p>
+              <p className="mt-1 text-sm font-black text-rose-700">
+                {formatCurrency(totalPrincipal)}
+              </p>
+            </div>
+            <div className="rounded-xl border border-amber-100 bg-amber-50/60 px-4 py-3">
+              <p className="text-[10px] font-black uppercase tracking-widest text-amber-500">
+                Interest Income
+              </p>
+              <p className="mt-1 text-sm font-black text-amber-700">
+                {formatCurrency(totalInterest)}
+              </p>
+            </div>
+            <div className="rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-3">
+              <p className="text-[10px] font-black uppercase tracking-widest text-blue-500">
+                Penalty Income
+              </p>
+              <p className="mt-1 text-sm font-black text-blue-700">
+                {formatCurrency(totalPenalty)}
+              </p>
+            </div>
+          </div>
           {repayments.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -47,9 +86,9 @@ export default function LoanRepayments({ repayments }: LoanRepaymentsProps) {
                   <tr className="bg-neutral-50/20 text-neutral-400 font-black uppercase text-[10px] tracking-widest border-b border-neutral-100">
                     <th className="px-6 py-4 text-left font-black">Ref</th>
                     <th className="px-6 py-4 text-left font-black">Amount</th>
-                    <th className="px-6 py-4 text-left font-black text-rose-600">Principal</th>
-                    <th className="px-6 py-4 text-left font-black text-amber-600">Interest</th>
-                    <th className="px-6 py-4 text-left font-black text-blue-600">Penalty</th>
+                    <th className="px-6 py-4 text-left font-black text-rose-600">Principal to 107000</th>
+                    <th className="px-6 py-4 text-left font-black text-amber-600">Interest Income</th>
+                    <th className="px-6 py-4 text-left font-black text-blue-600">Penalty Income</th>
                     <th className="px-6 py-4 text-left font-black">Value Date</th>
                     <th className="px-6 py-4 text-left font-black">Processor</th>
                     <th className="px-6 py-4 text-right font-black">Status</th>

@@ -4,6 +4,9 @@ import { authOptions } from "@/config/auth";
 import { db } from "@/prisma/db";
 import { resolveBranchScope } from "@/lib/services/branch-scope";
 
+const isDeprecatedLoanPortfolioAccount = (accountCode: string, accountName: string) =>
+  accountCode === "102003" || accountName.toLowerCase().includes("loan portfolio");
+
 // GET /api/v1/chart-of-accounts/[id]/items
 export async function GET(
   request: NextRequest,
@@ -28,6 +31,19 @@ export async function GET(
 
     if (!account) {
       return NextResponse.json({ error: "Account not found" }, { status: 404 });
+    }
+
+    if (isDeprecatedLoanPortfolioAccount(account.accountCode, account.accountName)) {
+      return NextResponse.json({
+        account: {
+          id: account.id,
+          name: account.accountName,
+          code: account.accountCode,
+          type: account.ledgerType,
+        },
+        itemsType: "DEPRECATED_ACCOUNT",
+        items: [],
+      });
     }
 
     let items: any[] = [];
@@ -236,13 +252,13 @@ export async function GET(
       }
     }
 
-    const isLoanPortfolioAccount =
+    const isLoanAssetAccount =
       account.ledgerType === "ASSETS" &&
-      (account.accountCode === "102003" ||
-        account.accountName.toLowerCase().includes("loan portfolio"));
+      (account.accountCode.startsWith("107") ||
+        account.accountName.toLowerCase().includes("loan"));
 
-    if (items.length === 0 && isLoanPortfolioAccount) {
-      type = "LOAN_PORTFOLIO_REPAYMENTS";
+    if (items.length === 0 && isLoanAssetAccount) {
+      type = "LOAN_REPAYMENTS";
 
       const repayments = await db.loanRepayment.findMany({
         where: branchId

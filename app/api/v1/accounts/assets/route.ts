@@ -43,6 +43,16 @@ export async function GET(request: NextRequest) {
       branchId: resolveBranchScope(user, branchId),
     });
 
+    if (Array.isArray(result.data)) {
+      result.data = result.data.filter(
+        (account: { accountCode?: string; accountName?: string }) =>
+          account.accountCode !== "102003" &&
+          !String(account.accountName || "")
+            .toLowerCase()
+            .includes("loan portfolio"),
+      );
+    }
+
     return NextResponse.json(result);
   } catch (error) {
     console.error("Error fetching assets:", error);

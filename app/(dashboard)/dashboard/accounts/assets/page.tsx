@@ -157,7 +157,6 @@ interface DisposalAssetTarget extends AssetDisposalTarget {
 const ASSET_ROOT_CODE = "100000";
 const FIXED_ASSETS_CODE = "101000";
 const CURRENT_ASSETS_CODE = "102000";
-const LOAN_PORTFOLIO_CODE = "102003";
 
 const FORCE_EXPANDABLE_CODES = new Set([
   ASSET_ROOT_CODE,
@@ -165,11 +164,20 @@ const FORCE_EXPANDABLE_CODES = new Set([
   CURRENT_ASSETS_CODE,
 ]);
 
-const isLoanPortfolioAccount = (account: ChartOfAccount) =>
-  account.accountCode === LOAN_PORTFOLIO_CODE;
+const isLoanAssetAccount = (account: ChartOfAccount) =>
+  account.accountCode.startsWith("107") ||
+  account.accountName.toLowerCase().includes("loan");
+
+const isDeprecatedLoanPortfolioAccount = (account: ChartOfAccount) =>
+  account.accountCode === "102003" ||
+  account.accountName.toLowerCase().includes("loan portfolio");
+
+const filterDeprecatedLoanPortfolioAccounts = <T extends ChartOfAccount>(
+  accounts: T[],
+) => accounts.filter((account) => !isDeprecatedLoanPortfolioAccount(account));
 
 const getPortfolioLabel = (account: ChartOfAccount) =>
-  isLoanPortfolioAccount(account) ? "Outstanding Principal" : "Balance";
+  isLoanAssetAccount(account) ? "Outstanding Principal" : "Balance";
 
 export default function AssetsPage() {
   const { data: session, status } = useSession();
@@ -357,7 +365,9 @@ export default function AssetsPage() {
         throw new Error("Invalid response format");
       }
 
-      setAccounts(sortChartAccounts(data.data));
+      setAccounts(
+        sortChartAccounts(filterDeprecatedLoanPortfolioAccounts(data.data)),
+      );
     } catch (err) {
       console.error("Error fetching assets:", err);
       const message =
@@ -537,7 +547,7 @@ export default function AssetsPage() {
 
   const accountChildrenMap = useMemo(() => {
     const map = new Map<string, ChartOfAccount[]>();
-    accounts.forEach((account) => {
+    filterDeprecatedLoanPortfolioAccounts(accounts).forEach((account) => {
       const parentId = account.parent?.id;
       if (!parentId) return;
       const siblings = map.get(parentId) || [];
@@ -585,7 +595,9 @@ export default function AssetsPage() {
 
       setNodeChildren((prev) => ({
         ...prev,
-        [accountId]: sortChartAccounts(children),
+        [accountId]: sortChartAccounts(
+          filterDeprecatedLoanPortfolioAccounts(children),
+        ),
       }));
 
       setNodeItemsLoading((prev) => ({ ...prev, [accountId]: true }));
@@ -680,7 +692,7 @@ export default function AssetsPage() {
     const fromCache = nodeChildren[account.id] || [];
     const fromTree = accountChildrenMap.get(account.id) || [];
     const combined = [...fromTree, ...fromCache];
-    return combined.filter(
+    return filterDeprecatedLoanPortfolioAccounts(combined).filter(
       (child, index, list) =>
         list.findIndex((item) => item.id === child.id) === index,
     );
@@ -898,9 +910,7 @@ export default function AssetsPage() {
           <div className="space-y-2">
             {children.map((child) => renderTreeNode(child, depth + 1))}
             {renderNodeItems(account, depth + 1)}
-            {!isNodeLoading &&
-              children.length === 0 &&
-              account.accountCode !== LOAN_PORTFOLIO_CODE && (
+            {!isNodeLoading && children.length === 0 && (
                 <div
                   className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-3 text-sm text-muted-foreground"
                   style={{ marginLeft: `${(depth + 1) * 24}px` }}
@@ -917,14 +927,18 @@ export default function AssetsPage() {
 
   const assetRootAccount = useMemo(
     () =>
-      accounts.find((account) => account.accountCode === ASSET_ROOT_CODE) ||
+      filterDeprecatedLoanPortfolioAccounts(accounts).find(
+        (account) => account.accountCode === ASSET_ROOT_CODE,
+      ) ||
       null,
     [accounts],
   );
 
   const totals = useMemo(() => {
     const byCode = (code: string) => {
-      const account = accounts.find((item) => item.accountCode === code);
+      const account = filterDeprecatedLoanPortfolioAccounts(accounts).find(
+        (item) => item.accountCode === code,
+      );
       return account ? getAccountBranchTotal(account) : 0;
     };
 
@@ -935,10 +949,12 @@ export default function AssetsPage() {
     };
   }, [accounts, nodeChildren, nodeItems]);
 
-  const activeAccountsCount = accounts.filter(
+  const visibleAccounts = filterDeprecatedLoanPortfolioAccounts(accounts);
+
+  const activeAccountsCount = visibleAccounts.filter(
     (account) => account.isActive,
   ).length;
-  const detailAccountsCount = accounts.filter(
+  const detailAccountsCount = visibleAccounts.filter(
     (account) => account.level >= 2,
   ).length;
 
@@ -947,7 +963,9 @@ export default function AssetsPage() {
     { code: FIXED_ASSETS_CODE, title: "Fixed Assets" },
   ]
     .map((bucket) => {
-      const account = accounts.find((item) => item.accountCode === bucket.code);
+      const account = visibleAccounts.find(
+        (item) => item.accountCode === bucket.code,
+      );
       return account
         ? { ...bucket, account, total: getAccountBranchTotal(account) }
         : null;
@@ -1569,7 +1587,7 @@ export default function AssetsPage() {
 
               <div className="space-y-4">
                 <h3 className="text-xl font-extrabold">
-                  {isLoanPortfolioAccount(selectedAccount)
+                  {isLoanAssetAccount(selectedAccount)
                     ? "Outstanding Principal Analysis"
                     : "Balance Analysis"}
                 </h3>
@@ -1601,7 +1619,7 @@ export default function AssetsPage() {
                   <Card className="border-none bg-primary/10">
                     <CardHeader className="pb-1">
                       <CardTitle className="text-xs font-extrabold uppercase tracking-wider">
-                        {isLoanPortfolioAccount(selectedAccount)
+                        {isLoanAssetAccount(selectedAccount)
                           ? "Outstanding Principal"
                           : "Net Asset Value"}
                       </CardTitle>

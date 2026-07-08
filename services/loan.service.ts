@@ -2242,6 +2242,13 @@ export class LoanService {
             (isInstitution
               ? institutionLoan!.institution.user.branchId
               : individualLoan!.member.user.branchId);
+          const resolvedChannel = String(data.channel || "").toUpperCase();
+          const repaymentCashAccountCode =
+            resolvedChannel === "ACCOUNT_DEBIT"
+              ? CASH_AT_HAND_CODE
+              : resolvedChannel === "MOBILE_MONEY"
+                ? "102002"
+                : CASH_AT_HAND_CODE;
 
           if (data.amount > loan.outstandingBalance + 0.01) {
             throw new Error(
@@ -2309,13 +2316,20 @@ export class LoanService {
             };
           }
 
-          if (data.sourceAccountId || data.channel === "ACCOUNT_DEBIT") {
+          if (data.sourceAccountId || resolvedChannel === "ACCOUNT_DEBIT") {
             const sourceId = data.sourceAccountId;
             if (!sourceId)
               throw new Error("Source account ID required for account debit");
 
             const sourceAccount = await tx.account.findUnique({
               where: { id: sourceId },
+              include: {
+                accountType: {
+                  include: {
+                    ledgerAccount: true,
+                  },
+                },
+              },
             });
             if (!sourceAccount) throw new Error("Source account not found");
             if (sourceAccount.balance < data.amount - 0.01) {
@@ -2348,6 +2362,23 @@ export class LoanService {
               },
             });
           }
+
+          const sourceAccountForJournal = data.sourceAccountId
+            ? await tx.account.findUnique({
+                where: { id: data.sourceAccountId },
+                include: {
+                  accountType: {
+                    include: {
+                      ledgerAccount: true,
+                    },
+                  },
+                },
+              })
+            : null;
+
+          const debitAccountCode =
+            sourceAccountForJournal?.accountType?.ledgerAccount?.accountCode ||
+            repaymentCashAccountCode;
 
           const {
             interest: interestPortion,
@@ -2392,6 +2423,7 @@ export class LoanService {
                 transactionId: data.transactionId,
               },
             });
+            const repaymentRecordId = repayment.id;
 
             let amountToAllocate = data.amount;
             const schedules = await tx.loanRepaymentSchedule.findMany({
@@ -2448,6 +2480,29 @@ export class LoanService {
                   Math.max(0, prevInterest - interestPortion),
               },
             });
+
+            const { createSplitLoanRepaymentJournalEntry } = await import(
+              "@/lib/journal-entries-extended"
+            );
+            await createSplitLoanRepaymentJournalEntry(
+              {
+                principalAmount: principalPortion,
+                interestAmount: interestPortion,
+                penaltyAmount: penaltyPortion,
+                description: `Loan Repayment - ${ownerName} - ${loan.id.slice(0, 8)}`,
+                reference: data.reference || `LN-REPAY-${Date.now()}`,
+                transactionId: repaymentRecordId,
+                userId: data.handlerId,
+                entryDate: new Date(),
+                branchId,
+                cashAccountCode: repaymentCashAccountCode,
+                debitAccountCode,
+                ledgerAccountId: loanProduct.ledgerAccountId || undefined,
+                interestAccountId: loanProduct.interestAccountId || undefined,
+                penaltyAccountId: loanProduct.penaltyAccountId || undefined,
+              },
+              tx,
+            );
           } else {
             await tx.institutionLoan.update({
               where: { id: data.loanId },
@@ -2477,6 +2532,7 @@ export class LoanService {
                 description: `${data.notes || "Institution loan repayment"}${data.transactionId ? ` (Tx: ${data.transactionId})` : ""}`,
               },
             });
+            const repaymentRecordId = data.transactionId || data.loanId;
 
             let amountToAllocate = data.amount;
             const schedules =
@@ -2535,36 +2591,33 @@ export class LoanService {
                   Math.max(0, prevInterest - interestPortion),
               },
             });
+
+            const { createSplitLoanRepaymentJournalEntry } = await import(
+              "@/lib/journal-entries-extended"
+            );
+            await createSplitLoanRepaymentJournalEntry(
+              {
+                principalAmount: principalPortion,
+                interestAmount: interestPortion,
+                penaltyAmount: penaltyPortion,
+                description: `Loan Repayment - ${ownerName} - ${loan.id.slice(0, 8)}`,
+                reference: data.reference || `LN-REPAY-${Date.now()}`,
+                transactionId: repaymentRecordId,
+                userId: data.handlerId,
+                entryDate: new Date(),
+                branchId,
+                cashAccountCode: repaymentCashAccountCode,
+                debitAccountCode,
+                ledgerAccountId: loanProduct.ledgerAccountId || undefined,
+                interestAccountId: loanProduct.interestAccountId || undefined,
+                penaltyAccountId: loanProduct.penaltyAccountId || undefined,
+              },
+              tx,
+            );
           }
 
-          // 5. Interest and Penalty are recorded via GL journal entry below
-          // (createSplitLoanRepaymentJournalEntry handles Dr Cash, Cr Loan/Interest/Penalty)
-          // No separate incomeRecord — GL is the canonical income record.
-
-          // 6. Journal Entry
-          const { createSplitLoanRepaymentJournalEntry } =
-            await import("@/lib/journal-entries-extended");
-          await createSplitLoanRepaymentJournalEntry(
-            {
-              principalAmount: principalPortion,
-              interestAmount: interestPortion,
-              penaltyAmount: penaltyPortion,
-              description: `Loan Repayment - ${ownerName} - ${loan.id.slice(0, 8)}`,
-              reference: data.reference || `LN-REPAY-${Date.now()}`,
-              transactionId: data.loanId,
-              userId: data.handlerId,
-              entryDate: new Date(),
-              branchId: data.branchId,
-              cashAccountCode: data.channel === "CASH" ? "102001" : "102002",
-              ledgerAccountId: loanProduct.ledgerAccountId || undefined,
-              interestAccountId: loanProduct.interestAccountId || undefined,
-              penaltyAccountId: loanProduct.penaltyAccountId || undefined,
-            },
-            tx,
-          );
-
           // 6b. Vault/Float for CASH channel
-          if (data.channel === "CASH" || data.channel === "Cash") {
+          if (resolvedChannel === "CASH") {
             try {
               const userFloat = await tx.userFloat.findUnique({
                 where: { userId: data.handlerId },
