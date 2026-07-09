@@ -461,7 +461,7 @@ export default function LoanDetail({ loan, userRole, currentUserId }: Props) {
                             ))
                          ) : (
                             <div className="p-4 bg-white/40 rounded-xl border border-dashed text-center text-[10px] font-medium text-muted-foreground italic">
-                               No external guarantors verified for this portfolio instrument.
+                               No external guarantors verified for this loan instrument.
                             </div>
                          )}
                       </div>
@@ -479,9 +479,9 @@ export default function LoanDetail({ loan, userRole, currentUserId }: Props) {
                     </div>
                     <div>
                         <CardTitle className="text-lg font-bold flex items-center gap-2">
-                            Transaction Ledger & Forecast
+                            Repayment Ledger & Forecast
                         </CardTitle>
-                        <CardDescription className="text-xs font-medium italic mt-1 text-emerald-600/70 uppercase tracking-tighter">Real-time audit of recoveries vs. projected amortization</CardDescription>
+                        <CardDescription className="text-xs font-medium italic mt-1 text-emerald-600/70 uppercase tracking-tighter">Principal reduces 107000 Loans. Interest and penalty post to income.</CardDescription>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -496,6 +496,26 @@ export default function LoanDetail({ loan, userRole, currentUserId }: Props) {
                         <div className="px-6 py-4 bg-neutral-50/50 flex items-center gap-2 border-b border-neutral-50 text-[10px] font-black text-muted-foreground uppercase tracking-widest">
                             <History className="h-3.5 w-3.5" /> Historical Recoveries
                         </div>
+                        <div className="grid grid-cols-1 gap-3 border-b border-neutral-50 bg-white px-6 py-4 sm:grid-cols-3">
+                           <div className="rounded-xl border border-rose-100 bg-rose-50/60 px-4 py-3">
+                              <p className="text-[10px] font-black uppercase tracking-widest text-rose-500">Principal Applied</p>
+                              <p className="mt-1 text-sm font-black text-rose-700">
+                                 {formatCurrency(loan.repayments.reduce((sum, payment) => sum + Number(payment.principalPaid || 0), 0))}
+                              </p>
+                           </div>
+                           <div className="rounded-xl border border-amber-100 bg-amber-50/60 px-4 py-3">
+                              <p className="text-[10px] font-black uppercase tracking-widest text-amber-500">Interest Income</p>
+                              <p className="mt-1 text-sm font-black text-amber-700">
+                                 {formatCurrency(loan.repayments.reduce((sum, payment) => sum + Number(payment.interestPaid || 0), 0))}
+                              </p>
+                           </div>
+                           <div className="rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-3">
+                              <p className="text-[10px] font-black uppercase tracking-widest text-blue-500">Penalty Income</p>
+                              <p className="mt-1 text-sm font-black text-blue-700">
+                                 {formatCurrency(loan.repayments.reduce((sum, payment) => sum + Number(payment.penaltyPaid || 0), 0))}
+                              </p>
+                           </div>
+                        </div>
                         {loan.repayments.length > 0 ? (
                            <div className="overflow-x-auto">
                               <table className="w-full text-sm">
@@ -503,7 +523,11 @@ export default function LoanDetail({ loan, userRole, currentUserId }: Props) {
                                     <tr className="bg-neutral-50/20 text-neutral-400 font-black uppercase text-[10px] tracking-widest border-b border-neutral-100">
                                        <th className="px-6 py-4 text-left font-black">Ref</th>
                                        <th className="px-6 py-4 text-left font-black">Amount</th>
+                                       <th className="px-6 py-4 text-left font-black text-rose-600">Principal to 107000</th>
+                                       <th className="px-6 py-4 text-left font-black text-amber-600">Interest Income</th>
+                                       <th className="px-6 py-4 text-left font-black text-blue-600">Penalty Income</th>
                                        <th className="px-6 py-4 text-left font-black">Value Date</th>
+                                       <th className="px-6 py-4 text-left font-black">Processor</th>
                                        <th className="px-6 py-4 text-right font-black">Status</th>
                                     </tr>
                                  </thead>
@@ -512,7 +536,16 @@ export default function LoanDetail({ loan, userRole, currentUserId }: Props) {
                                        <tr key={payment.id} className="group hover:bg-neutral-50/50 transition-colors">
                                           <td className="px-6 py-4 font-mono text-[10px] text-muted-foreground uppercase">{payment.id.slice(-6)}</td>
                                           <td className="px-6 py-4 font-black text-neutral-900">{formatCurrency(payment.amount)}</td>
+                                          <td className="px-6 py-4 font-bold text-rose-700">{formatCurrency(payment.principalPaid || 0)}</td>
+                                          <td className="px-6 py-4 font-bold text-amber-700">{formatCurrency(payment.interestPaid || 0)}</td>
+                                          <td className="px-6 py-4 font-bold text-blue-700">{formatCurrency(payment.penaltyPaid || 0)}</td>
                                           <td className="px-6 py-4 font-medium text-muted-foreground italic text-xs">{formatISODate(payment.repaymentDate)}</td>
+                                          <td className="px-6 py-4 font-medium text-neutral-600 text-xs">
+                                             <div className="flex flex-col leading-tight">
+                                                <span className="font-semibold text-neutral-700">{payment.handler?.name || "System"}</span>
+                                                <span className="text-[10px] uppercase tracking-widest text-neutral-400">{payment.handler?.role || "SYSTEM"}</span>
+                                             </div>
+                                          </td>
                                           <td className="px-6 py-4 text-right">
                                              <div className="h-2 w-2 rounded-full bg-emerald-500 inline-block shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse" />
                                           </td>

@@ -20,8 +20,7 @@ const isDeprecatedLoanPortfolioAccount = (account: {
   accountCode: string;
   accountName: string;
 }) =>
-  account.accountCode === "102003" ||
-  account.accountName.toLowerCase().includes("loan portfolio");
+  account.accountCode === "102003";
 
 export async function getCOATree(branchId?: string) {
   await ensureCoreChartOfAccountsStructure();

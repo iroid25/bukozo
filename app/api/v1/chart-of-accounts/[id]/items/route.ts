@@ -4,8 +4,8 @@ import { authOptions } from "@/config/auth";
 import { db } from "@/prisma/db";
 import { resolveBranchScope } from "@/lib/services/branch-scope";
 
-const isDeprecatedLoanPortfolioAccount = (accountCode: string, accountName: string) =>
-  accountCode === "102003" || accountName.toLowerCase().includes("loan portfolio");
+const isRetiredLoanAssetAccount = (accountCode: string, accountName: string) =>
+  accountCode === "102003";
 
 // GET /api/v1/chart-of-accounts/[id]/items
 export async function GET(
@@ -33,7 +33,7 @@ export async function GET(
       return NextResponse.json({ error: "Account not found" }, { status: 404 });
     }
 
-    if (isDeprecatedLoanPortfolioAccount(account.accountCode, account.accountName)) {
+    if (isRetiredLoanAssetAccount(account.accountCode, account.accountName)) {
       return NextResponse.json({
         account: {
           id: account.id,

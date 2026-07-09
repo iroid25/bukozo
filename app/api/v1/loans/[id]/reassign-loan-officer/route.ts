@@ -47,6 +47,13 @@ export async function POST(
       return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
     }
 
+    if (user.role === "LOANOFFICER" && loan.loanApplication.loanOfficerId !== user.id) {
+      return NextResponse.json(
+        { success: false, error: "You can only reassign loans assigned to you" },
+        { status: 403 },
+      );
+    }
+
     const targetOfficer = await db.user.findUnique({
       where: { id: body.loanOfficerId },
       select: {

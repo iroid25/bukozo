@@ -119,7 +119,14 @@ export default function LoanRepayments({ repayments }: LoanRepaymentsProps) {
                         {formatISODate(payment.repaymentDate)}
                       </td>
                       <td className="px-6 py-4 font-medium text-neutral-600 text-xs">
-                         {payment.handler?.name || "System"}
+                        <div className="flex flex-col leading-tight">
+                          <span className="font-semibold text-neutral-700">
+                            {payment.handler?.name || "System"}
+                          </span>
+                          <span className="text-[10px] uppercase tracking-widest text-neutral-400">
+                            {payment.handler?.role || "SYSTEM"}
+                          </span>
+                        </div>
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="h-2 w-2 rounded-full bg-emerald-500 inline-block shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse" />

@@ -5,7 +5,6 @@ export const FIXED_ASSETS_CODE = "101000";
 export const CURRENT_ASSETS_CODE = "102000";
 export const MOBILE_MONEY_FLOAT_CODE = "102004";
 export const CASH_AT_HAND_CODE = "101100";
-export const LOAN_PORTFOLIO_CODE = "102003";
 
 export async function ensureAssetStructure() {
   const root = await db.chartOfAccount.upsert({
@@ -161,18 +160,16 @@ export async function ensureAssetStructure() {
     });
   }
 
-  // Retire the old loan portfolio bucket now that repayments/disbursements
-  // are tracked through 107000 Loans.
   await db.chartOfAccount.updateMany({
     where: {
-      accountCode: LOAN_PORTFOLIO_CODE,
+      accountCode: "102003",
       ledgerType: "ASSETS",
     },
     data: {
       isActive: false,
       parentId: current.id,
       category: current.accountName,
-      description: "Deprecated loan portfolio bucket replaced by 107000 Loans",
+      description: "Deprecated loan asset bucket replaced by 107000 Loans",
     },
   });
 

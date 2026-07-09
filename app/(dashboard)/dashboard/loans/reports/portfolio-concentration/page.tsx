@@ -13,8 +13,8 @@ export default async function PortfolioConcentrationPage() {
     <div className="flex h-full flex-1 flex-col gap-4 rounded-xl p-4">
       <Suspense fallback={<TableLoading />}>
         <PortfolioConcentrationListing
-          title="Portfolio Concentration Analysis"
-          subtitle="Analyze loan portfolio distribution"
+          title="Loan Concentration Analysis"
+          subtitle="Analyze loan distribution by product and branch"
           initialRole={user?.role ?? "TELLER"}
         />
       </Suspense>

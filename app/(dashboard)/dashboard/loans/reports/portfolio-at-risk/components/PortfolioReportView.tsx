@@ -279,7 +279,7 @@ export default function PortfolioReportView({
 
       XLSX.writeFile(
         wb,
-        `loan-portfolio-report-${format(new Date(), "yyyy-MM-dd")}.xlsx`
+        `loan-performance-report-${format(new Date(), "yyyy-MM-dd")}.xlsx`
       );
       toast.success("Report exported successfully");
     } catch (error) {
@@ -301,8 +301,8 @@ export default function PortfolioReportView({
     return (
       <div className="space-y-6">
         <ReportHeader
-          title="Loan Portfolio Report"
-          subtitle="Comprehensive overview of loan portfolio performance"
+          title="Loan Performance Report"
+          subtitle="Comprehensive overview of loan performance"
           onPrint={() => window.print()}
           onExport={handleExportExcel}
           disableExport={!data}
@@ -315,7 +315,7 @@ export default function PortfolioReportView({
         <Card>
           <CardContent className="flex flex-col items-center justify-center p-12 text-muted-foreground space-y-4">
             <AlertTriangle className="h-12 w-12 text-orange-500" />
-            <p>No portfolio data available for the selected filters.</p>
+            <p>No loan data available for the selected filters.</p>
             <Button variant="outline" onClick={clearFilters}>Clear All Filters</Button>
           </CardContent>
         </Card>
@@ -329,13 +329,13 @@ export default function PortfolioReportView({
     <div className="space-y-6">
       {/* Header */}
       <ReportHeader
-        title="Loan Portfolio Report"
+        title="Loan Performance Report"
         subtitle={
           data?.branchName
             ? `${data.branchName} - Portfolio Overview`
             : userRole === "LOANOFFICER" || userRole === "TELLER"
-              ? `Your Loan Portfolio - ${data?.userName}`
-              : "Comprehensive overview of loan portfolio performance"
+              ? `Your Loan Book - ${data?.userName}`
+              : "Comprehensive overview of loan performance"
         }
         onPrint={() => window.print()}
         onExport={handleExportExcel}
@@ -352,19 +352,19 @@ export default function PortfolioReportView({
         {(userRole === "LOANOFFICER" || userRole === "TELLER") && (
           <Alert>
             <Info className="h-4 w-4" />
-            <AlertDescription>
-              You are viewing portfolio data for loans assigned to you.
-            </AlertDescription>
-          </Alert>
+          <AlertDescription>
+              You are viewing loan data for loans assigned to you.
+          </AlertDescription>
+        </Alert>
         )}
 
         {userRole === "BRANCHMANAGER" && data?.branchName && (
           <Alert>
             <Info className="h-4 w-4" />
-            <AlertDescription>
-              You are viewing portfolio data for {data.branchName}.
-            </AlertDescription>
-          </Alert>
+          <AlertDescription>
+              You are viewing loan data for {data.branchName}.
+          </AlertDescription>
+        </Alert>
         )}
       </div>
 

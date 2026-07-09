@@ -1,15 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { AlertCircle, Loader2, Wallet } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent } from "@/components/ui/card";
 import TellerTrackingTable from "./components/TellerTrackingTable";
-
-interface Props {
-  userRole: string;
-  branchId?: string;
-}
 
 interface QueuePayload {
   loans: any[];
@@ -73,7 +69,10 @@ async function fetchReserve(userRole: string, branchId?: string) {
   };
 }
 
-export default function DisbursementQueueClient({ userRole, branchId }: Props) {
+export default function DisbursementQueueClient() {
+  const { data: session, status } = useSession();
+  const userRole = session?.user?.role || "";
+  const branchId = (session?.user as any)?.branchId as string | undefined;
   const [state, setState] = useState<QueuePayload>({
     loans: [],
     reserveBalance: 0,
@@ -87,6 +86,12 @@ export default function DisbursementQueueClient({ userRole, branchId }: Props) {
     let active = true;
 
     const load = async () => {
+      if (status !== "authenticated") {
+        if (!active) return;
+        setLoading(status === "loading");
+        return;
+      }
+
       try {
         setLoading(true);
         setError(null);
@@ -125,7 +130,7 @@ export default function DisbursementQueueClient({ userRole, branchId }: Props) {
     return () => {
       active = false;
     };
-  }, [branchId, userRole]);
+  }, [branchId, status, userRole]);
 
   return (
     <div className="container mx-auto space-y-6 py-8">

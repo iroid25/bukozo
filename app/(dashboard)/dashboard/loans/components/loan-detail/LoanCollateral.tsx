@@ -128,7 +128,7 @@ export default function LoanCollateral({ loanApplication }: LoanCollateralProps)
               ))
             ) : (
               <div className="p-4 bg-white/40 rounded-xl border border-dashed text-center text-[10px] font-medium text-muted-foreground italic">
-                No external guarantors verified for this portfolio instrument.
+                No external guarantors verified for this loan instrument.
               </div>
             )}
           </div>

@@ -166,6 +166,11 @@ export default function LoanHeader({ loan, userRole, currentUserId }: LoanHeader
   };
 
   const currentOfficer = loan.loanApplication.loanOfficer?.name || "Unassigned";
+  const currentOfficerId = loan.loanApplication.loanOfficer?.id || "";
+  const isCurrentUserAssignedOfficer = currentUserId && currentOfficerId && currentUserId === currentOfficerId;
+  const canReassignLoan =
+    ["ADMIN", "BRANCHMANAGER"].includes(userRole) ||
+    (userRole === "LOANOFFICER" && isCurrentUserAssignedOfficer);
 
   return (
     <>
@@ -220,6 +225,11 @@ export default function LoanHeader({ loan, userRole, currentUserId }: LoanHeader
             <span className="flex items-center gap-1.5">
               <Users className="h-4 w-4" />
               Loan Officer: {currentOfficer}
+              {isCurrentUserAssignedOfficer && (
+                <span className="ml-2 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-emerald-700 border border-emerald-100">
+                  You
+                </span>
+              )}
             </span>
           </div>
         </div>
@@ -267,7 +277,7 @@ export default function LoanHeader({ loan, userRole, currentUserId }: LoanHeader
             </Button>
           )}
 
-          {["ADMIN", "BRANCHMANAGER", "LOANOFFICER"].includes(userRole) && (
+          {canReassignLoan && (
             <Button
               variant="outline"
               size="lg"

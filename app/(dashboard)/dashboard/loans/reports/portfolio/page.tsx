@@ -13,8 +13,8 @@ export default async function LoanPortfolioSummaryPage() {
     <div className="flex h-full flex-1 flex-col gap-4 rounded-xl p-4">
       <Suspense fallback={<TableLoading />}>
         <LoanPortfolioListing
-          title="Loan Portfolio Review"
-          subtitle="Comprehensive performance analysis of loan portfolio by product"
+          title="Loan Performance Review"
+          subtitle="Comprehensive performance analysis of loans by product"
           initialRole={user?.role ?? "TELLER"}
         />
       </Suspense>

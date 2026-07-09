@@ -1011,7 +1011,7 @@ export default function LoanProductDetails({
                     </p>
                     {!standardLoanAssetClassification && (
                       <p className="mt-2 text-xs text-red-600">
-                        Create and activate the loan portfolio asset account before saving this product.
+                        Create and activate the 107000 Loans asset account before saving this product.
                       </p>
                     )}
                   </div>

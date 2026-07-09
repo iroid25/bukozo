@@ -168,15 +168,14 @@ const isLoanAssetAccount = (account: ChartOfAccount) =>
   account.accountCode.startsWith("107") ||
   account.accountName.toLowerCase().includes("loan");
 
-const isDeprecatedLoanPortfolioAccount = (account: ChartOfAccount) =>
-  account.accountCode === "102003" ||
-  account.accountName.toLowerCase().includes("loan portfolio");
+const isRetiredLoanAssetAccount = (account: ChartOfAccount) =>
+  account.accountCode === "102003";
 
-const filterDeprecatedLoanPortfolioAccounts = <T extends ChartOfAccount>(
+const filterRetiredLoanAssetAccounts = <T extends ChartOfAccount>(
   accounts: T[],
-) => accounts.filter((account) => !isDeprecatedLoanPortfolioAccount(account));
+) => accounts.filter((account) => !isRetiredLoanAssetAccount(account));
 
-const getPortfolioLabel = (account: ChartOfAccount) =>
+const getAssetBalanceLabel = (account: ChartOfAccount) =>
   isLoanAssetAccount(account) ? "Outstanding Principal" : "Balance";
 
 export default function AssetsPage() {
@@ -366,7 +365,7 @@ export default function AssetsPage() {
       }
 
       setAccounts(
-        sortChartAccounts(filterDeprecatedLoanPortfolioAccounts(data.data)),
+        sortChartAccounts(filterRetiredLoanAssetAccounts(data.data)),
       );
     } catch (err) {
       console.error("Error fetching assets:", err);
@@ -547,7 +546,7 @@ export default function AssetsPage() {
 
   const accountChildrenMap = useMemo(() => {
     const map = new Map<string, ChartOfAccount[]>();
-    filterDeprecatedLoanPortfolioAccounts(accounts).forEach((account) => {
+    filterRetiredLoanAssetAccounts(accounts).forEach((account) => {
       const parentId = account.parent?.id;
       if (!parentId) return;
       const siblings = map.get(parentId) || [];
@@ -596,7 +595,7 @@ export default function AssetsPage() {
       setNodeChildren((prev) => ({
         ...prev,
         [accountId]: sortChartAccounts(
-          filterDeprecatedLoanPortfolioAccounts(children),
+          filterRetiredLoanAssetAccounts(children),
         ),
       }));
 
@@ -692,7 +691,7 @@ export default function AssetsPage() {
     const fromCache = nodeChildren[account.id] || [];
     const fromTree = accountChildrenMap.get(account.id) || [];
     const combined = [...fromTree, ...fromCache];
-    return filterDeprecatedLoanPortfolioAccounts(combined).filter(
+    return filterRetiredLoanAssetAccounts(combined).filter(
       (child, index, list) =>
         list.findIndex((item) => item.id === child.id) === index,
     );
@@ -884,7 +883,7 @@ export default function AssetsPage() {
           <div className="flex items-center gap-4">
             <div className="text-right">
               <p className="text-xs uppercase tracking-widest text-muted-foreground">
-                {getPortfolioLabel(account)}
+                {getAssetBalanceLabel(account)}
               </p>
               <p className="font-mono text-lg font-bold text-foreground">
                 {formatCurrency(branchTotal)}
@@ -927,7 +926,7 @@ export default function AssetsPage() {
 
   const assetRootAccount = useMemo(
     () =>
-      filterDeprecatedLoanPortfolioAccounts(accounts).find(
+      filterRetiredLoanAssetAccounts(accounts).find(
         (account) => account.accountCode === ASSET_ROOT_CODE,
       ) ||
       null,
@@ -936,7 +935,7 @@ export default function AssetsPage() {
 
   const totals = useMemo(() => {
     const byCode = (code: string) => {
-      const account = filterDeprecatedLoanPortfolioAccounts(accounts).find(
+      const account = filterRetiredLoanAssetAccounts(accounts).find(
         (item) => item.accountCode === code,
       );
       return account ? getAccountBranchTotal(account) : 0;
@@ -949,7 +948,7 @@ export default function AssetsPage() {
     };
   }, [accounts, nodeChildren, nodeItems]);
 
-  const visibleAccounts = filterDeprecatedLoanPortfolioAccounts(accounts);
+  const visibleAccounts = filterRetiredLoanAssetAccounts(accounts);
 
   const activeAccountsCount = visibleAccounts.filter(
     (account) => account.isActive,

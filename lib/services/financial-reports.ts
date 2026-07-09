@@ -455,7 +455,7 @@ function resolveAssetSection(account: BalanceSheetMappedAccount) {
 
   if (
     name.includes("receivable") ||
-    name.includes("loan portfolio") ||
+    name.includes("loans") ||
     name.includes("loan receivable") ||
     code.startsWith("107")
   ) {
