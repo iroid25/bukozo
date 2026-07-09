@@ -1,7 +1,11 @@
 import { buildAccountBalanceUpdate } from "@/lib/accounting-rules";
 import { db } from "@/prisma/db";
 import { resolveShareCapitalAccount } from "@/lib/services/equity-structure";
-import { CASH_AT_HAND_CODE } from "@/lib/services/asset-structure";
+import {
+  CASH_AT_HAND_CODE,
+  LOANS_CODE,
+  RETIRED_LOAN_ASSET_CODE,
+} from "@/lib/services/asset-structure";
 
 // ============================================
 // COMPREHENSIVE JOURNAL ENTRY HELPER FUNCTIONS
@@ -60,6 +64,14 @@ export async function createSplitLoanRepaymentJournalEntry(data: {
     throw new Error("Required accounts (Debit/Cash: " + debitCode + ", Loan: 107000, Interest: 401001) not found for split repayment");
   }
 
+  const linkedTransaction = data.transactionId
+    ? await tx.transaction.findUnique({
+        where: { id: data.transactionId },
+        select: { id: true },
+      })
+    : null;
+  const journalTransactionId = linkedTransaction?.id || null;
+
   const entryNumber = `JE-REPAY-SPLIT-${Date.now()}`;
   const isTransaction = (tx as any).$transaction === undefined; // Check if tx is a transaction client
 
@@ -73,7 +85,7 @@ export async function createSplitLoanRepaymentJournalEntry(data: {
               creditAmount: 0,
               description: data.description,
               reference: data.reference || null,
-              transactionId: data.transactionId || null,
+              transactionId: journalTransactionId,
               createdByUserId: data.userId,
               entryDate: data.entryDate ?? undefined,
               branchId: data.branchId || null,
@@ -96,7 +108,7 @@ export async function createSplitLoanRepaymentJournalEntry(data: {
                   creditAmount: data.principalAmount,
                   description: `${data.description} (Principal)`,
                   reference: data.reference || null,
-                  transactionId: data.transactionId || null,
+                  transactionId: journalTransactionId,
                   createdByUserId: data.userId,
                   entryDate: data.entryDate ?? undefined,
                   branchId: data.branchId || null,
@@ -118,7 +130,7 @@ export async function createSplitLoanRepaymentJournalEntry(data: {
                   creditAmount: data.interestAmount,
                   description: `${data.description} (Interest)`,
                   reference: data.reference || null,
-                  transactionId: data.transactionId || null,
+                  transactionId: journalTransactionId,
                   createdByUserId: data.userId,
                   entryDate: data.entryDate ?? undefined,
                   branchId: data.branchId || null,
@@ -140,7 +152,7 @@ export async function createSplitLoanRepaymentJournalEntry(data: {
                   creditAmount: data.penaltyAmount,
                   description: `${data.description} (Penalty)`,
                   reference: data.reference || null,
-                  transactionId: data.transactionId || null,
+                  transactionId: journalTransactionId,
                   createdByUserId: data.userId,
                   entryDate: data.entryDate ?? undefined,
                   branchId: data.branchId || null,
@@ -261,12 +273,31 @@ export async function createComprehensiveLoanDisbursementJournalEntry(data: {
       const byId = await tx.chartOfAccount.findUnique({
         where: { id: ref },
       });
+      if (byId?.accountCode === RETIRED_LOAN_ASSET_CODE) {
+        const liveLoansAccount = await tx.chartOfAccount.findFirst({
+          where: { accountCode: LOANS_CODE, isActive: true },
+        });
+        if (liveLoansAccount) return liveLoansAccount;
+      }
       if (byId?.isActive) return byId;
 
       const byCode = await tx.chartOfAccount.findFirst({
         where: { accountCode: ref, isActive: true },
       });
+      if (byCode?.accountCode === RETIRED_LOAN_ASSET_CODE) {
+        const liveLoansAccount = await tx.chartOfAccount.findFirst({
+          where: { accountCode: LOANS_CODE, isActive: true },
+        });
+        if (liveLoansAccount) return liveLoansAccount;
+      }
       if (byCode) return byCode;
+    }
+
+    if (fallbackCode === RETIRED_LOAN_ASSET_CODE) {
+      const liveLoansAccount = await tx.chartOfAccount.findFirst({
+        where: { accountCode: LOANS_CODE, isActive: true },
+      });
+      if (liveLoansAccount) return liveLoansAccount;
     }
 
     return tx.chartOfAccount.findFirst({

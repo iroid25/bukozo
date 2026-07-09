@@ -168,12 +168,9 @@ const isLoanAssetAccount = (account: ChartOfAccount) =>
   account.accountCode.startsWith("107") ||
   account.accountName.toLowerCase().includes("loan");
 
-const isRetiredLoanAssetAccount = (account: ChartOfAccount) =>
-  account.accountCode === "102003";
-
 const filterRetiredLoanAssetAccounts = <T extends ChartOfAccount>(
   accounts: T[],
-) => accounts.filter((account) => !isRetiredLoanAssetAccount(account));
+) => accounts;
 
 const getAssetBalanceLabel = (account: ChartOfAccount) =>
   isLoanAssetAccount(account) ? "Outstanding Principal" : "Balance";

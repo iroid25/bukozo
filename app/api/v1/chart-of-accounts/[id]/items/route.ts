@@ -4,9 +4,6 @@ import { authOptions } from "@/config/auth";
 import { db } from "@/prisma/db";
 import { resolveBranchScope } from "@/lib/services/branch-scope";
 
-const isRetiredLoanAssetAccount = (accountCode: string, accountName: string) =>
-  accountCode === "102003";
-
 // GET /api/v1/chart-of-accounts/[id]/items
 export async function GET(
   request: NextRequest,
@@ -33,18 +30,12 @@ export async function GET(
       return NextResponse.json({ error: "Account not found" }, { status: 404 });
     }
 
-    if (isRetiredLoanAssetAccount(account.accountCode, account.accountName)) {
-      return NextResponse.json({
-        account: {
-          id: account.id,
-          name: account.accountName,
-          code: account.accountCode,
-          type: account.ledgerType,
-        },
-        itemsType: "DEPRECATED_ACCOUNT",
-        items: [],
-      });
-    }
+    const resolvedAccount =
+      account.accountCode === "102003"
+        ? (await db.chartOfAccount.findFirst({
+            where: { accountCode: "107000", ledgerType: "ASSETS" },
+          })) || account
+        : account;
 
     let items: any[] = [];
     let type = "GENERIC";
@@ -57,9 +48,9 @@ export async function GET(
       "304004",
     ]);
     const isShareCapitalAccount =
-      account.ledgerType === "EQUITY" &&
-      (shareCapitalCodes.has(account.accountCode) ||
-        account.accountCode.startsWith("304"));
+      resolvedAccount.ledgerType === "EQUITY" &&
+      (shareCapitalCodes.has(resolvedAccount.accountCode) ||
+        resolvedAccount.accountCode.startsWith("304"));
 
     if (isShareCapitalAccount) {
       type = "SHARE_CAPITAL_SOURCES";
@@ -429,17 +420,17 @@ export async function GET(
     }
 
     // 3. INCOME / EXPENSES
-    else if (account.ledgerType === "INCOME" || account.ledgerType === "EXPENDITURES") {
+    else if (resolvedAccount.ledgerType === "INCOME" || resolvedAccount.ledgerType === "EXPENDITURES") {
       // Find BudgetCategory by name
       const category = await db.budgetCategory.findFirst({
         where: { 
-            name: account.accountName, 
-            kind: account.ledgerType === "INCOME" ? "INCOME" : "EXPENSE" 
+            name: resolvedAccount.accountName, 
+            kind: resolvedAccount.ledgerType === "INCOME" ? "INCOME" : "EXPENSE" 
         }
       });
 
       if (category) {
-        if (account.ledgerType === "INCOME") {
+        if (resolvedAccount.ledgerType === "INCOME") {
             type = "INCOME_RECORDS";
           const incomes = await db.incomeRecord.findMany({
                 where: {
@@ -485,9 +476,9 @@ export async function GET(
     // If no specific sub-ledger logic matched, fetch raw journal entries to provide the "exact stats/history"
     if (items.length === 0) {
       type = "JOURNAL_ENTRIES";
-      const entries = await db.journalEntry.findMany({
+          const entries = await db.journalEntry.findMany({
         where: {
-          accountId: account.id,
+          accountId: resolvedAccount.id,
           ...(branchId
             ? {
                 OR: [
@@ -515,10 +506,10 @@ export async function GET(
 
     return NextResponse.json({ 
         account: {
-            id: account.id,
-            name: account.accountName,
-            code: account.accountCode,
-            type: account.ledgerType
+            id: resolvedAccount.id,
+            name: resolvedAccount.accountName,
+            code: resolvedAccount.accountCode,
+            type: resolvedAccount.ledgerType
         },
         itemsType: type,
         items

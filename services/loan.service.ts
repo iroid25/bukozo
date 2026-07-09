@@ -2249,6 +2249,10 @@ export class LoanService {
               : resolvedChannel === "MOBILE_MONEY"
                 ? "102002"
                 : CASH_AT_HAND_CODE;
+          const repaymentSourceAccount = isInstitution
+            ? institutionLoan!.institution.accounts[0]
+            : individualLoan!.member.accounts[0];
+          let repaymentTransactionId: string | null = null;
 
           if (data.amount > loan.outstandingBalance + 0.01) {
             throw new Error(
@@ -2343,7 +2347,7 @@ export class LoanService {
               data: { balance: { decrement: data.amount } },
             });
 
-            await tx.transaction.create({
+            const transaction = await tx.transaction.create({
               data: {
                 transactionRef: `DEBIT-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
                 ...(isInstitution
@@ -2361,6 +2365,32 @@ export class LoanService {
                 branchId,
               },
             });
+            repaymentTransactionId = transaction.id;
+          } else {
+            if (!repaymentSourceAccount) {
+              throw new Error(
+                "No associated SACCO account found for this member/institution.",
+              );
+            }
+
+            const transaction = await tx.transaction.create({
+              data: {
+                transactionRef: `REPAY-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
+                ...(isInstitution
+                  ? { institutionId: memberOrInstId }
+                  : { memberId: memberOrInstId }),
+                accountId: repaymentSourceAccount.id,
+                type: "LOAN_REPAYMENT",
+                amount: data.amount,
+                status: TransactionStatus.COMPLETED,
+                description: data.notes || `Loan repayment received`,
+                processedByUserId: data.handlerId,
+                channel: resolvedChannel || "CASH",
+                loanId: data.loanId,
+                branchId,
+              },
+            });
+            repaymentTransactionId = transaction.id;
           }
 
           const sourceAccountForJournal = data.sourceAccountId
@@ -2418,9 +2448,9 @@ export class LoanService {
                 principalPaid: principalPortion,
                 repaymentDate: new Date(),
                 handlerUserId: data.handlerId,
-                channel: data.channel,
+                channel: resolvedChannel,
                 mobileMoneyRef: data.reference,
-                transactionId: data.transactionId,
+                transactionId: repaymentTransactionId || data.transactionId || undefined,
               },
             });
             const repaymentRecordId = repayment.id;
@@ -2491,7 +2521,7 @@ export class LoanService {
                 penaltyAmount: penaltyPortion,
                 description: `Loan Repayment - ${ownerName} - ${loan.id.slice(0, 8)}`,
                 reference: data.reference || `LN-REPAY-${Date.now()}`,
-                transactionId: repaymentRecordId,
+                transactionId: repaymentTransactionId || repaymentRecordId,
                 userId: data.handlerId,
                 entryDate: new Date(),
                 branchId,
@@ -2527,12 +2557,12 @@ export class LoanService {
                 interestPaid: interestPortion,
                 principalPaid: principalPortion,
                 repaymentDate: new Date(),
-                channel: data.channel,
+                channel: resolvedChannel,
                 mobileMoneyRef: data.reference,
                 description: `${data.notes || "Institution loan repayment"}${data.transactionId ? ` (Tx: ${data.transactionId})` : ""}`,
               },
             });
-            const repaymentRecordId = data.transactionId || data.loanId;
+            const repaymentRecordId = repaymentTransactionId || data.transactionId || data.loanId;
 
             let amountToAllocate = data.amount;
             const schedules =
@@ -2602,7 +2632,7 @@ export class LoanService {
                 penaltyAmount: penaltyPortion,
                 description: `Loan Repayment - ${ownerName} - ${loan.id.slice(0, 8)}`,
                 reference: data.reference || `LN-REPAY-${Date.now()}`,
-                transactionId: repaymentRecordId,
+                transactionId: repaymentTransactionId || repaymentRecordId,
                 userId: data.handlerId,
                 entryDate: new Date(),
                 branchId,

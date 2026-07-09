@@ -5,6 +5,96 @@ export const FIXED_ASSETS_CODE = "101000";
 export const CURRENT_ASSETS_CODE = "102000";
 export const MOBILE_MONEY_FLOAT_CODE = "102004";
 export const CASH_AT_HAND_CODE = "101100";
+export const LOANS_CODE = "107000";
+export const RETIRED_LOAN_ASSET_CODE = "102003";
+
+async function migrateRetiredLoanAssetToLoans(
+  currentAssetsId: string,
+  loansAccountId: string,
+) {
+  const retiredLoanAsset = await db.chartOfAccount.findFirst({
+    where: {
+      accountCode: RETIRED_LOAN_ASSET_CODE,
+      ledgerType: "ASSETS",
+    },
+  });
+
+  if (!retiredLoanAsset || retiredLoanAsset.id === loansAccountId) {
+    return;
+  }
+
+  await db.$transaction(async (tx) => {
+    const liveLoansAccount = await tx.chartOfAccount.findUnique({
+      where: { id: loansAccountId },
+    });
+    const sourceLoanAsset = await tx.chartOfAccount.findUnique({
+      where: { id: retiredLoanAsset.id },
+    });
+
+    if (!liveLoansAccount || !sourceLoanAsset || sourceLoanAsset.id === liveLoansAccount.id) {
+      return;
+    }
+
+    await tx.journalEntry.updateMany({
+      where: { accountId: sourceLoanAsset.id },
+      data: { accountId: liveLoansAccount.id },
+    });
+
+    await tx.accountTransaction.updateMany({
+      where: { debitAccountId: sourceLoanAsset.id },
+      data: { debitAccountId: liveLoansAccount.id },
+    });
+
+    await tx.accountTransaction.updateMany({
+      where: { creditAccountId: sourceLoanAsset.id },
+      data: { creditAccountId: liveLoansAccount.id },
+    });
+
+    await tx.transaction.updateMany({
+      where: { debitAccountId: sourceLoanAsset.id },
+      data: { debitAccountId: liveLoansAccount.id },
+    });
+
+    await tx.transaction.updateMany({
+      where: { creditAccountId: sourceLoanAsset.id },
+      data: { creditAccountId: liveLoansAccount.id },
+    });
+
+    await tx.loanProduct.updateMany({
+      where: { ledgerAccountId: sourceLoanAsset.id },
+      data: { ledgerAccountId: liveLoansAccount.id },
+    });
+
+    await tx.chartOfAccount.updateMany({
+      where: { parentId: sourceLoanAsset.id },
+      data: { parentId: liveLoansAccount.id },
+    });
+
+    await tx.chartOfAccount.update({
+      where: { id: liveLoansAccount.id },
+      data: {
+        balance: { increment: sourceLoanAsset.balance },
+        debitBalance: { increment: sourceLoanAsset.debitBalance },
+        creditBalance: { increment: sourceLoanAsset.creditBalance },
+      },
+    });
+
+    await tx.chartOfAccount.update({
+      where: { id: sourceLoanAsset.id },
+      data: {
+        balance: 0,
+        debitBalance: 0,
+        creditBalance: 0,
+        isActive: false,
+        parentId: currentAssetsId,
+        category: "Current Assets",
+        accountName: "Retired Loan Asset",
+        fullCode: RETIRED_LOAN_ASSET_CODE,
+        description: "Migrated into 107000 Loans",
+      },
+    });
+  });
+}
 
 export async function ensureAssetStructure() {
   const root = await db.chartOfAccount.upsert({
@@ -99,8 +189,10 @@ export async function ensureAssetStructure() {
     { accountCode: "102001", accountName: "Cash at hand (alt)" },
     { accountCode: "102002", accountName: "Cash at bank" },
     { accountCode: MOBILE_MONEY_FLOAT_CODE, accountName: "Mobile Money Float" },
-    { accountCode: "107000", accountName: "Loans" },
+    { accountCode: LOANS_CODE, accountName: "Loans" },
   ] as const;
+
+  let loansAccount: { id: string } | null = null;
 
   for (const child of fixedChildren) {
     await db.chartOfAccount.upsert({
@@ -132,7 +224,7 @@ export async function ensureAssetStructure() {
   }
 
   for (const child of currentChildren) {
-    await db.chartOfAccount.upsert({
+    const account = await db.chartOfAccount.upsert({
       where: { accountCode: child.accountCode },
       create: {
         accountCode: child.accountCode,
@@ -158,20 +250,15 @@ export async function ensureAssetStructure() {
         isSystem: true,
       },
     });
+
+    if (child.accountCode === LOANS_CODE) {
+      loansAccount = account;
+    }
   }
 
-  await db.chartOfAccount.updateMany({
-    where: {
-      accountCode: "102003",
-      ledgerType: "ASSETS",
-    },
-    data: {
-      isActive: false,
-      parentId: current.id,
-      category: current.accountName,
-      description: "Deprecated loan asset bucket replaced by 107000 Loans",
-    },
-  });
+  if (loansAccount) {
+    await migrateRetiredLoanAssetToLoans(current.id, loansAccount.id);
+  }
 
   return { root, fixed, current };
 }

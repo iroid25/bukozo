@@ -6,12 +6,6 @@ import { hydrateAccountsWithJournalBalances } from "@/lib/services/chartOfAccoun
 import { ensureCoreChartOfAccountsStructure } from "@/lib/services/chart-of-accounts-bootstrap";
 import { resolveBranchScope } from "@/lib/services/branch-scope";
 
-const isRetiredLoanAssetAccount = (account: {
-  accountCode: string;
-  accountName: string;
-}) =>
-  account.accountCode === "102003";
-
 // GET /api/v1/chart-of-accounts/[id] - Get single account
 export async function GET(
   request: NextRequest,
@@ -75,34 +69,36 @@ export async function GET(
       );
     }
 
-    if (isRetiredLoanAssetAccount(account)) {
-      return NextResponse.json(
-        { error: "Account not found" },
-        { status: 404 }
-      );
-    }
+    const liveLoansAccount =
+      account.accountCode === "102003"
+        ? await db.chartOfAccount.findFirst({
+            where: { accountCode: "107000", ledgerType: "ASSETS" },
+          })
+        : null;
+
+    const resolvedAccount = liveLoansAccount || account;
 
     const [hydratedAccount] = await hydrateAccountsWithJournalBalances([
       {
-        id: account.id,
-        ledgerType: account.ledgerType,
-        balance: account.balance,
-        debitBalance: account.debitBalance,
-        creditBalance: account.creditBalance,
+        id: resolvedAccount.id,
+        ledgerType: resolvedAccount.ledgerType,
+        balance: resolvedAccount.balance,
+        debitBalance: resolvedAccount.debitBalance,
+        creditBalance: resolvedAccount.creditBalance,
       },
     ], branchId);
 
+    const accountData = resolvedAccount as typeof resolvedAccount & {
+      children?: typeof account.children;
+    };
+
     return NextResponse.json({
       data: {
-        ...account,
-        children: Array.isArray(account.children)
-          ? account.children.filter(
-              (child) => !isRetiredLoanAssetAccount(child),
-            )
-          : [],
-        balance: hydratedAccount?.balance ?? account.balance,
-        debitBalance: hydratedAccount?.debitBalance ?? account.debitBalance,
-        creditBalance: hydratedAccount?.creditBalance ?? account.creditBalance,
+        ...resolvedAccount,
+        children: Array.isArray(accountData.children) ? accountData.children : [],
+        balance: hydratedAccount?.balance ?? resolvedAccount.balance,
+        debitBalance: hydratedAccount?.debitBalance ?? resolvedAccount.debitBalance,
+        creditBalance: hydratedAccount?.creditBalance ?? resolvedAccount.creditBalance,
       },
     });
   } catch (error) {

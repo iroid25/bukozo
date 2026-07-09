@@ -43,13 +43,6 @@ export async function GET(request: NextRequest) {
       branchId: resolveBranchScope(user, branchId),
     });
 
-    if (Array.isArray(result.data)) {
-      result.data = result.data.filter(
-        (account: { accountCode?: string }) =>
-          account.accountCode !== "102003",
-      );
-    }
-
     return NextResponse.json(result);
   } catch (error) {
     console.error("Error fetching assets:", error);

@@ -16,12 +16,6 @@ export type COANode = {
   children: COANode[];
 };
 
-const isDeprecatedLoanPortfolioAccount = (account: {
-  accountCode: string;
-  accountName: string;
-}) =>
-  account.accountCode === "102003";
-
 export async function getCOATree(branchId?: string) {
   await ensureCoreChartOfAccountsStructure();
 
@@ -37,9 +31,7 @@ export async function getCOATree(branchId?: string) {
     },
   });
 
-  const visibleAccounts = accounts.filter(
-    (account) => !isDeprecatedLoanPortfolioAccount(account),
-  );
+  const visibleAccounts = accounts;
 
   const hydratedAccounts = branchId
     ? await hydrateAccountsWithJournalBalances(
