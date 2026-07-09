@@ -4,6 +4,7 @@ import { authOptions } from "@/config/auth";
 import { db } from "@/prisma/db";
 import { Prisma } from "@prisma/client";
 import { ensureIncomeStructure } from "@/lib/services/income-structure";
+import { HIDDEN_COA_CODES } from "@/lib/accounting/coa-identity";
 
 function toNumericCode(value: unknown) {
   const parsed = Number(String(value || "").trim());
@@ -29,11 +30,11 @@ async function backfillMissingIncomeCodes() {
 
   await db.$transaction([
     db.budgetCategory.updateMany({
-      where: { code: "401006" },
+      where: { code: { in: Array.from(HIDDEN_COA_CODES) } },
       data: { isActive: false },
     }),
     db.chartOfAccount.updateMany({
-      where: { accountCode: "401006" },
+      where: { accountCode: { in: Array.from(HIDDEN_COA_CODES) } },
       data: { isActive: false },
     }),
   ]);
@@ -127,7 +128,11 @@ export async function GET(request: NextRequest) {
       where: {
         kind: "INCOME",
         ...(includeInactive ? {} : { isActive: true }),
-        code: { not: "401006" },
+        NOT: {
+          code: {
+            in: Array.from(HIDDEN_COA_CODES),
+          },
+        },
       },
       include: {
         parent: true,

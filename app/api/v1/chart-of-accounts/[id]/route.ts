@@ -5,6 +5,11 @@ import { authOptions } from "@/config/auth";
 import { hydrateAccountsWithJournalBalances } from "@/lib/services/chartOfAccounts";
 import { ensureCoreChartOfAccountsStructure } from "@/lib/services/chart-of-accounts-bootstrap";
 import { resolveBranchScope } from "@/lib/services/branch-scope";
+import {
+  findActiveAccountByCodes,
+  getAccountCodeCandidates,
+  isHiddenCoaCode,
+} from "@/lib/accounting/coa-identity";
 
 // GET /api/v1/chart-of-accounts/[id] - Get single account
 export async function GET(
@@ -69,14 +74,15 @@ export async function GET(
       );
     }
 
-    const liveLoansAccount =
-      account.accountCode === "102003"
-        ? await db.chartOfAccount.findFirst({
-            where: { accountCode: "107000", ledgerType: "ASSETS" },
-          })
-        : null;
+    const resolvedCanonicalAccount = isHiddenCoaCode(account.accountCode)
+      ? await findActiveAccountByCodes(db, getAccountCodeCandidates(account.accountCode))
+      : null;
 
-    const resolvedAccount = liveLoansAccount || account;
+    if (isHiddenCoaCode(account.accountCode) && !resolvedCanonicalAccount) {
+      return NextResponse.json({ error: "Account not found" }, { status: 404 });
+    }
+
+    const resolvedAccount = resolvedCanonicalAccount || account;
 
     const [hydratedAccount] = await hydrateAccountsWithJournalBalances([
       {
@@ -95,7 +101,11 @@ export async function GET(
     return NextResponse.json({
       data: {
         ...resolvedAccount,
-        children: Array.isArray(accountData.children) ? accountData.children : [],
+        children: Array.isArray(accountData.children)
+          ? accountData.children.filter(
+              (child: { accountCode: string }) => !isHiddenCoaCode(child.accountCode),
+            )
+          : [],
         balance: hydratedAccount?.balance ?? resolvedAccount.balance,
         debitBalance: hydratedAccount?.debitBalance ?? resolvedAccount.debitBalance,
         creditBalance: hydratedAccount?.creditBalance ?? resolvedAccount.creditBalance,

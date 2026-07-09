@@ -2661,14 +2661,14 @@ export class LoanService {
 
               await tx.userFloat.update({
                 where: { id: userFloat.id },
-                data: { balance: { decrement: data.amount } },
+                data: { balance: { increment: data.amount } },
               });
 
               await tx.floatTransaction.create({
                 data: {
                   floatId: userFloat.id,
                   type: "LOAN_REPAYMENT",
-                  amount: -data.amount,
+                  amount: data.amount,
                   description: `Loan Repayment (Cash) - ${ownerName} - ${loan.id.slice(0, 8)}`,
                   performedByUserId: data.handlerId,
                 },

@@ -1,5 +1,9 @@
 import { buildAccountBalanceUpdate } from "@/lib/accounting-rules";
 import { db } from "@/prisma/db";
+import {
+  findActiveAccountByCodes,
+  getAccountCodeCandidates,
+} from "@/lib/accounting/coa-identity";
 
 /**
  * Creates automatic journal entry for income transactions
@@ -20,9 +24,7 @@ export async function createIncomeJournalEntry(data: {
     db.chartOfAccount.findFirst({
       where: { ledgerType: "INCOME", isActive: true },
     }),
-    db.chartOfAccount.findFirst({
-      where: { accountCode: "102001", isActive: true }, // CASH AT HAND
-    }),
+    findActiveAccountByCodes(db, ["102001"]),
   ]);
 
   if (!incomeAccount || !cashAccount) {
@@ -97,9 +99,7 @@ export async function createExpenditureJournalEntry(data: {
     db.chartOfAccount.findFirst({
       where: { ledgerType: "EXPENDITURES", isActive: true },
     }),
-    db.chartOfAccount.findFirst({
-      where: { accountCode: "102001", isActive: true }, // CASH AT HAND
-    }),
+    findActiveAccountByCodes(db, ["102001"]),
   ]);
 
   if (!expenseAccount || !cashAccount) {
@@ -172,12 +172,8 @@ export async function createLoanDisbursementJournalEntry(data: {
   branchId?: string;
 }) {
   const [loanAccount, cashAccount] = await Promise.all([
-    db.chartOfAccount.findFirst({
-      where: { accountCode: { startsWith: "107" }, isActive: true },
-    }),
-    db.chartOfAccount.findFirst({
-      where: { accountCode: "102001", isActive: true },
-    }),
+    findActiveAccountByCodes(db, getAccountCodeCandidates("107000")),
+    findActiveAccountByCodes(db, ["102001"]),
   ]);
 
   if (!loanAccount || !cashAccount) {
@@ -245,12 +241,8 @@ export async function createLoanRepaymentJournalEntry(data: {
   branchId?: string;
 }) {
   const [loanAccount, cashAccount] = await Promise.all([
-    db.chartOfAccount.findFirst({
-      where: { accountCode: { startsWith: "107" }, isActive: true },
-    }),
-    db.chartOfAccount.findFirst({
-      where: { accountCode: "102001", isActive: true },
-    }),
+    findActiveAccountByCodes(db, getAccountCodeCandidates("107000")),
+    findActiveAccountByCodes(db, ["102001"]),
   ]);
 
   if (!loanAccount || !cashAccount) {
@@ -320,14 +312,10 @@ export async function createLoanPenaltyAccrualJournalEntry(data: {
   const [loanAccount, penaltyAccount] = await Promise.all([
     data.loanAccountId 
       ? tx.chartOfAccount.findUnique({ where: { id: data.loanAccountId, isActive: true } })
-      : tx.chartOfAccount.findFirst({
-          where: { accountCode: { startsWith: "107" }, isActive: true },
-        }),
+      : findActiveAccountByCodes(tx, getAccountCodeCandidates("107000")),
     data.penaltyAccountId
       ? tx.chartOfAccount.findUnique({ where: { id: data.penaltyAccountId, isActive: true } })
-      : tx.chartOfAccount.findFirst({
-          where: { accountCode: "401300", isActive: true }, // DEFAULT PENALTY INCOME
-        }),
+      : findActiveAccountByCodes(tx, getAccountCodeCandidates("401005")),
   ]);
 
   if (!loanAccount || !penaltyAccount) {

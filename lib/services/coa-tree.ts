@@ -1,6 +1,7 @@
 import { db } from "@/prisma/db";
 import { ensureCoreChartOfAccountsStructure } from "@/lib/services/chart-of-accounts-bootstrap";
 import { hydrateAccountsWithJournalBalances } from "@/lib/services/chartOfAccounts";
+import { HIDDEN_COA_CODES } from "@/lib/accounting/coa-identity";
 
 export type COANode = {
   id: string;
@@ -23,7 +24,9 @@ export async function getCOATree(branchId?: string) {
     where: {
       isActive: true,
       NOT: {
-        accountCode: "401006",
+        accountCode: {
+          in: Array.from(HIDDEN_COA_CODES),
+        },
       },
     },
     orderBy: {

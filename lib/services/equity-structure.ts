@@ -143,5 +143,19 @@ export async function ensureEquityStructure() {
     });
   }
 
+  const legacySaccoReserves = await db.chartOfAccount.findFirst({
+    where: { accountCode: SACCO_RESERVES_CODE },
+  });
+
+  if (legacySaccoReserves?.isActive) {
+    await db.chartOfAccount.update({
+      where: { id: legacySaccoReserves.id },
+      data: {
+        isActive: false,
+        description: "Legacy equity bucket retired in favour of the canonical equity structure.",
+      },
+    });
+  }
+
   return { root };
 }

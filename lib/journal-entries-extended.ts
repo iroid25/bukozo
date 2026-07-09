@@ -1,5 +1,9 @@
 import { buildAccountBalanceUpdate } from "@/lib/accounting-rules";
 import { db } from "@/prisma/db";
+import {
+  findActiveAccountByCodes,
+  getAccountCodeCandidates,
+} from "@/lib/accounting/coa-identity";
 import { resolveShareCapitalAccount } from "@/lib/services/equity-structure";
 import {
   CASH_AT_HAND_CODE,
@@ -46,18 +50,16 @@ export async function createSplitLoanRepaymentJournalEntry(data: {
   const debitCode = data.debitAccountCode || data.cashAccountCode || "102001";
 
   const [cashAccount, loanAccount, interestAccount, penaltyAccount] = await Promise.all([
-    tx.chartOfAccount.findFirst({
-      where: { accountCode: debitCode, isActive: true },
-    }),
+    findActiveAccountByCodes(tx, [debitCode]),
     data.ledgerAccountId
       ? tx.chartOfAccount.findUnique({ where: { id: data.ledgerAccountId, isActive: true } })
-      : tx.chartOfAccount.findFirst({ where: { accountCode: "107000", isActive: true } }),
+      : findActiveAccountByCodes(tx, getAccountCodeCandidates("107000")),
     data.interestAccountId
       ? tx.chartOfAccount.findUnique({ where: { id: data.interestAccountId, isActive: true } })
       : tx.chartOfAccount.findFirst({ where: { accountCode: "401001", isActive: true } }),
     data.penaltyAccountId
       ? tx.chartOfAccount.findUnique({ where: { id: data.penaltyAccountId, isActive: true } })
-      : tx.chartOfAccount.findFirst({ where: { accountCode: "401300", isActive: true } }),
+      : findActiveAccountByCodes(tx, getAccountCodeCandidates("401005")),
   ]);
 
   if (!cashAccount || !loanAccount || !interestAccount) {
@@ -257,7 +259,7 @@ export async function createComprehensiveLoanDisbursementJournalEntry(data: {
   userId: string;
   entryDate?: Date;
   branchId?: string;
-  sourceAccountCode?: string; // Default to 102001 (Cash at hand/Sacco Reserves)
+  sourceAccountCode?: string; // Default to 102001 (Cash at hand)
   ledgerAccountId?: string;
   interestAccountId?: string;
   penaltyAccountId?: string;
@@ -314,14 +316,12 @@ export async function createComprehensiveLoanDisbursementJournalEntry(data: {
     penaltyIncomeAccount,
     sharesAccount
   ] = await Promise.all([
-    tx.chartOfAccount.findFirst({
-      where: { accountCode: data.sourceAccountCode || "301004", isActive: true }, // Default to 301004 (Sacco Reserves)
-    }),
+    findActiveAccountByCodes(tx, getAccountCodeCandidates(data.sourceAccountCode || "102001")),
     resolveAccountByIdOrCode(data.ledgerAccountId, "107000"),
     resolveAccountByIdOrCode(data.feeAccountId, "401002"),
     resolveAccountByIdOrCode(data.insuranceAccountId, "200600"),
     resolveAccountByIdOrCode(data.interestAccountId, "401001"),
-    resolveAccountByIdOrCode(data.penaltyAccountId, "401300"),
+    resolveAccountByIdOrCode(data.penaltyAccountId, "401005"),
     resolveAccountByIdOrCode(data.shareAccountId, "304000"),
   ]);
 
@@ -1312,10 +1312,8 @@ export async function createMigrationOpeningBalanceEntry(data: {
   const [loanAccount, clearingAccount] = await Promise.all([
     data.ledgerAccountId
       ? tx.chartOfAccount.findUnique({ where: { id: data.ledgerAccountId, isActive: true } })
-      : tx.chartOfAccount.findFirst({ where: { accountCode: "107000", isActive: true } }),
-    tx.chartOfAccount.findFirst({
-      where: { accountCode: "301004", isActive: true }, // Using Sacco Reserves as default clearing
-    }),
+      : findActiveAccountByCodes(tx, getAccountCodeCandidates("107000")),
+    findActiveAccountByCodes(tx, getAccountCodeCandidates("102001")),
   ]);
 
   if (!loanAccount || !clearingAccount) throw new Error("Migration accounts not found");

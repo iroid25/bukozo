@@ -3,6 +3,7 @@ import { getAuthUser } from "@/config/useAuth";
 import { db } from "@/prisma/db";
 import { LoanStatus } from "@prisma/client";
 import { buildAccountBalanceUpdate } from "@/lib/accounting-rules";
+import { findActiveAccountByCodes } from "@/lib/accounting/coa-identity";
 
 export async function DELETE(
   request: NextRequest,
@@ -112,12 +113,8 @@ export async function DELETE(
       // ── Reversal journal entry (Dr Penalty Income, Cr Loan Receivable) ──
       {
         const [penaltyAccount, loanAccount] = await Promise.all([
-          tx.chartOfAccount.findFirst({
-            where: { accountCode: "401300", isActive: true },
-          }),
-          tx.chartOfAccount.findFirst({
-            where: { accountCode: { startsWith: "107" }, isActive: true },
-          }),
+          findActiveAccountByCodes(tx, ["401005", "401300"]),
+          findActiveAccountByCodes(tx, ["107000", "102003"]),
         ]);
         if (penaltyAccount && loanAccount) {
           const revEntryNumber = `JE-PENREV-${Date.now()}`;

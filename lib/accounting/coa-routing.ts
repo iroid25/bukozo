@@ -61,7 +61,7 @@ export const COA_SOURCE_RULES: CoaSourceRule[] = [
     targetCategory: "ASSETS",
     targetAccounts: ["107000", "102001"],
     allowInCoa: true,
-    notes: "Repayment reverses the loan asset and increases cash.",
+    notes: "Principal reverses the loan asset and increases cash; interest and penalty are posted to loan-related income.",
   },
   {
     source: "app/api/v1/loans/products",

@@ -284,7 +284,7 @@ export default function PayFromAccountForm({
             
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="bg-white p-3 rounded-xl border shadow-sm flex flex-col gap-1">
-                <Label className="text-[10px] text-orange-600 font-bold uppercase tracking-tighter">Interest</Label>
+                <Label className="text-[10px] text-orange-600 font-bold uppercase tracking-tighter">Interest Income</Label>
                 <Input
                   type="number"
                   value={interestPaid}
@@ -294,7 +294,7 @@ export default function PayFromAccountForm({
               </div>
 
               <div className="bg-white p-3 rounded-xl border shadow-sm flex flex-col gap-1">
-                <Label className="text-[10px] text-red-600 font-bold uppercase tracking-tighter">Penalty</Label>
+                <Label className="text-[10px] text-red-600 font-bold uppercase tracking-tighter">Penalty Income</Label>
                 <Input
                   type="number"
                   value={penaltyPaid}
@@ -317,7 +317,7 @@ export default function PayFromAccountForm({
             <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-white/50 p-2">
               <p className="text-[10px] text-slate-500 flex items-center gap-1.5">
                 <Info className="h-3.3 w-3.5 text-indigo-400 flex-shrink-0" />
-                Allocated automatically based on the repayment split rule. You may override these values if necessary.
+                Allocated automatically based on the repayment split rule. Principal reduces the loan asset, while interest and penalty post to loan-related income.
               </p>
               <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
                 Total Split: {formatCurrency(totalSplit)}

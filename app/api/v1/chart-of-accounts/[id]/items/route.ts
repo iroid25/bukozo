@@ -3,6 +3,11 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
 import { db } from "@/prisma/db";
 import { resolveBranchScope } from "@/lib/services/branch-scope";
+import {
+  findActiveAccountByCodes,
+  getAccountCodeCandidates,
+  isHiddenCoaCode,
+} from "@/lib/accounting/coa-identity";
 
 // GET /api/v1/chart-of-accounts/[id]/items
 export async function GET(
@@ -30,23 +35,20 @@ export async function GET(
       return NextResponse.json({ error: "Account not found" }, { status: 404 });
     }
 
-    const resolvedAccount =
-      account.accountCode === "102003"
-        ? (await db.chartOfAccount.findFirst({
-            where: { accountCode: "107000", ledgerType: "ASSETS" },
-          })) || account
-        : account;
+    const resolvedCanonicalAccount = isHiddenCoaCode(account.accountCode)
+      ? await findActiveAccountByCodes(db, getAccountCodeCandidates(account.accountCode))
+      : null;
+
+    if (isHiddenCoaCode(account.accountCode) && !resolvedCanonicalAccount) {
+      return NextResponse.json({ error: "Account not found" }, { status: 404 });
+    }
+
+    const resolvedAccount = resolvedCanonicalAccount || account;
 
     let items: any[] = [];
     let type = "GENERIC";
 
-    const shareCapitalCodes = new Set([
-      "304000",
-      "304001",
-      "304002",
-      "304003",
-      "304004",
-    ]);
+    const shareCapitalCodes = new Set(["304000", "304001", "304002", "304003", "304004"]);
     const isShareCapitalAccount =
       resolvedAccount.ledgerType === "EQUITY" &&
       (shareCapitalCodes.has(resolvedAccount.accountCode) ||
@@ -326,6 +328,10 @@ export async function GET(
           ].join(" | "),
         };
       });
+    }
+
+    if (Array.isArray(items)) {
+      items = items.filter((item) => !isHiddenCoaCode(item.code) && !isHiddenCoaCode(item.accountCode));
     }
 
     // 1. LIABILITY / EQUITY (Member Accounts)

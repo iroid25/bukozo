@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/prisma/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
+import { createSplitLoanRepaymentJournalEntry } from "@/lib/journal-entries-extended";
 
 // POST /api/v1/journal-entries/auto/loan-repayment - Create journal entry for loan repayment
 export async function POST(request: NextRequest) {
@@ -24,83 +24,30 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    const principalAmount = Number(body.principalAmount ?? body.amount ?? 0);
+    const interestAmount = Number(body.interestAmount ?? 0);
+    const penaltyAmount = Number(body.penaltyAmount ?? 0);
 
-    // Find the loan account
-    const loanAccount = await db.chartOfAccount.findFirst({
-      where: {
-        accountCode: { startsWith: "107" }, // LOANS & ADVANCES
-        isActive: true,
-      },
+    const result = await createSplitLoanRepaymentJournalEntry({
+      principalAmount,
+      interestAmount,
+      penaltyAmount,
+      description: body.description,
+      reference: body.reference || undefined,
+      transactionId: body.transactionId || undefined,
+      userId: (session.user as any).id,
+      entryDate: body.entryDate ? new Date(body.entryDate) : undefined,
+      branchId: body.branchId || undefined,
+      cashAccountCode: body.cashAccountCode || "102001",
+      debitAccountCode: body.debitAccountCode || undefined,
+      ledgerAccountId: body.ledgerAccountId || undefined,
+      interestAccountId: body.interestAccountId || undefined,
+      penaltyAccountId: body.penaltyAccountId || undefined,
     });
-
-    // Find the cash/bank account
-    const cashAccount = await db.chartOfAccount.findFirst({
-      where: {
-        accountCode: "102001", // CASH AT HAND
-        isActive: true,
-      },
-    });
-
-    if (!loanAccount || !cashAccount) {
-      return NextResponse.json(
-        { error: "Required accounts not found in Chart of Accounts" },
-        { status: 404 }
-      );
-    }
-
-    const entryNumber = `JE-REPAY-${Date.now()}`;
-
-    // Create journal entries (Debit Cash, Credit Loan Receivable)
-    const result = await db.$transaction([
-      // Debit: Cash/Bank (Asset increases)
-      db.journalEntry.create({
-        data: {
-          entryNumber,
-          accountId: cashAccount.id,
-          debitAmount: body.amount,
-          creditAmount: 0,
-          description: body.description,
-          reference: body.reference || null,
-          transactionId: body.transactionId || null,
-          createdByUserId: (session.user as any).id,
-        },
-      }),
-      // Credit: Loan Receivable (Asset decreases)
-      db.journalEntry.create({
-        data: {
-          entryNumber,
-          accountId: loanAccount.id,
-          debitAmount: 0,
-          creditAmount: body.amount,
-          description: body.description,
-          reference: body.reference || null,
-          transactionId: body.transactionId || null,
-          createdByUserId: (session.user as any).id,
-        },
-      }),
-      // Update account balances
-      db.chartOfAccount.update({
-        where: { id: cashAccount.id },
-        data: {
-          debitBalance: { increment: body.amount },
-          balance: { increment: body.amount },
-        },
-      }),
-      db.chartOfAccount.update({
-        where: { id: loanAccount.id },
-        data: {
-          creditBalance: { increment: body.amount },
-          balance: { decrement: body.amount },
-        },
-      }),
-    ]);
 
     return NextResponse.json(
       {
-        data: {
-          entryNumber,
-          entries: result.slice(0, 2),
-        },
+        data: result,
         message: "Loan repayment journal entry created successfully",
       },
       { status: 201 }

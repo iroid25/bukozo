@@ -2029,7 +2029,7 @@ export default function LoanRepaymentCreateForm({
                         <FormItem className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm relative overflow-hidden group">
                           <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-orange-400" />
                           <FormLabel className="text-[11px] uppercase font-bold text-slate-400 tracking-wider mb-2 block pl-2 flex justify-between items-center">
-                            <span>Interest Paid</span>
+                            <span>Interest Income</span>
                             {getRepaymentImpact()?.monthlyInterestRate !== undefined && (
                               <span className="text-[9px] text-orange-500 lowercase normal-case font-medium italic">
                                 ({getRepaymentImpact()?.monthlyInterestRate.toFixed(1)}% monthly)
@@ -2056,7 +2056,7 @@ export default function LoanRepaymentCreateForm({
                       render={({ field }) => (
                         <FormItem className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm relative overflow-hidden group">
                           <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-red-500" />
-                          <FormLabel className="text-[11px] uppercase font-bold text-slate-400 tracking-wider mb-2 block pl-2">Penalty Paid</FormLabel>
+                          <FormLabel className="text-[11px] uppercase font-bold text-slate-400 tracking-wider mb-2 block pl-2">Penalty Income</FormLabel>
                           <FormControl>
                             <Input
                               type="number"

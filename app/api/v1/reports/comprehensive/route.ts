@@ -2,6 +2,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
 import { calculateAccountBalance } from "@/lib/accounting-rules";
+import { HIDDEN_COA_CODES } from "@/lib/accounting/coa-identity";
 import { db } from "@/prisma/db";
 
 export const dynamic = "force-dynamic";
@@ -252,7 +253,9 @@ async function generateCOAListingReport() {
     where: {
       isActive: true,
       NOT: {
-        accountCode: "401006",
+        accountCode: {
+          in: Array.from(HIDDEN_COA_CODES),
+        },
       },
     },
     orderBy: [{ ledgerType: "asc" }, { accountCode: "asc" }],
@@ -336,7 +339,9 @@ async function generateComprehensiveTrialBalanceReport(start: Date, end: Date) {
     where: {
       isActive: true,
       NOT: {
-        accountCode: "401006",
+        accountCode: {
+          in: Array.from(HIDDEN_COA_CODES),
+        },
       },
     },
     orderBy: [{ ledgerType: "asc" }, { accountCode: "asc" }],
@@ -408,7 +413,11 @@ async function generateComprehensiveIncomeReport(start: Date, end: Date) {
   const accounts = await db.chartOfAccount.findMany({
     where: {
       isActive: true,
-      accountCode: { not: "401006" },
+      NOT: {
+        accountCode: {
+          in: Array.from(HIDDEN_COA_CODES),
+        },
+      },
       ledgerType: { in: ["INCOME", "EXPENDITURES"] },
     },
   });

@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
     const user = await getAuthUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     if (user.role !== "ADMIN") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    const codes = ["107000", "401000", "102001", "401300", "301004"];
+    const codes = ["107000", "401000", "102001", "401005"];
     const accounts = await db.chartOfAccount.findMany({
       where: { accountCode: { in: codes } }
     });

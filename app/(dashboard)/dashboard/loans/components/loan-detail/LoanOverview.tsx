@@ -83,7 +83,7 @@ export default function LoanOverview({ loan, schedule }: LoanOverviewProps) {
       bg: "bg-rose-50",
     },
     {
-      label: "Interest Paid",
+      label: "Interest Income",
       value: loan.interestPaid || 0,
       icon: TrendingUp,
       color: "text-amber-600",

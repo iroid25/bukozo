@@ -5,6 +5,7 @@ import { authOptions } from "@/config/auth";
 import { ensureCoreChartOfAccountsStructure } from "@/lib/services/chart-of-accounts-bootstrap";
 import { ensureEquityStructure } from "@/lib/services/equity-structure";
 import { resolveBranchScope } from "@/lib/services/branch-scope";
+import { HIDDEN_COA_CODES } from "@/lib/accounting/coa-identity";
 
 export const dynamic = "force-dynamic";
 
@@ -55,7 +56,10 @@ export async function GET(request: NextRequest) {
       branchId,
     });
 
-    const filteredData = result.data.filter((account: { accountCode?: string }) => account.accountCode !== "401006");
+    const filteredData = result.data.filter(
+      (account: { accountCode?: string }) =>
+        !account.accountCode || !HIDDEN_COA_CODES.has(account.accountCode),
+    );
     const removedCount = result.data.length - filteredData.length;
 
     return NextResponse.json({

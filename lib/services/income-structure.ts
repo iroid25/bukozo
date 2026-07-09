@@ -6,7 +6,7 @@ export const LOAN_INTEREST_PAID_CODE = "401001";
 export const LOAN_PROCESSING_FEES_CODE = "401002";
 export const INVESTMENT_INTEREST_CODE = "401004";
 export const LOAN_PENALTY_PAID_CODE = "401005";
-export const PENALTY_INCOME_CODE = "401300";
+export const LEGACY_PENALTY_INCOME_CODE = "401300";
 export const SALES_INCOME_CODE = "402000";
 export const COMMISSION_INCOME_CODE = "403000";
 export const SERVICES_INCOME_CODE = "404000";
@@ -48,12 +48,6 @@ const incomeNodes: IncomeSeedNode[] = [
     code: LOAN_PENALTY_PAID_CODE,
     parentCode: LOAN_RELATED_INCOME_CODE,
     description: "Penalty income collected from overdue loans",
-  },
-  {
-    name: "Penalty income",
-    code: PENALTY_INCOME_CODE,
-    parentCode: LOAN_RELATED_INCOME_CODE,
-    description: "Penalty income from overdue loans (alternate account)",
   },
   {
     name: "Loan processing fees",
@@ -234,6 +228,30 @@ export async function ensureIncomeStructure() {
   if (duplicateLoanApplicationFeeCategory?.isActive) {
     await db.budgetCategory.update({
       where: { id: duplicateLoanApplicationFeeCategory.id },
+      data: { isActive: false },
+    });
+  }
+
+  const legacyPenaltyAccount = await db.chartOfAccount.findUnique({
+    where: { accountCode: LEGACY_PENALTY_INCOME_CODE },
+    select: { id: true, isActive: true },
+  });
+
+  if (legacyPenaltyAccount?.isActive) {
+    await db.chartOfAccount.update({
+      where: { id: legacyPenaltyAccount.id },
+      data: { isActive: false },
+    });
+  }
+
+  const legacyPenaltyCategory = await db.budgetCategory.findUnique({
+    where: { code: LEGACY_PENALTY_INCOME_CODE },
+    select: { id: true, isActive: true },
+  });
+
+  if (legacyPenaltyCategory?.isActive) {
+    await db.budgetCategory.update({
+      where: { id: legacyPenaltyCategory.id },
       data: { isActive: false },
     });
   }

@@ -4,6 +4,7 @@ import { getAuthUser } from '@/config/useAuth';
 import { ensureEquityStructure } from '@/lib/services/equity-structure';
 import { bumpAccountingSyncState } from '@/lib/services/accounting-sync';
 import { resolveBranchScope } from '@/lib/services/branch-scope';
+import { HIDDEN_COA_CODES } from '@/lib/accounting/coa-identity';
 
 /**
  * GET /api/v1/equity
@@ -30,7 +31,12 @@ export async function GET(request: NextRequest) {
             { accountCode: { startsWith: '3' } },
             { ledgerType: 'EQUITY' }
           ],
-          isActive: true
+          isActive: true,
+          NOT: {
+            accountCode: {
+              in: Array.from(HIDDEN_COA_CODES),
+            },
+          },
         },
         include: {
           parent: {

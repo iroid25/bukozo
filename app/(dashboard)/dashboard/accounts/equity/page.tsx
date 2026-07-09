@@ -182,6 +182,11 @@ const FORCE_EXPANDABLE_CODES = new Set<EquityBucketCode>([
   "304000",
 ]);
 
+const HIDDEN_EQUITY_ACCOUNT_CODES = new Set(["301004"]);
+
+const isHiddenEquityAccount = (account: Pick<ChartOfAccount, "accountCode">) =>
+  HIDDEN_EQUITY_ACCOUNT_CODES.has(account.accountCode);
+
 export default function EquityPage() {
   const { data: session, status } = useSession();
   const isAdmin = session?.user?.role === "ADMIN";
@@ -303,9 +308,7 @@ export default function EquityPage() {
         throw new Error("Invalid response format");
       }
 
-      setAccounts(
-        data.data.filter((account: ChartOfAccount) => account.accountCode !== "301004"),
-      );
+      setAccounts(data.data.filter((account: ChartOfAccount) => !isHiddenEquityAccount(account)));
       setShareCapitalGroups(
         Array.isArray(data.groups?.shareCapital?.items)
           ? data.groups.shareCapital.items
@@ -338,15 +341,17 @@ export default function EquityPage() {
 
       const data = await response.json();
       const children = Array.isArray(data?.data?.children)
-        ? data.data.children.map((child: any) => ({
-            ...child,
-            ledgerType: data.data.ledgerType,
-            debitBalance: child.debitBalance || 0,
-            creditBalance: child.creditBalance || 0,
-            isActive: child.isActive ?? true,
-            currency: child.currency || data.data.currency || "UGX",
-            _count: child._count || { children: 0, journalEntries: 0 },
-          }))
+        ? data.data.children
+            .filter((child: any) => !HIDDEN_EQUITY_ACCOUNT_CODES.has(child.accountCode))
+            .map((child: any) => ({
+              ...child,
+              ledgerType: data.data.ledgerType,
+              debitBalance: child.debitBalance || 0,
+              creditBalance: child.creditBalance || 0,
+              isActive: child.isActive ?? true,
+              currency: child.currency || data.data.currency || "UGX",
+              _count: child._count || { children: 0, journalEntries: 0 },
+            }))
         : [];
 
       setNodeChildren((prev) => ({ ...prev, [accountId]: children }));
@@ -397,6 +402,7 @@ export default function EquityPage() {
   const accountChildrenMap = useMemo(() => {
     const map = new Map<string, ChartOfAccount[]>();
     accounts.forEach((account) => {
+      if (isHiddenEquityAccount(account)) return;
       const parentId = account.parent?.id;
       if (!parentId) return;
       const siblings = map.get(parentId) || [];
@@ -911,6 +917,14 @@ export default function EquityPage() {
     [accounts],
   );
 
+  const visibleSelectedChildren = useMemo(
+    () =>
+      selectedAccount?.children?.filter(
+        (child) => !HIDDEN_EQUITY_ACCOUNT_CODES.has(child.accountCode),
+      ) || [],
+    [selectedAccount],
+  );
+
   const totals = useMemo(() => {
     const byCode = (code: EquityBucketCode) => {
       const account = accounts.find((item) => item.accountCode === code);
@@ -1218,13 +1232,13 @@ export default function EquityPage() {
                 </div>
               </div>
 
-              {selectedAccount.children && selectedAccount.children.length > 0 && (
+              {visibleSelectedChildren.length > 0 && (
                 <div className="space-y-4">
                   <h3 className="text-xl font-extrabold">
-                    Sub-Accounts ({selectedAccount.children.length})
+                    Sub-Accounts ({visibleSelectedChildren.length})
                   </h3>
                   <div className="grid max-h-60 grid-cols-1 gap-3 overflow-y-auto pr-2 md:grid-cols-2">
-                    {selectedAccount.children.map((child) => (
+                    {visibleSelectedChildren.map((child) => (
                       <div
                         key={child.id}
                         className="flex items-center justify-between rounded-lg border border-muted-foreground/10 bg-muted/40 p-3"

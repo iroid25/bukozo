@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { HIDDEN_COA_CODES } from "@/lib/accounting/coa-identity";
 export type SnapshotChartOfAccount = {
   id: string;
   accountCode: string;
@@ -76,7 +77,6 @@ const TARGET_COA_CODES = new Set([
   "401002",
   "401005",
   "401200",
-  "401300",
   "401301",
   "401302",
   "401303",
@@ -369,6 +369,7 @@ export function filterSnapshotAccounts(options: {
   } = options;
 
   return loadChartOfAccountsSnapshot().filter((account) => {
+    if (HIDDEN_COA_CODES.has(account.accountCode)) return false;
     if (ledgerType && account.ledgerType !== ledgerType) return false;
     if (typeof level === "number" && account.level !== level) return false;
     if (typeof isActive === "boolean" && account.isActive !== isActive) return false;

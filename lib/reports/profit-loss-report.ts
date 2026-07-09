@@ -178,7 +178,7 @@ const GROUPS: GroupDefinition[] = [
   { code: "400950", name: "LOAN PROCESSING FEES", section: "Income", standalone: true, prefixes: ["400950", "401002"] },
   { code: "401000", name: "SOCIAL FUND", section: "Income", standalone: true, prefixes: ["401000"] },
   { code: "401200", name: "SALE OF OLD ASSETS", section: "Income", standalone: true, prefixes: ["401200"] },
-  { code: "401300", name: "PENALTY", section: "Income", prefixes: ["40130"] },
+  { code: "401005", name: "PENALTY", section: "Income", standalone: true, prefixes: ["401005"] },
   { code: "401400", name: "LEDGER FEES", section: "Income", prefixes: ["40140"] },
   { code: "405000", name: "FEE INCOME", section: "Income", standalone: true, prefixes: ["4050"] },
   { code: "401500", name: "INTEREST ON BANK DEPOSITS", section: "Income", standalone: true, prefixes: ["401500"] },

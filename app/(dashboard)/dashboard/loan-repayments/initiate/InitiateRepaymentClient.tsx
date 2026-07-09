@@ -1247,7 +1247,7 @@ export default function InitiateRepaymentClient({
                     <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm relative overflow-hidden group">
                       <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-orange-400" />
                       <Label htmlFor="interest" className="text-[11px] uppercase font-bold text-slate-400 tracking-wider mb-2 block pl-2 flex justify-between items-center">
-                        <span>Interest Paid</span>
+                        <span>Interest Income</span>
                         {allocation.monthlyInterestRate > 0 && (
                           <span className="text-[9px] text-orange-500 lowercase normal-case font-medium">({allocation.monthlyInterestRate.toFixed(1)}% monthly)</span>
                         )}
@@ -1267,7 +1267,7 @@ export default function InitiateRepaymentClient({
                     {/* Penalty Card */}
                     <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm relative overflow-hidden group">
                       <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-red-500" />
-                      <Label htmlFor="penalty" className="text-[11px] uppercase font-bold text-slate-400 tracking-wider mb-2 block pl-2">Penalty Paid</Label>
+                      <Label htmlFor="penalty" className="text-[11px] uppercase font-bold text-slate-400 tracking-wider mb-2 block pl-2">Penalty Income</Label>
                       <div className="flex items-center pl-2">
                         <Input
                           id="penalty"

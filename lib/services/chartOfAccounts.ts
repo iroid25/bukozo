@@ -1,6 +1,7 @@
 import { db } from "@/prisma/db";
 import { Prisma } from "@prisma/client";
 import { calculateAccountBalance } from "@/lib/accounting-rules";
+import { HIDDEN_COA_CODES } from "@/lib/accounting/coa-identity";
 
 export type GetChartOfAccountsOptions = {
   page?: number;
@@ -152,7 +153,9 @@ export async function getChartOfAccounts(options: GetChartOfAccountsOptions) {
 
   andFilters.push({
     NOT: {
-      accountCode: "401006",
+      accountCode: {
+        in: Array.from(HIDDEN_COA_CODES),
+      },
     },
   });
 
