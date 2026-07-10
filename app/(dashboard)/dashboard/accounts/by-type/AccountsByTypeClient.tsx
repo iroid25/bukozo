@@ -139,7 +139,7 @@ function AccountTypeTable({
           </div>
           <div>
             <div className="font-medium text-sm">{row.accountNumber}</div>
-            <div className="text-xs text-gray-600">{row.accountType?.name}</div>
+            <div className="text-xs text-gray-500">{row.accountType?.name}</div>
           </div>
         </div>
       ),

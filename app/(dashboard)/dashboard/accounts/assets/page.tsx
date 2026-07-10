@@ -1587,7 +1587,11 @@ export default function AssetsPage() {
                             <TableHead>Reference</TableHead>
                             <TableHead>Description</TableHead>
                             <TableHead>Details</TableHead>
-                            <TableHead className="text-right">Amount</TableHead>
+                            <TableHead className="text-right">
+                              {isLoanAssetAccount(selectedAccount)
+                                ? "Principal"
+                                : "Amount"}
+                            </TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
