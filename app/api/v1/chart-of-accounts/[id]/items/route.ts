@@ -310,22 +310,28 @@ export async function GET(
           "Unknown Member";
         const loanProductName =
           repayment.loan?.loanApplication?.loanProduct?.name || "Loan Repayment";
+        const principalAmount = Number(repayment.principalPaid || 0);
+        const interestAmount = Number(repayment.interestPaid || 0);
+        const penaltyAmount = Number(repayment.penaltyPaid || 0);
 
         return {
           id: repayment.id,
           name: memberName,
           code: repayment.transactionId || repayment.loanId.slice(0, 8),
           date: repayment.repaymentDate,
-          amount: Number(repayment.amount || 0),
+          amount: principalAmount,
           status: "COMPLETED",
           details: [
             `Loan: ${loanProductName}`,
-            `Principal: ${Number(repayment.principalPaid || 0).toLocaleString("en-UG")}`,
-            `Interest: ${Number(repayment.interestPaid || 0).toLocaleString("en-UG")}`,
-            `Penalty: ${Number(repayment.penaltyPaid || 0).toLocaleString("en-UG")}`,
+            `Principal: ${principalAmount.toLocaleString("en-UG")}`,
+            `Interest posted to income: ${interestAmount.toLocaleString("en-UG")}`,
+            `Penalty posted to income: ${penaltyAmount.toLocaleString("en-UG")}`,
             `Channel: ${repayment.channel || "-"}`,
             `Collected by: ${repayment.handler?.name || "-"}`,
           ].join(" | "),
+          principalAmount,
+          interestAmount,
+          penaltyAmount,
         };
       });
     }

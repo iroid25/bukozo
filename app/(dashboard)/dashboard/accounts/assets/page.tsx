@@ -173,7 +173,7 @@ const filterRetiredLoanAssetAccounts = <T extends ChartOfAccount>(
 ) => accounts;
 
 const getAssetBalanceLabel = (account: ChartOfAccount) =>
-  isLoanAssetAccount(account) ? "Outstanding Principal" : "Balance";
+  isLoanAssetAccount(account) ? "Principal" : "Balance";
 
 export default function AssetsPage() {
   const { data: session, status } = useSession();
@@ -227,6 +227,13 @@ export default function AssetsPage() {
   const [nodeItemsLoading, setNodeItemsLoading] = useState<
     Record<string, boolean>
   >({});
+  const loanPrincipalTotal = useMemo(
+    () =>
+      selectedAccount && isLoanAssetAccount(selectedAccount)
+        ? accountItems.reduce((sum, item) => sum + Number(item.amount || 0), 0)
+        : 0,
+    [accountItems, selectedAccount],
+  );
 
   const closeAssetDialogs = () => {
     setIsCreateOpen(false);
@@ -690,8 +697,24 @@ export default function AssetsPage() {
     const combined = [...fromTree, ...fromCache];
     return filterRetiredLoanAssetAccounts(combined).filter(
       (child, index, list) =>
-        list.findIndex((item) => item.id === child.id) === index,
+      list.findIndex((item) => item.id === child.id) === index,
     );
+  };
+
+  const getLoanPrincipalTotal = (items: any[] = []) =>
+    items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+
+  const getDisplayAccountTotal = (account: ChartOfAccount) => {
+    if (isLoanAssetAccount(account)) {
+      const loadedLoanItems = nodeItems[account.id] || [];
+      const principalTotal = getLoanPrincipalTotal(loadedLoanItems);
+
+      if (principalTotal !== 0) {
+        return principalTotal;
+      }
+    }
+
+    return getAccountBranchTotal(account);
   };
 
   const getAccountBranchTotal = (
@@ -805,7 +828,6 @@ export default function AssetsPage() {
       account.level >= 2;
     const isExpanded = !!expandedNodes[account.id];
     const isNodeLoading = !!nodeLoading[account.id];
-    const branchTotal = getAccountBranchTotal(account);
 
     return (
       <div key={account.id} className="space-y-2">
@@ -883,7 +905,7 @@ export default function AssetsPage() {
                 {getAssetBalanceLabel(account)}
               </p>
               <p className="font-mono text-lg font-bold text-foreground">
-                {formatCurrency(branchTotal)}
+                {formatCurrency(getDisplayAccountTotal(account))}
               </p>
             </div>
             <Button
@@ -1477,15 +1499,34 @@ export default function AssetsPage() {
                     {selectedAccount.accountCode}
                   </p>
                 </div>
-                <div className="col-span-2 rounded-lg bg-muted/30 p-4">
-                  <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                    Account Name
-                  </label>
-                  <p className="text-2xl font-bold">
-                    {selectedAccount.accountName}
-                  </p>
+                  <div className="col-span-2 rounded-lg bg-muted/30 p-4">
+                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                      Account Name
+                    </label>
+                    <p className="text-2xl font-bold">
+                      {selectedAccount.accountName}
+                    </p>
+                  </div>
                 </div>
-              </div>
+
+              {isLoanAssetAccount(selectedAccount) && (
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <Card className="border-none bg-primary/10">
+                    <CardHeader className="pb-1">
+                      <CardTitle className="text-xs font-extrabold uppercase tracking-wider">
+                        Principal
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-2xl font-mono font-black text-primary">
+                        {formatCurrency(
+                          loanPrincipalTotal || selectedAccount.balance,
+                        )}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
 
               {itemsType === "FIXED_ASSET" && (
                 <div className="flex flex-col gap-3 rounded-xl border border-dashed border-destructive/30 bg-destructive/5 p-4 md:flex-row md:items-center md:justify-between">
@@ -1584,7 +1625,7 @@ export default function AssetsPage() {
               <div className="space-y-4">
                 <h3 className="text-xl font-extrabold">
                   {isLoanAssetAccount(selectedAccount)
-                    ? "Outstanding Principal Analysis"
+                    ? "Principal Analysis"
                     : "Balance Analysis"}
                 </h3>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -1616,13 +1657,17 @@ export default function AssetsPage() {
                     <CardHeader className="pb-1">
                       <CardTitle className="text-xs font-extrabold uppercase tracking-wider">
                         {isLoanAssetAccount(selectedAccount)
-                          ? "Outstanding Principal"
+                          ? "Principal"
                           : "Net Asset Value"}
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <p className="text-2xl font-mono font-black text-primary">
-                        {formatCurrency(selectedAccount.balance)}
+                        {formatCurrency(
+                          isLoanAssetAccount(selectedAccount)
+                            ? loanPrincipalTotal || selectedAccount.balance
+                            : selectedAccount.balance,
+                        )}
                       </p>
                     </CardContent>
                   </Card>

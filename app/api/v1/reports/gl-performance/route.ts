@@ -4,6 +4,7 @@ import { authOptions } from "@/config/auth";
 import { calculateAccountBalance, isDebitNormalBalance } from "@/lib/accounting-rules";
 import { db } from "@/prisma/db";
 import { UserRole } from "@prisma/client";
+import { hydrateAccountsWithJournalBalances } from "@/lib/services/chartOfAccounts";
 
 export const dynamic = "force-dynamic";
 
@@ -242,11 +243,13 @@ export async function GET(request: NextRequest) {
     }
 
     // ============================================================================
-    // CASE C: ALL CATEGORIES SUMMARY
+    // CASE C: ALL CATEGORIES SUMMARY (hydrated from journal entries)
     // ============================================================================
     const allAccounts = await db.chartOfAccount.findMany({
       orderBy: { accountCode: "asc" },
     });
+
+    const hydrated = await hydrateAccountsWithJournalBalances(allAccounts, branchIdFilter);
 
     const categories = {
       assets: { name: "Assets", accounts: [] as any[], totalBalance: 0 },
@@ -257,7 +260,7 @@ export async function GET(request: NextRequest) {
       others: { name: "Other Accounts", accounts: [] as any[], totalBalance: 0 },
     };
 
-    allAccounts.forEach((acc) => {
+    hydrated.forEach((acc: any) => {
       let catKey: keyof typeof categories = "others";
       switch (acc.ledgerType) {
         case "ASSETS":

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { useAccountingSyncVersion } from "@/lib/hooks/useAccountingSync";
 import { IncomeListing } from "./components/IncomeListings";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,6 +33,9 @@ export default function IncomePage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const isAdmin = session?.user?.role === "ADMIN";
+  const accountingSyncVersion = useAccountingSyncVersion({
+    enabled: status === "authenticated",
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedBranchId, setSelectedBranchId] = useState<string>("all");
@@ -64,7 +68,7 @@ export default function IncomePage() {
     if (status === "authenticated") {
       void fetchData();
     }
-  }, [status, router, selectedBranchId]);
+  }, [status, router, selectedBranchId, accountingSyncVersion]);
 
   useEffect(() => {
     if (status !== "authenticated" || !isAdmin) return;

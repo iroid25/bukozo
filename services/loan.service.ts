@@ -2242,6 +2242,11 @@ export class LoanService {
             (isInstitution
               ? institutionLoan!.institution.user.branchId
               : individualLoan!.member.user.branchId);
+          const handlerUser = await tx.user.findUnique({
+            where: { id: data.handlerId },
+            select: { branchId: true },
+          });
+          const incomeBranchId = branchId || handlerUser?.branchId || undefined;
           const resolvedChannel = String(data.channel || "").toUpperCase();
           const repaymentCashAccountCode =
             resolvedChannel === "ACCOUNT_DEBIT"
@@ -2410,6 +2415,103 @@ export class LoanService {
             sourceAccountForJournal?.accountType?.ledgerAccount?.accountCode ||
             repaymentCashAccountCode;
 
+          const recordRepaymentIncome = async (options: {
+            interestAmount: number;
+            penaltyAmount: number;
+            branchId?: string;
+            descriptionPrefix: string;
+            paymentMethod: string;
+            depositorName?: string | null;
+            receiptPrefix: string;
+            notes?: string;
+          }) => {
+            const loanParentCategory = await tx.budgetCategory.upsert({
+              where: { code: "401000" },
+              update: { name: "Loan related income" },
+              create: {
+                name: "Loan related income",
+                code: "401000",
+                kind: "INCOME",
+                description: "Loan related income including fees, interest and penalties",
+                isActive: true,
+              },
+            });
+
+            if (options.interestAmount > 0) {
+              const interestCategory = await tx.budgetCategory.upsert({
+                where: { code: "401001" },
+                update: {
+                  parentId: loanParentCategory.id,
+                  name: "Interest paid",
+                  kind: "INCOME",
+                  isActive: true,
+                },
+                create: {
+                  name: "Interest paid",
+                  code: "401001",
+                  kind: "INCOME",
+                  description: "Interest from loans",
+                  isActive: true,
+                  parentId: loanParentCategory.id,
+                },
+              });
+
+              await tx.incomeRecord.create({
+                data: {
+                  budgetCategoryId: interestCategory.id,
+                  amount: options.interestAmount,
+                  date: new Date(),
+                  recordDate: new Date(),
+                  description: `${options.descriptionPrefix} interest`,
+                  paymentMethod: options.paymentMethod as any,
+                  branchId: options.branchId || incomeBranchId,
+                  depositorName: options.depositorName || null,
+                  receivedByUserId: data.handlerId,
+                  status: "COMPLETED",
+                  receiptNo: `${options.receiptPrefix}-INT-${Date.now()}`,
+                  notes: options.notes || null,
+                },
+              });
+            }
+
+            if (options.penaltyAmount > 0) {
+              const penaltyCategory = await tx.budgetCategory.upsert({
+                where: { code: "401005" },
+                update: {
+                  parentId: loanParentCategory.id,
+                  name: "Loan penalty paid",
+                  kind: "INCOME",
+                  isActive: true,
+                },
+                create: {
+                  name: "Loan penalty paid",
+                  code: "401005",
+                  kind: "INCOME",
+                  description: "Penalty income from overdue loans",
+                  isActive: true,
+                  parentId: loanParentCategory.id,
+                },
+              });
+
+              await tx.incomeRecord.create({
+                data: {
+                  budgetCategoryId: penaltyCategory.id,
+                  amount: options.penaltyAmount,
+                  date: new Date(),
+                  recordDate: new Date(),
+                  description: `${options.descriptionPrefix} penalty`,
+                  paymentMethod: options.paymentMethod as any,
+                  branchId: options.branchId || incomeBranchId,
+                  depositorName: options.depositorName || null,
+                  receivedByUserId: data.handlerId,
+                  status: "COMPLETED",
+                  receiptNo: `${options.receiptPrefix}-PEN-${Date.now()}`,
+                  notes: options.notes || null,
+                },
+              });
+            }
+          };
+
           const {
             interest: interestPortion,
             penalty: penaltyPortion,
@@ -2454,6 +2556,17 @@ export class LoanService {
               },
             });
             const repaymentRecordId = repayment.id;
+
+            await recordRepaymentIncome({
+              interestAmount: interestPortion,
+              penaltyAmount: penaltyPortion,
+              branchId,
+              descriptionPrefix: `Loan repayment - ${ownerName} - ${loan.id.slice(0, 8)}`,
+              paymentMethod: resolvedChannel === "ACCOUNT_DEBIT" ? "BANK" : (resolvedChannel as any) || "CASH",
+              depositorName: ownerName,
+              receiptPrefix: `LRP-${loan.id.slice(0, 8)}`,
+              notes: `Loan repayment income posting for ${loan.id.slice(0, 8)}`,
+            });
 
             let amountToAllocate = data.amount;
             const schedules = await tx.loanRepaymentSchedule.findMany({
@@ -2563,6 +2676,17 @@ export class LoanService {
               },
             });
             const repaymentRecordId = repaymentTransactionId || data.transactionId || data.loanId;
+
+            await recordRepaymentIncome({
+              interestAmount: interestPortion,
+              penaltyAmount: penaltyPortion,
+              branchId,
+              descriptionPrefix: `Institution loan repayment - ${ownerName} - ${loan.id.slice(0, 8)}`,
+              paymentMethod: resolvedChannel === "ACCOUNT_DEBIT" ? "BANK" : (resolvedChannel as any) || "CASH",
+              depositorName: ownerName,
+              receiptPrefix: `ILRP-${loan.id.slice(0, 8)}`,
+              notes: `Institution loan repayment income posting for ${loan.id.slice(0, 8)}`,
+            });
 
             let amountToAllocate = data.amount;
             const schedules =

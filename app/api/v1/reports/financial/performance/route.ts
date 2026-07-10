@@ -3,17 +3,16 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
 import { calculateAccountBalance } from "@/lib/accounting-rules";
 import { db } from "@/prisma/db";
+import { hydrateAccountsWithJournalBalances } from "@/lib/services/chartOfAccounts";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 // GET /api/v1/reports/financial/performance?start=YYYY-MM-DD&end=YYYY-MM-DD
-// GET /api/v1/reports/financial/performance?start=YYYY-MM-DD&end=YYYY-MM-DD
 export async function GET(request: NextRequest) {
   return generatePerformance(request, 'GET');
 }
 
-// POST /api/v1/reports/financial/performance
 export async function POST(request: NextRequest) {
   return generatePerformance(request, 'POST');
 }
@@ -49,33 +48,37 @@ async function generatePerformance(request: NextRequest, method: 'GET' | 'POST')
       );
     }
 
-    // Get income and expense totals from COA
+    // Get income and expense totals — hydrated live from journal entries
     const [incomeAccounts, expenseAccounts] = await Promise.all([
       db.chartOfAccount.findMany({
         where: { ledgerType: "INCOME", isActive: true },
-        select: { creditBalance: true, debitBalance: true },
+        select: { id: true, debitBalance: true, creditBalance: true, ledgerType: true, balance: true },
       }),
       db.chartOfAccount.findMany({
         where: { ledgerType: "EXPENDITURES", isActive: true },
-        select: { debitBalance: true, creditBalance: true },
+        select: { id: true, debitBalance: true, creditBalance: true, ledgerType: true, balance: true },
       }),
     ]);
 
-    const totalIncome = incomeAccounts.reduce(
-      (sum, a) => sum + calculateAccountBalance("INCOME", a.debitBalance, a.creditBalance),
+    const [hydratedIncome, hydratedExpenses] = await Promise.all([
+      hydrateAccountsWithJournalBalances(incomeAccounts),
+      hydrateAccountsWithJournalBalances(expenseAccounts),
+    ]);
+
+    const totalIncome = hydratedIncome.reduce(
+      (sum: number, a: any) => sum + calculateAccountBalance("INCOME", a.debitBalance, a.creditBalance),
       0
     );
-    const totalExpenses = expenseAccounts.reduce(
-      (sum, a) => sum + calculateAccountBalance("EXPENDITURES", a.debitBalance, a.creditBalance),
+    const totalExpenses = hydratedExpenses.reduce(
+      (sum: number, a: any) => sum + calculateAccountBalance("EXPENDITURES", a.debitBalance, a.creditBalance),
       0
     );
 
     const netProfit = totalIncome - totalExpenses;
     const profitMargin = totalIncome > 0 ? (netProfit / totalIncome) * 100 : 0;
-    const returnOnAssets = 0; // Would need asset data
-    const returnOnEquity = 0; // Would need equity data
+    const returnOnAssets = 0;
+    const returnOnEquity = 0;
 
-    // Get member and loan counts for additional metrics
     const [memberCount, loanCount, activeLoans] = await Promise.all([
       db.member.count({ where: { isApproved: true } }),
       db.loan.count(),

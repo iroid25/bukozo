@@ -345,6 +345,41 @@ export default function ChartOfAccountsPage() {
     }
   };
 
+  const resetChartOfAccounts = async () => {
+    const firstConfirm = window.confirm(
+      "This will delete all Chart of Accounts rows and rebuild the standard core structure. Continue?",
+    );
+    if (!firstConfirm) return;
+
+    const confirmCode = window.prompt("Type RESET_COA to confirm the hard reset.");
+    if (confirmCode !== "RESET_COA") {
+      toast.error("Reset cancelled");
+      return;
+    }
+
+    try {
+      setRefreshingCoa(true);
+      const response = await fetch("/api/v1/accounting/coa/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: "RESET_COA" }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.success) {
+        throw new Error(payload?.details || payload?.error || "Failed to reset Chart of Accounts");
+      }
+
+      toast.success("Chart of Accounts reset and rebuilt");
+      await fetchUnified();
+    } catch (error) {
+      console.error("Error resetting Chart of Accounts:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to reset Chart of Accounts");
+    } finally {
+      setRefreshingCoa(false);
+    }
+  };
+
   const resetFilters = async () => {
     try {
       setResetting(true);
@@ -472,6 +507,17 @@ export default function ChartOfAccountsPage() {
                 <Loader2 className={cn("h-4 w-4", resetting ? "animate-spin" : "")} />
                 {resetting ? "Resetting" : "Reset"}
             </Button>
+            {session?.user?.role === "ADMIN" && (
+              <Button
+                variant="destructive"
+                size="sm"
+                className="hidden md:flex gap-2 rounded-xl"
+                onClick={resetChartOfAccounts}
+                disabled={refreshingCoa}
+              >
+                {refreshingCoa ? "Resetting COA" : "Reset COA"}
+              </Button>
+            )}
             <div className="bg-slate-100 dark:bg-slate-800 p-1 rounded-xl flex border border-slate-200 dark:border-slate-700">
                 <Button variant="ghost" size="sm" className="rounded-lg h-8 w-8 p-0"><History className="h-4 w-4" /></Button>
             </div>

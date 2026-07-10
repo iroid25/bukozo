@@ -3,18 +3,16 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
 import { calculateAccountBalance } from "@/lib/accounting-rules";
 import { db } from "@/prisma/db";
+import { hydrateAccountsWithJournalBalances } from "@/lib/services/chartOfAccounts";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-
-// GET /api/v1/reports/financial/summary - Financial summary
-// GET /api/v1/reports/financial/summary - Financial summary
+// GET /api/v1/reports/financial/summary - Financial summary (live from journal entries)
 export async function GET(request: NextRequest) {
   return generateSummary(request);
 }
 
-// POST /api/v1/reports/financial/summary
 export async function POST(request: NextRequest) {
   return generateSummary(request);
 }
@@ -30,16 +28,19 @@ async function generateSummary(request: NextRequest) {
       );
     }
 
-    // Get all active accounts from Chart of Accounts
+    // Get all active accounts and hydrate with live journal balances
     const accounts = await db.chartOfAccount.findMany({
       where: { isActive: true },
       select: {
+        id: true,
         ledgerType: true,
         debitBalance: true,
         creditBalance: true,
         balance: true,
       },
     });
+
+    const hydrated = await hydrateAccountsWithJournalBalances(accounts);
 
     // Calculate totals by ledger type
     const summary = {
@@ -52,7 +53,7 @@ async function generateSummary(request: NextRequest) {
       profitMargin: 0,
     };
 
-    accounts.forEach((account) => {
+    hydrated.forEach((account: any) => {
       switch (account.ledgerType) {
         case "INCOME":
           summary.totalIncome += calculateAccountBalance(

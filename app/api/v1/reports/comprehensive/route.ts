@@ -4,6 +4,7 @@ import { authOptions } from "@/config/auth";
 import { calculateAccountBalance } from "@/lib/accounting-rules";
 import { HIDDEN_COA_CODES } from "@/lib/accounting/coa-identity";
 import { db } from "@/prisma/db";
+import { hydrateAccountsWithJournalBalances } from "@/lib/services/chartOfAccounts";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -247,7 +248,7 @@ async function generateSavingsOverdrawnByAgeReport() {
   return { data: records, summary: { totalRecords: records.length } };
 }
 
-// COA Listing
+// COA Listing (hydrated from journal entries)
 async function generateCOAListingReport() {
   const accounts = await db.chartOfAccount.findMany({
     where: {
@@ -261,7 +262,9 @@ async function generateCOAListingReport() {
     orderBy: [{ ledgerType: "asc" }, { accountCode: "asc" }],
   });
 
-  const records = accounts.map((account) => ({
+  const hydrated = await hydrateAccountsWithJournalBalances(accounts);
+
+  const records = hydrated.map((account: any) => ({
     accountCode: account.accountCode,
     accountName: account.accountName,
     ledgerType: account.ledgerType,
@@ -333,7 +336,7 @@ async function generateBudgetVarianceReport(year: number) {
   };
 }
 
-// Comprehensive Trial Balance
+// Comprehensive Trial Balance (hydrated from journal entries)
 async function generateComprehensiveTrialBalanceReport(start: Date, end: Date) {
   const accounts = await db.chartOfAccount.findMany({
     where: {
@@ -347,7 +350,9 @@ async function generateComprehensiveTrialBalanceReport(start: Date, end: Date) {
     orderBy: [{ ledgerType: "asc" }, { accountCode: "asc" }],
   });
 
-  const records = accounts.map((account) => ({
+  const hydrated = await hydrateAccountsWithJournalBalances(accounts);
+
+  const records = hydrated.map((account: any) => ({
     accountCode: account.accountCode,
     accountName: account.accountName,
     ledgerType: account.ledgerType,
@@ -364,42 +369,44 @@ async function generateComprehensiveTrialBalanceReport(start: Date, end: Date) {
   };
 }
 
-// Comprehensive Balance Sheet
+// Comprehensive Balance Sheet (hydrated from journal entries)
 async function generateComprehensiveBalanceSheetReport(asOfDate: Date) {
   const accounts = await db.chartOfAccount.findMany({
     where: { isActive: true, ledgerType: { in: ["ASSETS", "LIABILITIES", "EQUITY"] } },
   });
 
-  const assets = accounts.filter((a) => a.ledgerType === "ASSETS");
-  const liabilities = accounts.filter((a) => a.ledgerType === "LIABILITIES");
-  const equity = accounts.filter((a) => a.ledgerType === "EQUITY");
+  const hydrated = await hydrateAccountsWithJournalBalances(accounts);
+
+  const assets = hydrated.filter((a: any) => a.ledgerType === "ASSETS");
+  const liabilities = hydrated.filter((a: any) => a.ledgerType === "LIABILITIES");
+  const equity = hydrated.filter((a: any) => a.ledgerType === "EQUITY");
 
   const totalAssets = assets.reduce(
-    (sum, a) => sum + calculateAccountBalance(a.ledgerType, Number(a.debitBalance), Number(a.creditBalance)),
+    (sum: number, a: any) => sum + calculateAccountBalance(a.ledgerType, Number(a.debitBalance), Number(a.creditBalance)),
     0,
   );
   const totalLiabilities = liabilities.reduce(
-    (sum, a) => sum + calculateAccountBalance(a.ledgerType, Number(a.debitBalance), Number(a.creditBalance)),
+    (sum: number, a: any) => sum + calculateAccountBalance(a.ledgerType, Number(a.debitBalance), Number(a.creditBalance)),
     0,
   );
   const totalEquity = equity.reduce(
-    (sum, a) => sum + calculateAccountBalance(a.ledgerType, Number(a.debitBalance), Number(a.creditBalance)),
+    (sum: number, a: any) => sum + calculateAccountBalance(a.ledgerType, Number(a.debitBalance), Number(a.creditBalance)),
     0,
   );
 
   return {
     asOfDate: asOfDate.toISOString().split("T")[0],
-    assets: assets.map((a) => ({
+    assets: assets.map((a: any) => ({
       code: a.accountCode,
       name: a.accountName,
       amount: calculateAccountBalance(a.ledgerType, Number(a.debitBalance), Number(a.creditBalance)),
     })),
-    liabilities: liabilities.map((a) => ({
+    liabilities: liabilities.map((a: any) => ({
       code: a.accountCode,
       name: a.accountName,
       amount: calculateAccountBalance(a.ledgerType, Number(a.debitBalance), Number(a.creditBalance)),
     })),
-    equity: equity.map((a) => ({
+    equity: equity.map((a: any) => ({
       code: a.accountCode,
       name: a.accountName,
       amount: calculateAccountBalance(a.ledgerType, Number(a.debitBalance), Number(a.creditBalance)),
@@ -408,7 +415,7 @@ async function generateComprehensiveBalanceSheetReport(asOfDate: Date) {
   };
 }
 
-// Comprehensive Income
+// Comprehensive Income (hydrated from journal entries)
 async function generateComprehensiveIncomeReport(start: Date, end: Date) {
   const accounts = await db.chartOfAccount.findMany({
     where: {
@@ -422,26 +429,28 @@ async function generateComprehensiveIncomeReport(start: Date, end: Date) {
     },
   });
 
-  const income = accounts.filter((a) => a.ledgerType === "INCOME");
-  const expenses = accounts.filter((a) => a.ledgerType === "EXPENDITURES");
+  const hydrated = await hydrateAccountsWithJournalBalances(accounts);
+
+  const income = hydrated.filter((a: any) => a.ledgerType === "INCOME");
+  const expenses = hydrated.filter((a: any) => a.ledgerType === "EXPENDITURES");
 
   const totalIncome = income.reduce(
-    (sum, a) => sum + calculateAccountBalance(a.ledgerType, Number(a.debitBalance), Number(a.creditBalance)),
+    (sum: number, a: any) => sum + calculateAccountBalance(a.ledgerType, Number(a.debitBalance), Number(a.creditBalance)),
     0,
   );
   const totalExpenses = expenses.reduce(
-    (sum, a) => sum + calculateAccountBalance(a.ledgerType, Number(a.debitBalance), Number(a.creditBalance)),
+    (sum: number, a: any) => sum + calculateAccountBalance(a.ledgerType, Number(a.debitBalance), Number(a.creditBalance)),
     0,
   );
 
   return {
     period: { start: start.toISOString().split("T")[0], end: end.toISOString().split("T")[0] },
-    income: income.map((a) => ({
+    income: income.map((a: any) => ({
       code: a.accountCode,
       name: a.accountName,
       amount: calculateAccountBalance(a.ledgerType, Number(a.debitBalance), Number(a.creditBalance)),
     })),
-    expenses: expenses.map((a) => ({
+    expenses: expenses.map((a: any) => ({
       code: a.accountCode,
       name: a.accountName,
       amount: calculateAccountBalance(a.ledgerType, Number(a.debitBalance), Number(a.creditBalance)),
