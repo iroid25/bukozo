@@ -12,7 +12,6 @@ export type GetChartOfAccountsOptions = {
   search?: string;
   isActive?: boolean;
   coreOnly?: boolean;
-  numericOnly?: boolean;
   branchId?: string;
 };
 
@@ -95,7 +94,6 @@ export async function getChartOfAccounts(options: GetChartOfAccountsOptions) {
     search,
     isActive,
     coreOnly = false,
-    numericOnly = true,
   } = options;
 
   const skip = (page - 1) * limit;
@@ -132,23 +130,6 @@ export async function getChartOfAccounts(options: GetChartOfAccountsOptions) {
     where.ledgerType = ledgerType
       ? (ledgerType as any)
       : { in: ["ASSETS", "LIABILITIES", "EQUITY", "INCOME", "EXPENDITURES"] };
-  }
-
-  if (numericOnly) {
-    andFilters.push({
-      OR: [
-        { accountCode: { startsWith: "0" } },
-        { accountCode: { startsWith: "1" } },
-        { accountCode: { startsWith: "2" } },
-        { accountCode: { startsWith: "3" } },
-        { accountCode: { startsWith: "4" } },
-        { accountCode: { startsWith: "5" } },
-        { accountCode: { startsWith: "6" } },
-        { accountCode: { startsWith: "7" } },
-        { accountCode: { startsWith: "8" } },
-        { accountCode: { startsWith: "9" } },
-      ],
-    });
   }
 
   andFilters.push({

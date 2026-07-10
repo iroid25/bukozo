@@ -128,24 +128,59 @@ export default function ChartOfAccountsPage() {
   const [level, setLevel] = useState<string>("ALL");
   const [activeOnly, setActiveOnly] = useState(true);
   const [coreOnly, setCoreOnly] = useState(true);
-  const [numericOnly, setNumericOnly] = useState(true);
   const [page, setPage] = useState(1);
   const [accountItems, setAccountItems] = useState<any[]>([]);
   const [itemsType, setItemsType] = useState<string>("GENERIC");
   const [itemsLoading, setItemsLoading] = useState(false);
+  const [refreshingCoa, setRefreshingCoa] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const limit = 50;
 
-  // React Query for Real-time Accounts
-  const { 
-    data: accountsData, 
-    isLoading: loading, 
-    isError, 
-    error: queryError, 
+  // React Query for the list view
+  // For INCOME/EXPENDITURES, fetches from the same budgetCategory endpoints the type pages use.
+  // For ASSETS/LIABILITIES/EQUITY/ALL, fetches from the COA endpoint.
+  const isBudgetType = ledgerType === "INCOME" || ledgerType === "EXPENDITURES";
+
+  const {
+    data: unifiedData,
+    isLoading: loading,
+    isError,
+    error: queryError,
     isFetching,
-    refetch: fetchAccounts 
+    refetch: fetchUnified
   } = useQuery({
-    queryKey: ["chart-of-accounts", page, ledgerType, level, search, activeOnly, coreOnly, numericOnly, accountingSyncVersion],
+    queryKey: ["chart-of-accounts-unified", page, ledgerType, level, search, activeOnly, coreOnly, accountingSyncVersion],
     queryFn: async () => {
+      if (isBudgetType) {
+        const endpoint = ledgerType === "INCOME" ? "/api/v1/income/categories" : "/api/v1/expenditure/categories";
+        const response = await fetch(endpoint);
+        if (!response.ok) throw new Error("Failed to fetch categories");
+        const result = await response.json();
+        const categories = (result.data || []) as any[];
+        const total = categories.length;
+        const perPage = 50;
+        const totalPages = Math.max(1, Math.ceil(total / perPage));
+        const start = (page - 1) * perPage;
+        const paged = categories.slice(start, start + perPage);
+        const mapped = paged.map((cat: any) => ({
+          id: cat.id,
+          accountCode: cat.code || "",
+          accountName: cat.name || "",
+          fullCode: cat.code || "",
+          ledgerType: ledgerType,
+          level: cat.parentId ? 2 : 1,
+          balance: 0,
+          debitBalance: 0,
+          creditBalance: 0,
+          isActive: cat.isActive !== false,
+          currency: "UGX",
+          category: cat.kind,
+          parent: cat.parent ? { id: cat.parent.id, accountCode: cat.parent.code, accountName: cat.parent.name, fullCode: cat.parent.code } : undefined,
+          _count: { children: cat._count?.children || 0, journalEntries: cat._count?.incomeRecords || 0, debitTransactions: 0, creditTransactions: 0 },
+        }));
+        return { data: mapped, pagination: { page, limit: perPage, total, totalPages } };
+      }
+
       const params = new URLSearchParams({
         page: page.toString(),
         limit: limit.toString(),
@@ -155,7 +190,6 @@ export default function ChartOfAccountsPage() {
       if (search) params.append("search", search);
       if (activeOnly) params.append("isActive", "true");
       if (coreOnly) params.append("coreOnly", "true");
-      if (numericOnly) params.append("numericOnly", "true");
 
       const response = await fetch(`/api/v1/chart-of-accounts?${params}`);
       if (!response.ok) throw new Error("Failed to fetch accounts");
@@ -163,28 +197,43 @@ export default function ChartOfAccountsPage() {
       return result as { data: ChartOfAccount[], pagination: any };
     },
     enabled: status === "authenticated",
-    refetchInterval: 15000, // Real-time 15s revalidation
+    refetchInterval: 15000,
   });
 
-  // React Query for Trial Balance (Pillar Totals)
+  // Separate query for pillar totals — fetched via unified endpoint
   const { 
     data: tbData, 
     isFetching: tbFetching 
   } = useQuery({
-    queryKey: ["trial-balance", accountingSyncVersion],
+    queryKey: ["chart-of-accounts-totals", accountingSyncVersion],
     queryFn: async () => {
-      const response = await fetch("/api/v1/chart-of-accounts/trial-balance");
-      if (!response.ok) throw new Error("Failed to fetch trial balance");
-      const result = await response.json();
-      return result.data;
+      const response = await fetch("/api/v1/chart-of-accounts/unified");
+      if (!response.ok) throw new Error("Failed to fetch unified chart of accounts");
+      const payload = await response.json();
+      return payload.data;
     },
     enabled: status === "authenticated",
     refetchInterval: 15000,
   });
 
-  const accounts = accountsData?.data || [];
-  const totalPages = accountsData?.pagination?.totalPages || 1;
-  const trialBalance = tbData || null;
+  const accounts = unifiedData?.data || [];
+  const totalPages = unifiedData?.pagination?.totalPages || 1;
+  const trialBalance = tbData ? {
+    accounts: tbData.byLedgerType,
+    totals: {
+      totalDebits: tbData.summary.totalDebits,
+      totalCredits: tbData.summary.totalCredits,
+      byLedgerType: Object.fromEntries(
+        Object.entries(tbData.totals || {}).map(([type, t]: [string, any]) => [
+          type,
+          { debits: t.debits, credits: t.credits }
+        ])
+      ),
+    },
+    isBalanced: tbData.summary.isBalanced,
+    difference: tbData.summary.difference,
+    asOfDate: new Date().toISOString(),
+  } : null;
 
   const fetchAccountDetails = async (accountId: string) => {
     try {
@@ -270,6 +319,50 @@ export default function ChartOfAccountsPage() {
       currency: 'UGX',
       minimumFractionDigits: 0,
     }).format(amount);
+  };
+
+  const refreshChartOfAccounts = async () => {
+    try {
+      setRefreshingCoa(true);
+      const response = await fetch("/api/v1/accounting/coa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok || !payload.success) {
+        throw new Error(payload?.details || payload?.error || "Failed to refresh Chart of Accounts");
+      }
+
+      toast.success("Chart of Accounts refreshed");
+      await fetchUnified();
+    } catch (error) {
+      console.error("Error refreshing Chart of Accounts:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to refresh Chart of Accounts");
+    } finally {
+      setRefreshingCoa(false);
+    }
+  };
+
+  const resetFilters = async () => {
+    try {
+      setResetting(true);
+      setSearch("");
+      setLedgerType("ALL");
+      setLevel("ALL");
+      setActiveOnly(true);
+      setCoreOnly(true);
+      setPage(1);
+      setSelectedAccount(null);
+      setDetailsOpen(false);
+      await fetchUnified();
+      toast.success("Filters reset");
+    } catch (error) {
+      toast.error("Failed to reset filters");
+    } finally {
+      setResetting(false);
+    }
   };
 
   const renderItemsTable = () => {
@@ -359,9 +452,25 @@ export default function ChartOfAccountsPage() {
           <p className="text-slate-500 dark:text-slate-400 mt-1 font-medium italic">Standardized Financial Structure & Real-time Tracking</p>
         </div>
         <div className="flex items-center gap-3">
-            <Button variant="outline" size="sm" className="hidden md:flex gap-2 rounded-xl" onClick={() => fetchAccounts()}>
-                <RefreshCw className={cn("h-4 w-4", isFetching ? "animate-spin" : "")} />
-                Refresh
+            <Button
+              variant="outline"
+              size="sm"
+              className="hidden md:flex gap-2 rounded-xl"
+              onClick={refreshChartOfAccounts}
+              disabled={refreshingCoa}
+            >
+                <RefreshCw className={cn("h-4 w-4", isFetching || refreshingCoa ? "animate-spin" : "")} />
+                {refreshingCoa ? "Refreshing" : "Refresh COA"}
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="hidden md:flex gap-2 rounded-xl"
+              onClick={resetFilters}
+              disabled={resetting}
+            >
+                <Loader2 className={cn("h-4 w-4", resetting ? "animate-spin" : "")} />
+                {resetting ? "Resetting" : "Reset"}
             </Button>
             <div className="bg-slate-100 dark:bg-slate-800 p-1 rounded-xl flex border border-slate-200 dark:border-slate-700">
                 <Button variant="ghost" size="sm" className="rounded-lg h-8 w-8 p-0"><History className="h-4 w-4" /></Button>
@@ -463,7 +572,7 @@ export default function ChartOfAccountsPage() {
           <AlertTitle>Network Error</AlertTitle>
           <AlertDescription>
             {((queryError as any)?.message) || "Failed to fetch accounts. Please check your connection."}
-            <Button variant="link" onClick={() => fetchAccounts()} className="ml-2 text-white p-0 h-auto">Retry</Button>
+            <Button variant="link" onClick={() => fetchUnified()} className="ml-2 text-white p-0 h-auto">Retry</Button>
           </AlertDescription>
         </Alert>
       )}
@@ -535,18 +644,6 @@ export default function ChartOfAccountsPage() {
                       {coreOnly ? "Core Only" : "Include Orphans"}
                     </Button>
 
-                    <Button
-                      type="button"
-                      variant={numericOnly ? "default" : "outline"}
-                      className="h-12 rounded-2xl"
-                      onClick={() => {
-                        setPage(1);
-                        setNumericOnly((prev) => !prev);
-                      }}
-                    >
-                      {numericOnly ? "Numeric Only" : "Include Noise"}
-                    </Button>
-
                     <Select value={level} onValueChange={setLevel}>
                     <SelectTrigger className="h-12 w-full md:w-[150px] rounded-2xl">
                         <Layers className="h-4 w-4 mr-2" />
@@ -554,7 +651,7 @@ export default function ChartOfAccountsPage() {
                     </SelectTrigger>
                     <SelectContent className="rounded-2xl">
                         <SelectItem value="ALL">All Levels</SelectItem>
-                        <SelectItem value="1">Pillars Only</SelectItem>
+                        <SelectItem value="0">Pillars Only</SelectItem>
                         <SelectItem value="1">Main Only</SelectItem>
                         <SelectItem value="2">Sub Accounts</SelectItem>
                         <SelectItem value="3">Posting Items</SelectItem>

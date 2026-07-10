@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
 import { hydrateAccountsWithJournalBalances } from "@/lib/services/chartOfAccounts";
 import { ensureCoreChartOfAccountsStructure } from "@/lib/services/chart-of-accounts-bootstrap";
+import { HIDDEN_COA_CODES } from "@/lib/accounting/coa-identity";
 
 // GET /api/v1/chart-of-accounts/trial-balance - Generate trial balance report
 export async function GET(request: NextRequest) {
@@ -26,6 +27,9 @@ export async function GET(request: NextRequest) {
     // Build filter
     const where: any = {
       isActive: true,
+      accountCode: {
+        notIn: Array.from(HIDDEN_COA_CODES),
+      },
     };
 
     if (ledgerType) {

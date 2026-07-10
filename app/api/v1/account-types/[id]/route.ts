@@ -19,6 +19,49 @@ import {
   isVoluntarySavingsAccountTypeName,
 } from "@/lib/accounting/account-type-rules";
 import { ensureLiabilityStructure } from "@/lib/services/liability-structure";
+import { findActiveAccountByCodes } from "@/lib/accounting/coa-identity";
+
+async function resolveCanonicalSavingsLedgerAccount(
+  code: string,
+  displayName: string,
+) {
+  await ensureLiabilityStructure();
+
+  const existing = await findActiveAccountByCodes(db, [code]);
+  if (existing) {
+    return existing;
+  }
+
+  const currentLiabilities = await db.chartOfAccount.findFirst({
+    where: { accountCode: "201000", isActive: true },
+    select: { id: true },
+  });
+
+  return db.chartOfAccount.upsert({
+    where: { accountCode: code },
+    update: {
+      accountName: displayName,
+      fullCode: code,
+      ledgerType: "LIABILITIES",
+      debitCredit: "CR",
+      category: "Current liabilities",
+      parentId: currentLiabilities?.id ?? null,
+      isActive: true,
+    },
+    create: {
+      accountCode: code,
+      accountName: displayName,
+      fullCode: code,
+      ledgerType: "LIABILITIES",
+      debitCredit: "CR",
+      category: "Current liabilities",
+      parentId: currentLiabilities?.id ?? null,
+      level: 2,
+      isActive: true,
+    },
+    select: { id: true, accountCode: true, accountName: true },
+  });
+}
 
 // GET /api/v1/account-types/[id] - Fetch a single account type
 export async function GET(
@@ -147,24 +190,11 @@ export async function PUT(
     }
 
     const canonicalSavingsLedgerAccount = canonicalSavingsLedgerCode
-      ? await db.chartOfAccount.findFirst({
-          where: {
-            accountCode: canonicalSavingsLedgerCode,
-            ledgerType: "LIABILITIES",
-            isActive: true,
-          },
-          select: { id: true, accountCode: true, accountName: true },
-        })
+      ? await resolveCanonicalSavingsLedgerAccount(
+          canonicalSavingsLedgerCode,
+          canonicalSavingsDisplayName || targetName,
+        )
       : null;
-
-    if (canonicalSavingsLedgerCode && !canonicalSavingsLedgerAccount) {
-      return NextResponse.json(
-        {
-          error: `Unable to resolve the canonical savings ledger account for ${canonicalSavingsDisplayName || targetName}`,
-        },
-        { status: 500 },
-      );
-    }
 
     if (
       canonicalSavingsLedgerAccount &&

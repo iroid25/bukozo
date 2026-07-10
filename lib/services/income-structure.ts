@@ -58,7 +58,8 @@ const incomeNodes: IncomeSeedNode[] = [
   {
     name: "Interest from savings",
     code: "401003",
-    parentCode: INCOME_ROOT_CODE,
+    parentCode: LOAN_RELATED_INCOME_CODE,
+    description: "Interest income earned from member savings accounts",
   },
   {
     name: "Interest from Investment",

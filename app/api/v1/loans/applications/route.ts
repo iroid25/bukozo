@@ -9,6 +9,7 @@ import { sendLoanApplicationEmail } from "@/lib/email";
 import { recordLoanInsuranceCollection } from "@/lib/services/loanInsurance";
 import { CASH_AT_HAND_CODE } from "@/lib/services/asset-structure";
 import { LOAN_PROCESSING_FEES_CODE } from "@/lib/services/income-structure";
+import { findActiveAccountByCodes } from "@/lib/accounting/coa-identity";
 
 // Schema for creating a loan application
 const createLoanApplicationSchema = z.object({
@@ -526,12 +527,8 @@ export async function POST(request: NextRequest) {
         const { ensureAssetStructure } = await import("@/lib/services/asset-structure");
         await Promise.all([ensureIncomeStructure(), ensureAssetStructure()]);
 
-        const feeGl = await tx.chartOfAccount.findFirst({
-          where: { accountCode: LOAN_PROCESSING_FEES_CODE, isActive: true },
-        });
-        const feeCashGl = await tx.chartOfAccount.findFirst({
-          where: { accountCode: CASH_AT_HAND_CODE, isActive: true },
-        });
+        const feeGl = await findActiveAccountByCodes(tx, [LOAN_PROCESSING_FEES_CODE]);
+        const feeCashGl = await findActiveAccountByCodes(tx, [CASH_AT_HAND_CODE]);
 
         if (feeGl && feeCashGl) {
           const jeNum = `JE-LPF-APP-${Date.now()}`;

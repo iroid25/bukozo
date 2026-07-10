@@ -186,7 +186,7 @@ export async function ensureAssetStructure() {
 
   const currentChildren = [
     { accountCode: CASH_AT_HAND_CODE, accountName: "Cash at hand" },
-    { accountCode: "102001", accountName: "Cash at hand (alt)" },
+    { accountCode: "102001", accountName: "Cash equivalents" },
     { accountCode: "102002", accountName: "Cash at bank" },
     { accountCode: MOBILE_MONEY_FLOAT_CODE, accountName: "Mobile Money Float" },
     { accountCode: LOANS_CODE, accountName: "Loans" },

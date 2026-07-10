@@ -1,6 +1,7 @@
 import { calculateAccountBalance } from "@/lib/accounting-rules";
 import { db } from "@/prisma/db";
-import { ensureIncomeStructure } from "@/lib/services/income-structure";
+import { ensureCoreChartOfAccountsStructure } from "@/lib/services/chart-of-accounts-bootstrap";
+import { HIDDEN_COA_CODES } from "@/lib/accounting/coa-identity";
 
 export class AccountingService {
   /**
@@ -8,7 +9,7 @@ export class AccountingService {
    */
   static async getCOA(branchId?: string) {
     try {
-      await ensureIncomeStructure();
+      await ensureCoreChartOfAccountsStructure();
 
       const includeFilter: any = {
         parent: {
@@ -34,7 +35,10 @@ export class AccountingService {
       }
 
       const accounts = await db.chartOfAccount.findMany({
-        where: { isActive: true },
+        where: {
+          isActive: true,
+          accountCode: { notIn: Array.from(HIDDEN_COA_CODES) },
+        },
         include: includeFilter,
         orderBy: { accountCode: "asc" },
       });
@@ -88,7 +92,10 @@ export class AccountingService {
       }
 
       const accountsRaw = await db.chartOfAccount.findMany({
-        where: { isActive: true },
+        where: {
+          isActive: true,
+          accountCode: { notIn: Array.from(HIDDEN_COA_CODES) },
+        },
         include: includeFilter,
         orderBy: { accountCode: "asc" },
       });

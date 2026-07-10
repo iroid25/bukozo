@@ -3,7 +3,6 @@ import { db } from "@/prisma/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
 import { ensureCoreChartOfAccountsStructure } from "@/lib/services/chart-of-accounts-bootstrap";
-import { ensureEquityStructure } from "@/lib/services/equity-structure";
 import { resolveBranchScope } from "@/lib/services/branch-scope";
 import { HIDDEN_COA_CODES } from "@/lib/accounting/coa-identity";
 
@@ -25,7 +24,6 @@ export async function GET(request: NextRequest) {
 
     const user = session.user as any;
     await ensureCoreChartOfAccountsStructure();
-    await ensureEquityStructure();
 
     const searchParams = request.nextUrl.searchParams;
     const page = parseInt(searchParams.get("page") || "1");
@@ -38,8 +36,6 @@ export async function GET(request: NextRequest) {
     const isActive = isActiveStr !== null ? isActiveStr === "true" : undefined;
     const coreOnlyStr = searchParams.get("coreOnly");
     const coreOnly = coreOnlyStr !== null ? coreOnlyStr === "true" : undefined;
-    const numericOnlyStr = searchParams.get("numericOnly");
-    const numericOnly = numericOnlyStr !== null ? numericOnlyStr === "true" : true;
 
     const branchId = resolveBranchScope(user, searchParams.get("branchId"));
 
@@ -52,7 +48,6 @@ export async function GET(request: NextRequest) {
       search,
       isActive,
       coreOnly,
-      numericOnly,
       branchId,
     });
 

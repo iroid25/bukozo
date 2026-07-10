@@ -3,6 +3,9 @@ import { db } from "@/prisma/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
 import { z } from "zod";
+import { ensureAssetStructure } from "@/lib/services/asset-structure";
+import { ensureIncomeStructure } from "@/lib/services/income-structure";
+import { findActiveAccountByCodes } from "@/lib/accounting/coa-identity";
 
 const STANDARD_LOAN_PENALTY_ACCOUNT_CODE = "401005";
 const STANDARD_LOAN_PENALTY_ACCOUNT_NAME = "Loan penalty paid";
@@ -13,23 +16,52 @@ const STANDARD_LOAN_FEE_ACCOUNT_NAME = "Loan processing fees";
 const STANDARD_LOAN_LEDGER_ACCOUNT_CODES = ["107000"] as const;
 
 async function resolveStandardLoanLedgerAccount(tx: typeof db) {
-  for (const accountCode of STANDARD_LOAN_LEDGER_ACCOUNT_CODES) {
-    const existingCoa = await tx.chartOfAccount.findUnique({
-      where: { accountCode },
-      select: { id: true, isActive: true },
-    });
+  await ensureAssetStructure();
+  const existingCoa = await findActiveAccountByCodes(tx, [
+    ...STANDARD_LOAN_LEDGER_ACCOUNT_CODES,
+  ]);
 
-    if (existingCoa?.isActive) {
-      return existingCoa.id;
-    }
+  if (existingCoa) {
+    return existingCoa.id;
   }
 
-  throw new Error(
-    "Loan account (107000) is missing or inactive."
-  );
+  const sourceAccount = await tx.chartOfAccount.findFirst({
+    where: { accountCode: "107000", ledgerType: "ASSETS" },
+    select: { id: true, accountName: true, category: true },
+  });
+
+  if (!sourceAccount) {
+    throw new Error("Loan account source (107000) is missing or inactive.");
+  }
+
+  const coa = await tx.chartOfAccount.upsert({
+    where: { accountCode: "107000" },
+    update: {
+      accountName: sourceAccount.accountName || "Loans",
+      fullCode: "107000",
+      ledgerType: "ASSETS",
+      debitCredit: "DR",
+      isActive: true,
+      category: sourceAccount.category || "Assets",
+    },
+    create: {
+      accountCode: "107000",
+      accountName: sourceAccount.accountName || "Loans",
+      fullCode: "107000",
+      ledgerType: "ASSETS",
+      debitCredit: "DR",
+      isActive: true,
+      level: 2,
+      category: sourceAccount.category || "Assets",
+    },
+    select: { id: true },
+  });
+
+  return coa.id;
 }
 
 async function resolveStandardLoanInterestAccount(tx: typeof db) {
+  await ensureIncomeStructure();
   const interestIncomeItem = await tx.budgetCategory.findFirst({
     where: {
       kind: "INCOME",
@@ -47,15 +79,6 @@ async function resolveStandardLoanInterestAccount(tx: typeof db) {
     throw new Error(
       "Interest paid income item (401001) is missing or inactive under Loan related income."
     );
-  }
-
-  const existingCoa = await tx.chartOfAccount.findUnique({
-    where: { accountCode: STANDARD_LOAN_INTEREST_ACCOUNT_CODE },
-    select: { id: true, isActive: true },
-  });
-
-  if (existingCoa?.isActive) {
-    return existingCoa.id;
   }
 
   const coa = await tx.chartOfAccount.upsert({
@@ -87,6 +110,7 @@ async function resolveStandardLoanInterestAccount(tx: typeof db) {
 }
 
 async function resolveStandardLoanFeeAccount(tx: typeof db) {
+  await ensureIncomeStructure();
   const feeIncomeItem = await tx.budgetCategory.findFirst({
     where: {
       kind: "INCOME",
@@ -104,15 +128,6 @@ async function resolveStandardLoanFeeAccount(tx: typeof db) {
     throw new Error(
       "Loan processing fees income item (401002) is missing or inactive under Loan related income."
     );
-  }
-
-  const existingCoa = await tx.chartOfAccount.findUnique({
-    where: { accountCode: STANDARD_LOAN_FEE_ACCOUNT_CODE },
-    select: { id: true, isActive: true },
-  });
-
-  if (existingCoa?.isActive) {
-    return existingCoa.id;
   }
 
   const coa = await tx.chartOfAccount.upsert({
@@ -144,6 +159,7 @@ async function resolveStandardLoanFeeAccount(tx: typeof db) {
 }
 
 async function resolveStandardLoanPenaltyAccount(tx: typeof db) {
+  await ensureIncomeStructure();
   const penaltyIncomeItem = await tx.budgetCategory.findFirst({
     where: {
       kind: "INCOME",
@@ -161,15 +177,6 @@ async function resolveStandardLoanPenaltyAccount(tx: typeof db) {
     throw new Error(
       "Loan penalty paid income item (401005) is missing or inactive under Loan related income."
     );
-  }
-
-  const existingCoa = await tx.chartOfAccount.findUnique({
-    where: { accountCode: STANDARD_LOAN_PENALTY_ACCOUNT_CODE },
-    select: { id: true, isActive: true },
-  });
-
-  if (existingCoa?.isActive) {
-    return existingCoa.id;
   }
 
   const coa = await tx.chartOfAccount.upsert({
