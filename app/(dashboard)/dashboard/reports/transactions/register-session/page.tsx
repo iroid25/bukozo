@@ -108,8 +108,8 @@ const columns: Column<RegisterRow>[] = [
 export default function RegisterSessionPage() {
   return (
     <GenericReportPage
-      title="Transaction Register (By Session Date)"
-      description="Running-balance register of all transactions ordered by session posting date. Source: Transaction table."
+      title="Transaction Register (By Selected Date)"
+      description="Running-balance register of all transactions ordered by the selected posting date. Source: Transaction table."
       endpoint="/api/v1/reports/transactions/register-session"
       columns={columns}
       keyField="transactionRef"

@@ -250,8 +250,97 @@ export async function GET(
       (account.accountCode.startsWith("107") ||
         account.accountName.toLowerCase().includes("loan"));
 
+    const isCashAtHandAccount =
+      account.ledgerType === "ASSETS" && account.accountCode === "101100";
+
     if (items.length === 0 && isLoanAssetAccount) {
       type = "LOAN_REPAYMENTS";
+
+      const repayments = await db.loanRepayment.findMany({
+        where: branchId
+          ? {
+              loan: {
+                branchId,
+              },
+            }
+          : undefined,
+        include: {
+          member: {
+            select: {
+              memberNumber: true,
+              surname: true,
+              otherNames: true,
+              user: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          },
+          loan: {
+            select: {
+              id: true,
+              loanApplication: {
+                select: {
+                  loanProduct: {
+                    select: {
+                      name: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+          handler: {
+            select: {
+              name: true,
+            },
+          },
+        },
+        take: 100,
+        orderBy: {
+          repaymentDate: "desc",
+        },
+      });
+
+      items = repayments.map((repayment) => {
+        const memberName =
+          repayment.member?.user?.name?.trim() ||
+          [repayment.member?.surname, repayment.member?.otherNames]
+            .filter(Boolean)
+            .join(" ")
+            .trim() ||
+          "Unknown Member";
+        const loanProductName =
+          repayment.loan?.loanApplication?.loanProduct?.name || "Loan Repayment";
+        const principalAmount = Number(repayment.principalPaid || 0);
+        const interestAmount = Number(repayment.interestPaid || 0);
+        const penaltyAmount = Number(repayment.penaltyPaid || 0);
+
+        return {
+          id: repayment.id,
+          name: memberName,
+          code: repayment.transactionId || repayment.loanId.slice(0, 8),
+          date: repayment.repaymentDate,
+          amount: principalAmount,
+          status: "COMPLETED",
+          details: [
+            `Loan: ${loanProductName}`,
+            `Principal: ${principalAmount.toLocaleString("en-UG")}`,
+            `Interest posted to income: ${interestAmount.toLocaleString("en-UG")}`,
+            `Penalty posted to income: ${penaltyAmount.toLocaleString("en-UG")}`,
+            `Channel: ${repayment.channel || "-"}`,
+            `Collected by: ${repayment.handler?.name || "-"}`,
+          ].join(" | "),
+          principalAmount,
+          interestAmount,
+          penaltyAmount,
+        };
+        });
+    }
+
+    if (items.length === 0 && isCashAtHandAccount) {
+      type = "CASH_AT_HAND_REPAYMENTS";
 
       const repayments = await db.loanRepayment.findMany({
         where: branchId

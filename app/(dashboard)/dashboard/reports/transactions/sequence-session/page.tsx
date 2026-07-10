@@ -42,7 +42,7 @@ const columns: Column<SequenceRow>[] = [
     accessorKey: "transactionRef",
   },
   {
-    header: "Session Date",
+    header: "Selected Date",
     accessorKey: "sessionDate",
     cell: (row) => new Date(row.sessionDate).toLocaleDateString("en-UG"),
   },
@@ -98,8 +98,8 @@ const columns: Column<SequenceRow>[] = [
 export default function SequenceBySessionPage() {
   return (
     <GenericReportPage
-      title="Transaction Sequence (By Session Date)"
-      description="All transactions listed in the order they were posted by session date. Source: Transaction table — covers all types."
+      title="Transaction Sequence (By Selected Date)"
+      description="All transactions listed in the order they were posted by the selected date. Source: Transaction table — covers all types."
       endpoint="/api/v1/reports/transactions/sequence-session"
       columns={columns}
       keyField="id"

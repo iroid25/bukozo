@@ -2,7 +2,7 @@ import { format, parseISO, subDays } from "date-fns";
 import { AccountLedgerType, TransactionStatus } from "@prisma/client";
 
 import { REPORT_HEADER_DETAILS } from "@/lib/report-header";
-import { getBranchFilterForService, getOperationalBalances } from "@/lib/services/financial-reports";
+import { getBranchFilterForService, getCashAtHandPrincipalTotal, getOperationalBalances } from "@/lib/services/financial-reports";
 import { calculateAccountBalance } from "@/lib/accounting-rules";
 import { db } from "@/prisma/db";
 
@@ -126,6 +126,9 @@ function normalizeDate(value?: string | Date | null) {
 }
 
 function resolveGroup(accountCode: string, section: TrialBalanceAccount["section"]) {
+  if (section === "ASSETS" && accountCode === "101100") {
+    return { code: "102000", name: "CURRENT ASSETS", section, prefixes: ["101100"] };
+  }
   const match = GROUPS.find((group) => group.section === section && group.prefixes.some((prefix) => accountCode.startsWith(prefix)));
   return match || {
     code: section === "ASSETS" ? "109999" : section === "LIABILITIES" ? "209999" : section === "EQUITY" ? "309999" : section === "INCOME" ? "409999" : "509999",
@@ -276,6 +279,22 @@ export async function buildTrialBalanceReport(input: {
       journal_count: (opening.count || 0) + (movement.count || 0),
     } satisfies TrialBalanceAccount;
   });
+
+  const cashAtHandPrior = await getCashAtHandPrincipalTotal(priorEnd, branchId);
+  const cashAtHandCurrent = await getCashAtHandPrincipalTotal(requestedEnd, branchId);
+  for (const row of rows) {
+    if (row.code === "101100") {
+      row.prior_closing = cashAtHandPrior;
+      row.current_closing = cashAtHandCurrent;
+      row.current_movement = cashAtHandCurrent - cashAtHandPrior;
+      const cols = toClosingColumns(
+        AccountLedgerType.ASSETS,
+        row.current_closing,
+      );
+      row.closing_debit = cols.debit;
+      row.closing_credit = cols.credit;
+    }
+  }
 
   const operationalOverrides: Record<string, { prior: number; current: number }> = {
     "107000": {

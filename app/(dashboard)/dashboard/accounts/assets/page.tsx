@@ -157,6 +157,7 @@ interface DisposalAssetTarget extends AssetDisposalTarget {
 const ASSET_ROOT_CODE = "100000";
 const FIXED_ASSETS_CODE = "101000";
 const CURRENT_ASSETS_CODE = "102000";
+const CASH_AT_HAND_CODE = "101100";
 
 const FORCE_EXPANDABLE_CODES = new Set([
   ASSET_ROOT_CODE,
@@ -168,12 +169,18 @@ const isLoanAssetAccount = (account: ChartOfAccount) =>
   account.accountCode.startsWith("107") ||
   account.accountName.toLowerCase().includes("loan");
 
+const isCashAtHandAccount = (account: ChartOfAccount) =>
+  account.accountCode === CASH_AT_HAND_CODE;
+
+const isPrincipalOnlyAssetAccount = (account: ChartOfAccount) =>
+  isLoanAssetAccount(account) || isCashAtHandAccount(account);
+
 const filterRetiredLoanAssetAccounts = <T extends ChartOfAccount>(
   accounts: T[],
 ) => accounts;
 
 const getAssetBalanceLabel = (account: ChartOfAccount) =>
-  isLoanAssetAccount(account) ? "Principal" : "Balance";
+  isPrincipalOnlyAssetAccount(account) ? "Principal" : "Balance";
 
 export default function AssetsPage() {
   const { data: session, status } = useSession();
@@ -212,6 +219,9 @@ export default function AssetsPage() {
   const [currentAssetsLoading, setCurrentAssetsLoading] = useState(false);
   const [currentTransfersLoading, setCurrentTransfersLoading] = useState(false);
   const [selectedBranchId, setSelectedBranchId] = useState<string>("all");
+  const [cashAtHandPrincipalTotal, setCashAtHandPrincipalTotal] = useState<
+    number | null
+  >(null);
   const [branchOptions, setBranchOptions] = useState<
     Array<{ id: string; name: string }>
   >([]);
@@ -250,6 +260,7 @@ export default function AssetsPage() {
     if (status === "authenticated") {
       void fetchAccounts();
       void fetchCurrentAssetLedger();
+      void fetchCashAtHandPrincipalTotal();
     }
   }, [status, selectedBranchId]);
 
@@ -432,6 +443,40 @@ export default function AssetsPage() {
     } finally {
       setCurrentAssetsLoading(false);
       setCurrentTransfersLoading(false);
+    }
+  };
+
+  const fetchCashAtHandPrincipalTotal = async () => {
+    if (status !== "authenticated") return;
+
+    try {
+      setCashAtHandPrincipalTotal(null);
+
+      const branchQuery =
+        isAdmin && selectedBranchId !== "all"
+          ? `?branchId=${encodeURIComponent(selectedBranchId)}`
+          : "";
+
+      const response = await fetch(
+        `/api/v1/loans/repayments/statistics${branchQuery}`,
+        {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const payload = await response.json();
+      setCashAtHandPrincipalTotal(
+        Number(payload?.totalPrincipalPaid || 0),
+      );
+    } catch (error) {
+      console.error("Error fetching cash-at-hand principal total:", error);
+      setCashAtHandPrincipalTotal(null);
     }
   };
 
@@ -705,6 +750,12 @@ export default function AssetsPage() {
     items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
 
   const getDisplayAccountTotal = (account: ChartOfAccount) => {
+    if (isCashAtHandAccount(account)) {
+      if (cashAtHandPrincipalTotal !== null) {
+        return cashAtHandPrincipalTotal;
+      }
+    }
+
     if (isLoanAssetAccount(account)) {
       const loadedLoanItems = nodeItems[account.id] || [];
       const principalTotal = getLoanPrincipalTotal(loadedLoanItems);
@@ -723,6 +774,19 @@ export default function AssetsPage() {
   ): number => {
     if (visited.has(account.id)) return 0;
     visited.add(account.id);
+
+    if (isCashAtHandAccount(account)) {
+      return cashAtHandPrincipalTotal ?? Number(account.balance || 0);
+    }
+
+    if (isLoanAssetAccount(account)) {
+      const loadedLoanItems = nodeItems[account.id] || [];
+      const principalTotal = getLoanPrincipalTotal(loadedLoanItems);
+
+      if (principalTotal !== 0) {
+        return principalTotal;
+      }
+    }
 
     const descendants = getDirectChildren(account);
     if (descendants.length === 0) {
@@ -782,16 +846,18 @@ export default function AssetsPage() {
           </span>
         </div>
         <div className="overflow-hidden rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Reference</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead>Details</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
-              </TableRow>
-            </TableHeader>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Reference</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Details</TableHead>
+                <TableHead className="text-right">
+                  {isPrincipalOnlyAssetAccount(account) ? "Principal" : "Amount"}
+                </TableHead>
+                  </TableRow>
+                </TableHeader>
             <TableBody>
               {items.map((item) => (
                 <TableRow key={item.id}>
@@ -1581,14 +1647,15 @@ export default function AssetsPage() {
                   ) : (
                     <div className="mt-2 overflow-hidden rounded-lg border shadow-sm">
                       <Table>
-                        <TableHeader className="bg-muted/30">
+              <TableHeader className="bg-muted/30">
                           <TableRow>
                             <TableHead>Date</TableHead>
                             <TableHead>Reference</TableHead>
                             <TableHead>Description</TableHead>
                             <TableHead>Details</TableHead>
                             <TableHead className="text-right">
-                              {isLoanAssetAccount(selectedAccount)
+                              {selectedAccount &&
+                              isPrincipalOnlyAssetAccount(selectedAccount)
                                 ? "Principal"
                                 : "Amount"}
                             </TableHead>
@@ -1627,8 +1694,9 @@ export default function AssetsPage() {
               </div>
 
               <div className="space-y-4">
-                <h3 className="text-xl font-extrabold">
-                  {isLoanAssetAccount(selectedAccount)
+              <h3 className="text-xl font-extrabold">
+                  {selectedAccount &&
+                  isPrincipalOnlyAssetAccount(selectedAccount)
                     ? "Principal Analysis"
                     : "Balance Analysis"}
                 </h3>
@@ -1660,7 +1728,8 @@ export default function AssetsPage() {
                   <Card className="border-none bg-primary/10">
                     <CardHeader className="pb-1">
                       <CardTitle className="text-xs font-extrabold uppercase tracking-wider">
-                        {isLoanAssetAccount(selectedAccount)
+                        {selectedAccount &&
+                        isPrincipalOnlyAssetAccount(selectedAccount)
                           ? "Principal"
                           : "Net Asset Value"}
                       </CardTitle>
@@ -1668,7 +1737,8 @@ export default function AssetsPage() {
                     <CardContent>
                       <p className="text-2xl font-mono font-black text-primary">
                         {formatCurrency(
-                          isLoanAssetAccount(selectedAccount)
+                          selectedAccount &&
+                          isPrincipalOnlyAssetAccount(selectedAccount)
                             ? loanPrincipalTotal || selectedAccount.balance
                             : selectedAccount.balance,
                         )}

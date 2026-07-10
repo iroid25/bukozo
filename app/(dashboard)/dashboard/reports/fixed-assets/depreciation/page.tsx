@@ -7,6 +7,7 @@ import { Column } from "@/components/ui/data-table/data-table";
 import { Calculator } from "lucide-react";
 
 interface DepreciationRecord {
+  rowKey: string;
   assetCode: string;
   assetName: string;
   year: number;
@@ -34,7 +35,7 @@ export default function AssetDepreciationPage() {
       method="POST"
       extraParams={{ reportType: "assets-depreciation", year: new Date().getFullYear() }}
       columns={columns}
-      keyField="assetCode" // Warning: duplicate keys if multiple months per asset. Need composite key.
+      keyField="rowKey"
       summaryFormatter={(summary) => (
         <>
           <ReportSummaryCard title="Total Records" value={summary.totalRecords} icon={Calculator} />

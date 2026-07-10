@@ -4,7 +4,7 @@ import { UserRole } from "@prisma/client";
 import { db } from "@/prisma/db";
 import { calculateAccountBalance } from "@/lib/accounting-rules";
 import { buildTree, sortTreeByCodeOrName } from "@/lib/category-tree";
-import { getBranchFilterForService, getOperationalBalances } from "@/lib/services/financial-reports";
+import { getBranchFilterForService, getCashAtHandPrincipalTotal, getOperationalBalances } from "@/lib/services/financial-reports";
 
 type AuthUserLike = {
   id?: string | null;
@@ -314,6 +314,17 @@ export async function buildFinancialYearBalanceSheetReport(input: BuildInput): P
       children: [] as FinancialYearBalanceSheetAccount[],
     };
   });
+
+  const cashAtHandFyStart = await getCashAtHandPrincipalTotal(fyStart, branchId || undefined);
+  const cashAtHandToDate = await getCashAtHandPrincipalTotal(toDate, branchId || undefined);
+  for (const row of mapped) {
+    if (row.accountCode === "101100") {
+      row.ytdBalance = cashAtHandToDate;
+      row.periodNet = cashAtHandToDate - cashAtHandFyStart;
+      row.displayYtdBalance = displaySide(row.ledgerType, row.ytdBalance);
+      row.displayPeriodNet = displaySide(row.ledgerType, row.periodNet);
+    }
+  }
 
   const [opFyStart, opToDate] = await Promise.all([
     getOperationalBalances(fyStart, { branchId: branchId || undefined }),

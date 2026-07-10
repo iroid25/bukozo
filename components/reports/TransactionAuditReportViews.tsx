@@ -433,7 +433,7 @@ export function GeneralTransactionRegisterReportPage({ dense = false }: { dense?
                     <th className="px-2 py-2 text-left font-semibold">Name</th>
                     <th className="px-2 py-2 text-left font-semibold">Trx Code</th>
                     <th className="px-2 py-2 text-left font-semibold">Voucher No.</th>
-                    <th className="px-2 py-2 text-left font-semibold">Session Date</th>
+                    <th className="px-2 py-2 text-left font-semibold">Selected Date</th>
                     <th className="px-2 py-2 text-left font-semibold">Trx Date</th>
                     <th className="px-2 py-2 text-right font-semibold">Debit</th>
                     <th className="px-2 py-2 text-right font-semibold">Credit</th>
@@ -542,8 +542,8 @@ export function TransactionJournalListingReportPage() {
 
   return (
     <ReportPageLayout
-      title={report?.report_title || "Transaction Journal Listing By Session Date"}
-      description="Complete double-entry GL journal listing filtered by session date."
+      title={report?.report_title || "Transaction Journal Listing By Selected Date"}
+      description="Complete double-entry GL journal listing filtered by the selected date."
       generatedAt={state.generatedAt || undefined}
       summaryColumns={6}
       filters={
@@ -640,7 +640,7 @@ export function TransactionJournalListingReportPage() {
             <div className="space-y-0.5 text-center">
               <h2 className="text-lg font-semibold tracking-tight">{report.report_title}</h2>
               <p className="text-xs text-muted-foreground">
-                Session Date: {localDateLabel(report.report_meta.from_date)} — {localDateLabel(report.report_meta.to_date)}
+                Selected Date Range: {localDateLabel(report.report_meta.from_date)} — {localDateLabel(report.report_meta.to_date)}
                 &ensp;&bull;&ensp;Branch: {report.report_meta.branch}
               </p>
             </div>
@@ -655,7 +655,7 @@ export function TransactionJournalListingReportPage() {
                     <th className="px-2 py-2 text-left font-semibold">Voucher / Text</th>
                     <th className="px-2 py-2 text-left font-semibold whitespace-nowrap">Trx Ref</th>
                     <th className="px-2 py-2 text-left font-semibold whitespace-nowrap">Code</th>
-                    <th className="px-2 py-2 text-left font-semibold whitespace-nowrap">Session Date</th>
+                    <th className="px-2 py-2 text-left font-semibold whitespace-nowrap">Selected Date</th>
                     <th className="px-2 py-2 text-left font-semibold whitespace-nowrap">Trx Date</th>
                     <th className="px-2 py-2 text-right font-semibold whitespace-nowrap">Debit</th>
                     <th className="px-2 py-2 text-right font-semibold whitespace-nowrap">Credit</th>

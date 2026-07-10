@@ -1,6 +1,6 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/config/useAuth";
-import { getBranchFilterForService, getOperationalBalances } from "@/lib/services/financial-reports";
+import { getBranchFilterForService, getCashAtHandPrincipalTotal, getOperationalBalances } from "@/lib/services/financial-reports";
 import { calculateAccountBalance } from "@/lib/accounting-rules";
 import { db } from "@/prisma/db";
 
@@ -51,6 +51,10 @@ export async function GET(request: NextRequest) {
         : [],
       getOperationalBalances(endOfYear, { branchId: branchId || undefined }),
     ]);
+    const cashAtHandPrincipal = await getCashAtHandPrincipalTotal(
+      endOfYear,
+      branchId || undefined,
+    );
 
     const summaryByAccount = new Map(
       journalSummaries.map((entry) => [
@@ -77,6 +81,14 @@ export async function GET(request: NextRequest) {
     // Override operational groups with aggregated data
     const overrideGroups: Array<{ prefixes: string[]; getOp: () => { debit: number; credit: number; signed: number } }> = [
       {
+        prefixes: ["101100"],
+        getOp: () => ({
+          debit: cashAtHandPrincipal,
+          credit: 0,
+          signed: cashAtHandPrincipal,
+        }),
+      },
+      {
         prefixes: ["107"],
         getOp: () => {
           const signed = opBalances.loanPortfolio;
@@ -98,7 +110,7 @@ export async function GET(request: NextRequest) {
         },
       },
       {
-        prefixes: ["101"],
+        prefixes: ["1010"],
         getOp: () => {
           const signed = opBalances.fixedAssetsNet;
           return { debit: signed, credit: 0, signed };

@@ -1,9 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
 import { db } from "@/prisma/db";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
 
@@ -18,9 +19,14 @@ export async function GET() {
     const whereClause: any = {};
     const userRole = (session.user as any).role;
     const userBranchId = (session.user as any).branchId;
+    const requestedBranchId = new URL(request.url).searchParams.get("branchId");
+    const branchId = resolveBranchScope(
+      session.user as { role: string; branchId?: string | null },
+      requestedBranchId,
+    );
 
-    if (["TELLER", "LOANOFFICER", "BRANCHMANAGER"].includes(userRole) && userBranchId) {
-      whereClause.loan = { branchId: userBranchId };
+    if (branchId || ["TELLER", "LOANOFFICER", "BRANCHMANAGER"].includes(userRole)) {
+      whereClause.loan = { branchId: branchId || userBranchId };
     }
 
     // Get total repayments and amount

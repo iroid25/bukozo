@@ -2,6 +2,8 @@ import { db } from "@/prisma/db";
 import { UserRole, TransactionStatus, CategoryKind, TransactionType } from "@prisma/client";
 import { calculateAccountBalance } from "@/lib/accounting-rules";
 
+const CASH_AT_HAND_CODE = "101100";
+
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
@@ -17,6 +19,27 @@ export async function getBranchFilterForService(user: any, requestedBranchId?: s
   // For restricted roles, always return their branch
   if (!user.branchId) return { branchId: "no-branch" };
   return { branchId: user.branchId };
+}
+
+export async function getCashAtHandPrincipalTotal(
+  asOfDate: Date,
+  branchId?: string,
+) {
+  const aggregate = await db.loanRepayment.aggregate({
+    where: {
+      repaymentDate: { lte: asOfDate },
+      ...(branchId
+        ? {
+            loan: { branchId },
+          }
+        : {}),
+    },
+    _sum: {
+      principalPaid: true,
+    },
+  });
+
+  return Number(aggregate._sum.principalPaid || 0);
 }
 
 export type BalanceSheetFilters = {
@@ -412,6 +435,13 @@ function resolveAssetSection(account: BalanceSheetMappedAccount) {
   const name = normalizeName(account.accountName);
   const code = account.accountCode;
 
+  if (code === CASH_AT_HAND_CODE) {
+    return {
+      section: "current" as const,
+      lineItem: "Cash and Cash Equivalents",
+    };
+  }
+
   if (
     name.includes("accumulated depreciation") ||
     name.includes("accumulated depn")
@@ -642,6 +672,18 @@ export async function getBalanceSheetService(
       level: account.level,
     };
   });
+
+  const cashAtHandPrincipal = await getCashAtHandPrincipalTotal(
+    asOf,
+    branchFilter.branchId || undefined,
+  );
+  for (const account of mappedAccounts) {
+    if (account.accountCode === CASH_AT_HAND_CODE) {
+      account.balance = cashAtHandPrincipal;
+      account.debit = cashAtHandPrincipal;
+      account.credit = 0;
+    }
+  }
 
   const visibleAccounts = mappedAccounts.filter((account) => {
     if (!includeZeroBalances && Math.abs(account.balance) <= 0.009) return false;

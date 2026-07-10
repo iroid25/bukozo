@@ -238,6 +238,102 @@ function buildTransactionRows(params: Record<string, any>) {
     });
   }
 
+  const mapShareTransactionRows = (transactions: any[]) =>
+    transactions
+      .map((tx) => {
+        const productCode = getProductCode(tx.account);
+        const productName = getProductName(tx.account, productCode);
+        const amount = Number(tx.amount || 0);
+        const isCredit = ["PURCHASE", "TRANSFER_IN", "DIVIDEND"].includes(String(tx.transactionType));
+        const isDebit = !isCredit;
+        const direction = isCredit ? "credit" : "debit";
+        const tellerCode = resolveTellerCode(tx.reference, tx.teller?.name);
+        const userName = resolveTellerName(tx.reference, tx.teller?.name);
+        const bvnTinNote = normalizeText(tx.description) || getBvnTin(tx.account);
+
+        return {
+          productCode,
+          productName,
+          account_number: tx.account.accountNumber,
+          member_name: getMemberName(tx.account),
+          bvn_tin_note: bvnTinNote,
+          ref_no: (tx.account as any).batchNumber == null ? null : (tx.account as any).batchNumber,
+          trx_number: normalizeText(tx.reference) || tx.id,
+          session_date: tx.createdAt ? tx.createdAt.toISOString() : tx.transactionDate.toISOString(),
+          trx_date: tx.transactionDate.toISOString(),
+          debit_amount: isDebit ? amount : 0,
+          credit_amount: isCredit ? amount : 0,
+          user_name: userName,
+          teller_code: tellerCode,
+          direction,
+          branchName: tx.account.branch?.name || "All Branches",
+        };
+      })
+      .filter((row) => {
+        if (directionFilter !== "all" && row.direction !== directionFilter) return false;
+        if (userFilter && !row.user_name.toLowerCase().includes(userFilter)) return false;
+        if (memberFilter && ![row.account_number, row.member_name, row.bvn_tin_note, row.user_name]
+          .some((value) => value.toLowerCase().includes(memberFilter))) return false;
+        if (minAmount != null && !Number.isNaN(minAmount) && Math.max(row.debit_amount, row.credit_amount) < minAmount) return false;
+        return true;
+      })
+      .sort((a, b) => {
+        const byProduct = a.productCode.localeCompare(b.productCode);
+        if (byProduct !== 0) return byProduct;
+        const byDate = new Date(a.trx_date).getTime() - new Date(b.trx_date).getTime();
+        if (byDate !== 0) return byDate;
+        return a.trx_number.localeCompare(b.trx_number);
+      });
+
+  const mapGenericTransactionRows = (transactions: any[]) =>
+    transactions
+      .map((tx) => {
+        const productCode =
+          getProductCode(tx.account) ||
+          String(tx.account?.accountType?.ledgerAccount?.accountCode || "").trim() ||
+          "300501";
+        const productName = getProductName(tx.account, productCode);
+        const amount = Number(tx.amount || 0);
+        const isCredit = String(tx.type || "").toUpperCase() === "SHARES_PURCHASE";
+        const direction = isCredit ? "credit" : "debit";
+        const tellerCode = resolveTellerCode(tx.transactionRef, tx.processedByUser?.name);
+        const userName = resolveTellerName(tx.transactionRef, tx.processedByUser?.name);
+        const bvnTinNote = normalizeText(tx.description) || getBvnTin(tx.account);
+
+        return {
+          productCode,
+          productName,
+          account_number: tx.account?.accountNumber || "N/A",
+          member_name: tx.account ? getMemberName(tx.account) : "N/A",
+          bvn_tin_note: bvnTinNote,
+          ref_no: tx.account?.batchNumber == null ? null : tx.account.batchNumber,
+          trx_number: normalizeText(tx.transactionRef) || tx.id,
+          session_date: (tx.valueDate || tx.transactionDate).toISOString(),
+          trx_date: tx.transactionDate.toISOString(),
+          debit_amount: isCredit ? 0 : amount,
+          credit_amount: isCredit ? amount : 0,
+          user_name: userName,
+          teller_code: tellerCode,
+          direction,
+          branchName: tx.account?.branch?.name || "All Branches",
+        };
+      })
+      .filter((row) => {
+        if (directionFilter !== "all" && row.direction !== directionFilter) return false;
+        if (userFilter && !row.user_name.toLowerCase().includes(userFilter)) return false;
+        if (memberFilter && ![row.account_number, row.member_name, row.bvn_tin_note, row.user_name]
+          .some((value) => value.toLowerCase().includes(memberFilter))) return false;
+        if (minAmount != null && !Number.isNaN(minAmount) && Math.max(row.debit_amount, row.credit_amount) < minAmount) return false;
+        return true;
+      })
+      .sort((a, b) => {
+        const byProduct = a.productCode.localeCompare(b.productCode);
+        if (byProduct !== 0) return byProduct;
+        const byDate = new Date(a.trx_date).getTime() - new Date(b.trx_date).getTime();
+        if (byDate !== 0) return byDate;
+        return a.trx_number.localeCompare(b.trx_number);
+      });
+
   return db.shareTransaction.findMany({
     where: { AND: andConditions },
     include: {
@@ -279,52 +375,70 @@ function buildTransactionRows(params: Record<string, any>) {
       },
     },
     orderBy: [{ transactionDate: "asc" }, { reference: "asc" }],
-  }).then((transactions) => {
-    const rows = transactions
-      .map((tx) => {
-        const productCode = getProductCode(tx.account);
-        const productName = getProductName(tx.account, productCode);
-        const amount = Number(tx.amount || 0);
-        const isCredit = ["PURCHASE", "TRANSFER_IN", "DIVIDEND"].includes(String(tx.transactionType));
-        const isDebit = !isCredit;
-        const direction = isCredit ? "credit" : "debit";
-        const tellerCode = resolveTellerCode(tx.reference, tx.teller?.name);
-        const userName = resolveTellerName(tx.reference, tx.teller?.name);
-        const bvnTinNote = normalizeText(tx.description) || getBvnTin(tx.account);
+  }).then(async (transactions) => {
+    let rows = mapShareTransactionRows(transactions);
 
-        return {
-          productCode,
-          productName,
-          account_number: tx.account.accountNumber,
-          member_name: getMemberName(tx.account),
-          bvn_tin_note: bvnTinNote,
-          ref_no: (tx.account as any).batchNumber == null ? null : (tx.account as any).batchNumber,
-          trx_number: normalizeText(tx.reference) || tx.id,
-          session_date: tx.createdAt.toISOString(),
-          trx_date: tx.transactionDate.toISOString(),
-          debit_amount: isDebit ? amount : 0,
-          credit_amount: isCredit ? amount : 0,
-          user_name: userName,
-          teller_code: tellerCode,
-          direction,
-          branchName: tx.account.branch?.name || "All Branches",
-        };
-      })
-      .filter((row) => {
-        if (directionFilter !== "all" && row.direction !== directionFilter) return false;
-        if (userFilter && !row.user_name.toLowerCase().includes(userFilter)) return false;
-        if (memberFilter && ![row.account_number, row.member_name, row.bvn_tin_note, row.user_name]
-          .some((value) => value.toLowerCase().includes(memberFilter))) return false;
-        if (minAmount != null && !Number.isNaN(minAmount) && Math.max(row.debit_amount, row.credit_amount) < minAmount) return false;
-        return true;
-      })
-      .sort((a, b) => {
-        const byProduct = a.productCode.localeCompare(b.productCode);
-        if (byProduct !== 0) return byProduct;
-        const byDate = new Date(a.trx_date).getTime() - new Date(b.trx_date).getTime();
-        if (byDate !== 0) return byDate;
-        return a.trx_number.localeCompare(b.trx_number);
+    if (rows.length === 0) {
+      const genericTransactions = await db.transaction.findMany({
+        where: {
+          type: "SHARES_PURCHASE",
+          status: "COMPLETED",
+          transactionDate: {
+            gte: fromDate,
+            lte: toDate,
+          },
+          ...(params.branchId && params.branchId !== "all"
+            ? { branchId: params.branchId }
+            : {}),
+        },
+        include: {
+          account: {
+            include: {
+              member: {
+                include: {
+                  user: {
+                    select: {
+                      name: true,
+                      phone: true,
+                      nationalId: true,
+                    },
+                  },
+                },
+              },
+              accountType: {
+                include: {
+                  ledgerAccount: {
+                    select: {
+                      accountCode: true,
+                      accountName: true,
+                    },
+                  },
+                },
+              },
+              branch: {
+                select: {
+                  name: true,
+                  location: true,
+                },
+              },
+            },
+          },
+          processedByUser: {
+            select: {
+              name: true,
+            },
+          },
+        },
+        orderBy: [{ transactionDate: "asc" }, { transactionRef: "asc" }],
       });
+
+      rows = mapGenericTransactionRows(genericTransactions);
+    }
+
+    rows = rows.filter((row) => {
+      if (productFilter && productFilter !== "all" && row.productCode !== productFilter) return false;
+      return true;
+    });
 
     const products = PRODUCT_ORDER.map((productCode) => {
       const productRows = rows.filter((row) => row.productCode === productCode);

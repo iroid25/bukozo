@@ -153,7 +153,7 @@ const DAY_SHEET_MODES: Record<DaySheetFilterMode, { label: string; href: string 
     href: "/dashboard/reports/transactions/trx-day-sheet-by-transaction-date",
   },
   session_date: {
-    label: "By Session Date",
+    label: "By Selected Date",
     href: "/dashboard/reports/transactions/trx-day-sheet-by-session-date",
   },
 };
@@ -593,7 +593,7 @@ export function DaySheetReportPage({ mode }: { mode: DaySheetFilterMode }) {
                     <th className="px-3 py-2 text-left font-semibold">Name</th>
                     <th className="px-3 py-2 text-left font-semibold">Trx Code</th>
                     <th className="px-3 py-2 text-left font-semibold">Voucher No.</th>
-                    <th className="px-3 py-2 text-left font-semibold">Session Date</th>
+                    <th className="px-3 py-2 text-left font-semibold">Selected Date</th>
                     <th className="px-3 py-2 text-left font-semibold">Trx Date</th>
                     <th className="px-3 py-2 text-right font-semibold">Debit</th>
                     <th className="px-3 py-2 text-right font-semibold">Credit</th>
@@ -706,8 +706,8 @@ export function CashierCashStatusReportPage() {
 
   return (
     <ReportPageLayout
-      title="Cashier / Teller Cash Status By Session Date"
-      description="Daily teller accountability report with running balance and signature block."
+      title="Cashier / Teller Cash Status"
+      description="Live teller float position and running balance for the selected date."
       generatedAt={state.generatedAt || undefined}
       filters={
         <div className="grid w-full gap-4 lg:grid-cols-2 xl:grid-cols-4">
@@ -735,7 +735,7 @@ export function CashierCashStatusReportPage() {
             </div>
           )}
           <div className="space-y-2">
-            <label className="text-xs font-medium">Session Date</label>
+            <label className="text-xs font-medium">Selected Date</label>
             <Input type="date" value={state.sessionDate} onChange={(event) => state.setSessionDate(event.target.value)} />
           </div>
           <div className="space-y-2">
@@ -785,9 +785,9 @@ export function CashierCashStatusReportPage() {
         {report && (
           <>
             <div className="space-y-1 text-center">
-              <h2 className="text-xl font-semibold tracking-tight">Cashier / Teller Cash Status By Session Date</h2>
+              <h2 className="text-xl font-semibold tracking-tight">Cashier / Teller Cash Status</h2>
               <p className="text-sm text-muted-foreground">
-                Reporting Date( Session Date ): {localDateLabel(report.report_meta.session_date)}
+                Reporting Date: {localDateLabel(report.report_meta.session_date)}
               </p>
               <p className="text-xs text-muted-foreground">
                 Cashier/Teller No.: {report.report_meta.teller_code} | Teller: {report.report_meta.teller_name}
@@ -859,7 +859,7 @@ export function CashierCashStatusReportPage() {
                   {!report.transactions.length && (
                     <tr>
                       <td className="px-3 py-10 text-center text-muted-foreground" colSpan={13}>
-                        No teller session lines found for the selected session date.
+                        No teller lines found for the selected date.
                       </td>
                     </tr>
                   )}

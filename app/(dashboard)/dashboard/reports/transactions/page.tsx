@@ -40,10 +40,10 @@ const reportGroups: ReportGroup[] = [
     icon: ClipboardList,
     items: [
       {
-        name: "By Session Date",
+        name: "By Selected Date",
         href: "/dashboard/reports/transactions/sequence-session",
-        source: "session order",
-        description: "Transactions listed in the order they were processed per session.",
+        source: "legacy session order",
+        description: "Transactions listed in the order they were processed for the selected session-style date.",
       },
       {
         name: "By Transaction Date",
@@ -70,8 +70,8 @@ const reportGroups: ReportGroup[] = [
       {
         name: "Transaction Journal Listing",
         href: "/dashboard/reports/transactions/transaction-journal-listing-by-session-date",
-        source: "journal lines by session",
-        description: "Detailed journal lines grouped by session with supervisor sign-off blocks.",
+        source: "journal lines by selected date",
+        description: "Detailed journal lines grouped by the selected date with supervisor sign-off blocks.",
       },
     ],
   },
@@ -84,10 +84,10 @@ const reportGroups: ReportGroup[] = [
     icon: CalendarDays,
     items: [
       {
-        name: "Day Sheet By Session Date",
+        name: "Day Sheet By Selected Date",
         href: "/dashboard/reports/transactions/trx-day-sheet-by-session-date",
-        source: "session date totals",
-        description: "End-of-day totals grouped by the processing session date.",
+        source: "selected date totals",
+        description: "End-of-day totals grouped by the selected processing date.",
       },
       {
         name: "Day Sheet By Transaction Date",
@@ -106,10 +106,10 @@ const reportGroups: ReportGroup[] = [
     icon: Wallet,
     items: [
       {
-        name: "Register (Session Date)",
+        name: "Register (Selected Date)",
         href: "/dashboard/reports/transactions/register-session",
-        source: "session register",
-        description: "Transaction register summarised by session date with running totals.",
+        source: "selected date register",
+        description: "Transaction register summarised by the selected date with running totals.",
       },
       {
         name: "Register (Transaction Date)",

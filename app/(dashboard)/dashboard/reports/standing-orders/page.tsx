@@ -7,21 +7,33 @@ import { Column } from "@/components/ui/data-table/data-table";
 import { Repeat } from "lucide-react";
 
 interface StandingOrder {
-  id: string;
-  description: string;
+  referenceNumber: string;
+  memberName: string;
+  accountNumber: string;
+  beneficiaryName: string;
+  beneficiaryAccount: string;
   amount: number;
   frequency: string;
-  nextRunDate: string;
+  startDate: string;
+  endDate: string;
+  nextExecutionDate: string;
+  lastExecutionDate: string;
   status: string;
-  account: { accountNumber: string };
+  executionCount: number;
+  failureCount: number;
+  createdBy: string;
 }
 
 const columns: Column<StandingOrder>[] = [
-  { header: "Description", accessorKey: "description" },
-  { header: "Account", accessorKey: (row) => row.account?.accountNumber || 'N/A' },
+  { header: "Reference", accessorKey: "referenceNumber" },
+  { header: "Member", accessorKey: "memberName" },
+  { header: "Account", accessorKey: "accountNumber" },
+  { header: "Beneficiary", accessorKey: "beneficiaryName" },
+  { header: "Beneficiary Account", accessorKey: "beneficiaryAccount" },
   { header: "Amount", accessorKey: "amount", cell: (row) => row.amount.toLocaleString() },
   { header: "Frequency", accessorKey: "frequency" },
-  { header: "Next Run", accessorKey: "nextRunDate", cell: (row) => new Date(row.nextRunDate).toLocaleDateString() },
+  { header: "Next Execution", accessorKey: "nextExecutionDate", cell: (row) => new Date(row.nextExecutionDate).toLocaleDateString() },
+  { header: "Last Execution", accessorKey: "lastExecutionDate", cell: (row) => new Date(row.lastExecutionDate).toLocaleDateString() },
   { 
     header: "Status", 
     accessorKey: "status",
@@ -39,15 +51,15 @@ export default function StandingOrdersReportPage() {
   return (
     <GenericReportPage
       title="Standing Orders"
-      description="List of active and executed standing orders."
+      description="List of standing orders and execution history."
       endpoint="/api/v1/reports/standing-orders"
       columns={columns}
-      keyField="id"
+      keyField="referenceNumber"
       summaryFormatter={(summary) => (
         <>
-          <ReportSummaryCard title="Total Orders" value={summary.count} icon={Repeat} />
-          <ReportSummaryCard title="Total Value" value={summary.totalAmount?.toLocaleString()} />
-          <ReportSummaryCard title="Successful Executions" value={summary.successfulExecutions || 0} />
+          <ReportSummaryCard title="Total Orders" value={summary.totalRecords || 0} icon={Repeat} />
+          <ReportSummaryCard title="Monthly Value" value={summary.totalMonthlyAmount?.toLocaleString() || "0"} />
+          <ReportSummaryCard title="Active Orders" value={summary.activeOrders || 0} />
         </>
       )}
     />

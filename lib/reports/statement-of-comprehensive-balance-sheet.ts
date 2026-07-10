@@ -1,6 +1,6 @@
 import { format, startOfMonth, endOfMonth, subMonths, parseISO } from "date-fns";
 import { db } from "@/prisma/db";
-import { getBranchFilterForService, getOperationalBalances } from "@/lib/services/financial-reports";
+import { getBranchFilterForService, getCashAtHandPrincipalTotal, getOperationalBalances } from "@/lib/services/financial-reports";
 
 export type ComprehensiveBalanceSheetAccount = {
   code: string;
@@ -155,6 +155,9 @@ function getDefaultComparePeriod(currentStart: Date) {
 }
 
 function resolveGroup(accountCode: string, section: "ASSET" | "LIABILITY" | "EQUITY") {
+  if (section === "ASSET" && accountCode === "101100") {
+    return { code: "102000", name: "CURRENT ASSETS", section, prefixes: ["101100"] };
+  }
   const definition = GROUPS.find((group) =>
     group.section === section && group.prefixes.some((prefix) => accountCode.startsWith(prefix)),
   );
@@ -298,6 +301,16 @@ export async function buildComprehensiveBalanceSheetReport(input: {
       journal_count: currentBalances.get(account.id)?.count || 0,
     };
   });
+
+  const cashAtHandCompare = await getCashAtHandPrincipalTotal(compare.end, effectiveBranchId);
+  const cashAtHandCurrent = await getCashAtHandPrincipalTotal(current.end, effectiveBranchId);
+  for (const row of accountRows) {
+    if (row.code === "101100") {
+      row.compare_balance = cashAtHandCompare;
+      row.closing_balance = cashAtHandCurrent;
+      row.movement = cashAtHandCurrent - cashAtHandCompare;
+    }
+  }
 
   // ── Operational overrides ──────────────────────────────────────────────────
   // GL journal entries understate savings, loans, and share capital because

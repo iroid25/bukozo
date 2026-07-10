@@ -3,6 +3,7 @@ import { UserRole } from "@prisma/client";
 import { calculateAccountBalance } from "@/lib/accounting-rules";
 import { getAuthUser } from "@/config/useAuth";
 import { db } from "@/prisma/db";
+import { getCashAtHandPrincipalTotal } from "@/lib/services/financial-reports";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -166,6 +167,18 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const cashAtHandPrincipal = resolvedBranchIds.length > 0
+      ? (
+          await db.loanRepayment.aggregate({
+            where: {
+              repaymentDate: { lte: asOf },
+              loan: { branchId: { in: resolvedBranchIds } },
+            },
+            _sum: { principalPaid: true },
+          })
+        )._sum.principalPaid || 0
+      : await getCashAtHandPrincipalTotal(asOf);
+
     const mapAccounts = (accountsToMap: typeof filteredAccounts) =>
       accountsToMap.map((account) => {
         const balances = balancesByAccountId.get(account.id);
@@ -175,7 +188,10 @@ export async function POST(request: NextRequest) {
           code: account.accountCode,
           name: account.accountName,
           parentCategory: account.parent?.accountName || null,
-          balance: calculateAccountBalance(account.ledgerType, debit, credit),
+          balance:
+            account.accountCode === "101100"
+              ? cashAtHandPrincipal
+              : calculateAccountBalance(account.ledgerType, debit, credit),
         };
       });
 

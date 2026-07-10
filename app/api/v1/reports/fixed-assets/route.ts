@@ -187,6 +187,7 @@ async function generateAssetsDepreciationReport(year: number) {
       const bookValue = purchasePrice - accumDeprForMonth;
 
       records.push({
+        rowKey: `${asset.assetCode}-${year}-${String(month).padStart(2, "0")}`,
         assetCode: asset.assetCode,
         assetName: asset.assetName,
         category: asset.category,

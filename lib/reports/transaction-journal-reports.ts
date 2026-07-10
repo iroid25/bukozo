@@ -667,24 +667,7 @@ export async function buildCashierCashStatusReport(input: {
   const requestedTellerId = input.tellerId?.trim();
   const showAllTellers = !requestedTellerId || requestedTellerId.toLowerCase() === "all";
 
-  const sessions = await db.transactionSession.findMany({
-    where: {
-      openedAt: {
-        gte: sessionDate,
-        lt: new Date(sessionDate.getTime() + 86400000),
-      },
-      ...(!showAllTellers && requestedTellerId ? { tellerId: requestedTellerId } : {}),
-      ...(branchMeta.branchId ? { branchId: branchMeta.branchId } : {}),
-    },
-    include: {
-      teller: { select: { id: true, name: true } },
-      branch: { select: { name: true } },
-    },
-    orderBy: [{ openedAt: "asc" }],
-  });
-
-  const tellerSession = sessions[0] || null;
-  const tellerId = showAllTellers ? "" : tellerSession?.tellerId || requestedTellerId || "";
+  const tellerId = showAllTellers ? "" : requestedTellerId || "";
   const tellerUser = tellerId
     ? await db.user.findUnique({
         where: { id: tellerId },
@@ -693,10 +676,10 @@ export async function buildCashierCashStatusReport(input: {
     : null;
   const tellerName = showAllTellers
     ? "All Tellers"
-    : tellerSession?.teller?.name || tellerUser?.name || "System";
+    : tellerUser?.name || "System";
   const tellerCode = showAllTellers
     ? "ALL"
-    : tellerSession?.sessionNumber || tellerSession?.teller?.id || "SESSION";
+    : tellerId.slice(0, 8).toUpperCase() || "SESSION";
 
   const nextDay = new Date(sessionDate.getTime() + 86400000);
 
@@ -711,11 +694,11 @@ export async function buildCashierCashStatusReport(input: {
   });
   const floatIds = userFloats.map((f) => f.id);
 
-  const floatTxns = floatIds.length > 0
+  const allFloatTxns = floatIds.length > 0
     ? await db.floatTransaction.findMany({
         where: {
           floatId: { in: floatIds },
-          transactionDate: { gte: sessionDate, lt: nextDay },
+          transactionDate: { lt: nextDay },
         },
         include: {
           performedByUser: { select: { name: true } },
@@ -723,6 +706,8 @@ export async function buildCashierCashStatusReport(input: {
         orderBy: [{ transactionDate: "asc" }],
       })
     : [];
+
+  const floatTxns = allFloatTxns.filter((txn) => new Date(txn.transactionDate).getTime() >= sessionDate.getTime());
 
   // Batch-fetch related Transaction records for member name / account number display.
   // Income, expenditure, and asset entries are identifiable by their description prefix
@@ -763,9 +748,16 @@ export async function buildCashierCashStatusReport(input: {
     txns.forEach((t) => relatedTxnMap.set(t.id, t));
   }
 
-  const openingFloat = showAllTellers
-    ? sessions.reduce((sum, session) => sum + Number(session.openingCash || 0), 0)
-    : tellerSession?.openingCash || 0;
+  const openingFloat = allFloatTxns
+    .filter((txn) => new Date(txn.transactionDate).getTime() < sessionDate.getTime())
+    .reduce((sum, txn) => {
+      const desc = normalizeDisplayText(txn.description || "").toLowerCase();
+      const amount = Number(txn.amount || 0);
+      if (String(txn.type || "").toUpperCase() === "FLOAT_ALLOCATION") return sum + amount;
+      if (String(txn.type || "").toUpperCase() === "FLOAT_RECONCILIATION") return sum - amount;
+      if (desc.startsWith("asset purchase")) return sum - Math.abs(amount);
+      return sum;
+    }, 0);
 
   type CashItem = {
     sortTs: number;
