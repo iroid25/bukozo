@@ -795,9 +795,16 @@ export default function EquityPage() {
   };
 
   const renderTreeNode = (account: ChartOfAccount, depth = 0) => {
+    if (isHiddenEquityAccount(account)) {
+      return null;
+    }
+
     const children = getDirectChildren(account);
+    const visibleChildren = children.filter(
+      (child) => !isHiddenEquityAccount(child),
+    );
     const isExpandable =
-      children.length > 0 ||
+      visibleChildren.length > 0 ||
       (account._count?.children || 0) > 0 ||
       FORCE_EXPANDABLE_CODES.has(account.accountCode as EquityBucketCode);
     const isExpanded = !!expandedNodes[account.id];
@@ -859,9 +866,9 @@ export default function EquityPage() {
               <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 {getLevelBadge(account.level)}
                 {isRootControl && <span>Control account</span>}
-                {children.length > 0 && (
+                {visibleChildren.length > 0 && (
                   <span>
-                    {children.length} child account{children.length === 1 ? "" : "s"}
+                    {visibleChildren.length} child account{visibleChildren.length === 1 ? "" : "s"}
                   </span>
                 )}
                 <span>{account.isActive ? "Active" : "Inactive"}</span>
@@ -896,9 +903,9 @@ export default function EquityPage() {
 
         {isExpandable && isExpanded && (
           <div className="space-y-2">
-            {children.map((child) => renderTreeNode(child, depth + 1))}
+            {visibleChildren.map((child) => renderTreeNode(child, depth + 1))}
             {renderNodeItems(account, depth + 1)}
-            {!isNodeLoading && children.length === 0 && account.accountCode !== "304000" && (
+            {!isNodeLoading && visibleChildren.length === 0 && account.accountCode !== "304000" && (
               <div
                 className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-3 text-sm text-muted-foreground"
                 style={{ marginLeft: `${(depth + 1) * 24}px` }}
