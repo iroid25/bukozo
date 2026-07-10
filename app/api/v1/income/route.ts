@@ -12,8 +12,6 @@ import { reverseJournalEntriesForRecord } from "@/lib/journal-entries-extended";
 
 // Helpful for type safety
 type AppUser = { id: string; role: string; branchId: string | null };
-const BLOCKED_INCOME_CATEGORY_NAMES = ["loan insurance fees", "loan share capital"];
-
 // Helper: Get current open financial period
 async function getCurrentOpenPeriod() {
   return db.financialPeriod.findFirst({
@@ -38,23 +36,18 @@ export async function GET(request: NextRequest) {
     const requestedBranchId = searchParams.get("branchId");
     const branchId = resolveBranchScope(user, requestedBranchId);
 
-    const branchFilter = await IncomeService.getBranchFilter(user, branchId);
-    const incomeCategoryFilter = {
-      budgetCategory: {
-        kind: "INCOME" as const,
-        name: {
-          notIn: BLOCKED_INCOME_CATEGORY_NAMES,
-          mode: "insensitive" as const,
-        },
-      },
-    };
-
     if (id) {
       const incomeRecord = await db.incomeRecord.findFirst({
         where: {
           id,
-          ...branchFilter,
-          ...incomeCategoryFilter,
+          ...(await IncomeService.getBranchFilter(user, branchId)),
+          budgetCategory: {
+            kind: "INCOME" as const,
+            name: {
+              notIn: ["loan insurance fees", "loan share capital"],
+              mode: "insensitive" as const,
+            },
+          },
         },
         include: {
           budgetCategory: { include: { parent: true } },
@@ -69,20 +62,9 @@ export async function GET(request: NextRequest) {
       return successResponse(incomeRecord);
     }
 
-    const incomeRecords = await db.incomeRecord.findMany({
-      where: {
-        ...branchFilter,
-        ...incomeCategoryFilter,
-      },
-      include: {
-        budgetCategory: { include: { parent: true } },
-        branch: true,
-        member: { include: { user: true } },
-        account: { include: { accountType: true } },
-        receivedBy: { select: { id: true, name: true, role: true } },
-        period: true,
-      },
-      orderBy: { recordDate: "desc" },
+    const incomeRecords = await IncomeService.getUnifiedIncomeRecords({
+      user,
+      branchId,
     });
 
     return successResponse(incomeRecords);

@@ -55,10 +55,9 @@ function CategoryRow({
 }) {
   const hasChildren = node.children.length > 0;
   const expanded = expandedNodes[node.id] ?? true;
-  const directStats = statsById.get(node.id);
   const aggregateStats = aggregateById.get(node.id) ?? { count: 0, amount: 0 };
-  const count = directStats?.count ?? aggregateStats.count;
-  const amount = directStats?.amount ?? aggregateStats.amount;
+  const count = aggregateStats.count;
+  const amount = aggregateStats.amount;
 
   return (
     <div

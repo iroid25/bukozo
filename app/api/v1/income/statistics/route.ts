@@ -1,12 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
-import { db } from "@/prisma/db";
-import { UserRole, TransactionStatus } from "@prisma/client";
 import { resolveBranchScope } from "@/lib/services/branch-scope";
-
-const BLOCKED_INCOME_CATEGORY_NAMES = ["loan insurance fees", "loan share capital"];
-const LOAN_INCOME_CODES = ["401001", "401002", "401005"];
+import { IncomeService } from "@/services/income.service";
 
 // GET /api/v1/income/statistics - Get income statistics
 export async function GET(request: NextRequest) {
@@ -24,231 +20,104 @@ export async function GET(request: NextRequest) {
 
     const requestedBranchId = searchParams.get("branchId");
     const branchId = resolveBranchScope(user, requestedBranchId);
-    const branchFilter = user.role === UserRole.ADMIN
-      ? (branchId ? { branchId } : {})
-      : user.branchId
-        ? { branchId: user.branchId }
-        : { branchId: "no-branch-assigned" };
+    const incomeRecords = await IncomeService.getUnifiedIncomeRecords({
+      user,
+      branchId,
+      startDate,
+      endDate,
+    });
 
-    const whereClause: any = {
-      ...branchFilter,
-      status: { in: [TransactionStatus.COMPLETED, TransactionStatus.APPROVED] },
-      budgetCategory: {
-        kind: "INCOME",
-        name: {
-          notIn: BLOCKED_INCOME_CATEGORY_NAMES,
-          mode: "insensitive",
-        },
-      },
-    };
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
 
-    if (startDate && endDate) {
-      whereClause.recordDate = {
-        gte: startDate,
-        lte: endDate,
+    const categoryMap = new Map<
+      string,
+      { categoryId: string; categoryName: string; parentName?: string; count: number; amount: number }
+    >();
+    const branchMap = new Map<
+      string | null,
+      { branchId: string | null; branchName: string; count: number; amount: number }
+    >();
+    const paymentMap = new Map<
+      string,
+      { method: any; count: number; amount: number }
+    >();
+
+    let totalIncome = 0;
+    let todayIncome = 0;
+    let thisMonthIncome = 0;
+
+    for (const record of incomeRecords) {
+      const amount = Number(record.amount || 0);
+      const recordDate = new Date(record.recordDate);
+      totalIncome += amount;
+      if (recordDate.getTime() === today.getTime()) {
+        todayIncome += amount;
+      }
+      if (recordDate >= monthStart) {
+        thisMonthIncome += amount;
+      }
+
+      const categoryId = record.budgetCategory?.id || record.budgetCategoryId || "";
+      const categoryName = record.budgetCategory?.name || "Unknown";
+      const parentName = record.budgetCategory?.parent?.name;
+      const branchIdValue = record.branchId || null;
+      const branchName = record.branch?.name || "No Branch";
+      const method = String(record.paymentMethod || "UNKNOWN");
+
+      const currentCategory = categoryMap.get(categoryId) || {
+        categoryId,
+        categoryName,
+        parentName,
+        count: 0,
+        amount: 0,
       };
-    }
+      currentCategory.count += 1;
+      currentCategory.amount += amount;
+      categoryMap.set(categoryId, currentCategory);
 
-    const [
-      totalIncome,
-      totalRecords,
-      todayIncome,
-      todayRecords,
-      thisMonthIncome,
-      categoryBreakdown,
-      branchBreakdown,
-      paymentMethodBreakdown,
-    ] = await Promise.all([
-      db.incomeRecord.aggregate({
-        where: whereClause,
-        _sum: { amount: true },
-      }),
-      db.incomeRecord.count({
-        where: whereClause,
-      }),
-      db.incomeRecord.aggregate({
-        where: {
-          ...whereClause,
-          recordDate: {
-            gte: new Date(new Date().setHours(0, 0, 0, 0)),
-          },
-        },
-        _sum: { amount: true },
-      }),
-      db.incomeRecord.count({
-        where: {
-          ...whereClause,
-          recordDate: {
-            gte: new Date(new Date().setHours(0, 0, 0, 0)),
-          },
-        },
-      }),
-      db.incomeRecord.aggregate({
-        where: {
-          ...whereClause,
-          recordDate: {
-            gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
-          },
-        },
-        _sum: { amount: true },
-      }),
-      db.incomeRecord.groupBy({
-        by: ["budgetCategoryId"],
-        where: whereClause,
-        _count: true,
-        _sum: { amount: true },
-      }),
-      db.incomeRecord.groupBy({
-        by: ["branchId"],
-        where: {
-          ...whereClause,
-          branchId: { not: null },
-        },
-        _count: true,
-        _sum: { amount: true },
-      }),
-      db.incomeRecord.groupBy({
-        by: ["paymentMethod"],
-        where: whereClause,
-        _count: true,
-        _sum: { amount: true },
-      }),
-    ]);
-
-    // Get category names
-    const categoryIds = categoryBreakdown
-      .map((item) => item.budgetCategoryId)
-      .filter((id): id is string => id !== null);
-    const categories = await db.budgetCategory.findMany({
-      where: { id: { in: categoryIds }, kind: "INCOME" },
-      select: { id: true, code: true, name: true, parent: { select: { name: true } } },
-    });
-
-    const fallbackCategories = await db.budgetCategory.findMany({
-      where: {
-        code: { in: LOAN_INCOME_CODES },
-        kind: "INCOME",
-      },
-      select: { id: true, code: true, name: true, parent: { select: { name: true } } },
-    });
-
-    const fallbackAccounts = await db.chartOfAccount.findMany({
-      where: {
-        accountCode: { in: LOAN_INCOME_CODES },
-        isActive: true,
-      },
-      select: { id: true, accountCode: true },
-    });
-
-    const fallbackAccountIds = fallbackAccounts.map((account) => account.id);
-    const fallbackJournalTotals = fallbackAccountIds.length
-      ? await db.journalEntry.groupBy({
-          by: ["accountId"],
-          where: {
-            accountId: { in: fallbackAccountIds },
-            ...(user.role === UserRole.ADMIN
-              ? (branchId ? { branchId } : {})
-              : user.branchId
-                ? { branchId: user.branchId }
-                : { branchId: "no-branch-assigned" }),
-          },
-          _count: true,
-          _sum: { creditAmount: true },
-        })
-      : [];
-
-    const fallbackAccountMap = new Map(
-      fallbackAccounts.map((account) => [account.id, account.accountCode]),
-    );
-    const fallbackTotalsByCode = new Map<string, { count: number; amount: number }>();
-    for (const item of fallbackJournalTotals) {
-      const code = fallbackAccountMap.get(item.accountId);
-      if (!code) continue;
-      fallbackTotalsByCode.set(code, {
-        count: item._count,
-        amount: item._sum.creditAmount || 0,
-      });
-    }
-
-    // Get branch names
-    const branchIds = branchBreakdown
-      .map((item) => item.branchId)
-      .filter((id): id is string => id !== null);
-    const branches = await db.branch.findMany({
-      where: { id: { in: branchIds } },
-      select: { id: true, name: true },
-    });
-
-    const categoryMap = new Map(categories.map((c) => [c.id, c]));
-    const branchMap = new Map(branches.map((b) => [b.id, b.name]));
-
-    const directBreakdown = categoryBreakdown.map((item) => {
-      const cat = item.budgetCategoryId
-        ? categoryMap.get(item.budgetCategoryId)
-        : null;
-      return {
-        categoryId: item.budgetCategoryId || "",
-        categoryName: cat?.name || "Unknown",
-        parentName: cat?.parent?.name,
-        count: item._count,
-        amount: item._sum.amount || 0,
+      const currentBranch = branchMap.get(branchIdValue) || {
+        branchId: branchIdValue,
+        branchName,
+        count: 0,
+        amount: 0,
       };
-    });
+      currentBranch.count += 1;
+      currentBranch.amount += amount;
+      branchMap.set(branchIdValue, currentBranch);
 
-    const breakdownCodesWithDirectAmounts = new Set(
-      directBreakdown
-        .map((row) => {
-          const category = categories.find((item) => item.id === row.categoryId);
-          return category?.code || "";
-        })
-        .filter(Boolean),
-    );
-
-    const fallbackBreakdown = fallbackCategories
-      .map((category) => {
-        const fallback = fallbackTotalsByCode.get(category.code || "");
-        if (!fallback || fallback.amount <= 0) return null;
-        if (breakdownCodesWithDirectAmounts.has(category.code || "")) return null;
-        return {
-          categoryId: category.id,
-          categoryName: category.name,
-          parentName: category.parent?.name,
-          count: fallback.count,
-          amount: fallback.amount,
-        };
-      })
-      .filter(
-        (item): item is {
-          categoryId: string;
-          categoryName: string;
-          parentName: string | undefined;
-          count: number;
-          amount: number;
-        } => item !== null,
-      );
+      const currentMethod = paymentMap.get(method) || {
+        method: record.paymentMethod,
+        count: 0,
+        amount: 0,
+      };
+      currentMethod.count += 1;
+      currentMethod.amount += amount;
+      paymentMap.set(method, currentMethod);
+    }
 
     const statistics = {
-      totalIncome: totalIncome._sum.amount || 0,
-      totalRecords,
-      todayIncome: todayIncome._sum.amount || 0,
-      todayRecords,
-      thisMonthIncome: thisMonthIncome._sum.amount || 0,
+      totalIncome,
+      totalRecords: incomeRecords.length,
+      todayIncome,
+      todayRecords: incomeRecords.filter((record) => {
+        const recordDate = new Date(record.recordDate);
+        recordDate.setHours(0, 0, 0, 0);
+        return recordDate.getTime() === today.getTime();
+      }).length,
+      thisMonthIncome,
       averageIncome:
-        totalRecords > 0 ? (totalIncome._sum.amount || 0) / totalRecords : 0,
-      categoryBreakdown: [...directBreakdown, ...fallbackBreakdown],
-      branchBreakdown: branchBreakdown.map((item) => ({
-        branchId: item.branchId,
-        branchName: item.branchId
-          ? branchMap.get(item.branchId) || "Unknown"
-          : "No Branch",
-        count: item._count,
-        amount: item._sum.amount || 0,
-      })),
-      paymentMethodBreakdown: paymentMethodBreakdown.map((item) => ({
-        method: item.paymentMethod,
-        count: item._count,
-        amount: item._sum.amount || 0,
-      })),
+        incomeRecords.length > 0 ? totalIncome / incomeRecords.length : 0,
+      categoryBreakdown: Array.from(categoryMap.values()).sort((a, b) =>
+        a.categoryName.localeCompare(b.categoryName),
+      ),
+      branchBreakdown: Array.from(branchMap.values()).sort((a, b) =>
+        a.branchName.localeCompare(b.branchName),
+      ),
+      paymentMethodBreakdown: Array.from(paymentMap.values()).sort((a, b) =>
+        String(a.method).localeCompare(String(b.method)),
+      ),
     };
 
     return NextResponse.json({ data: statistics });

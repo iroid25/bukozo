@@ -451,11 +451,11 @@ export default function SavingsTransactionsReportPage() {
                 </div>
               </div>
               <div className="space-y-1">
-                <h2 className="text-xl font-bold text-slate-900 md:text-2xl">
+                  <h2 className="text-xl font-bold text-slate-900 md:text-2xl">
                   {report?.reportTitle || "Savings Transactions Report"}
                 </h2>
                 <p className="text-sm text-slate-600">
-                  Reporting Date From: {normalizeDateDisplay(report?.dateRange.from)} To: {normalizeDateDisplay(report?.dateRange.to)}
+                  Selected Date Range: {normalizeDateDisplay(report?.dateRange.from)} to {normalizeDateDisplay(report?.dateRange.to)}
                 </p>
                 <p className="text-xs uppercase tracking-[0.28em] text-emerald-700">
                   API-only report powered by live savings transactions
@@ -726,7 +726,7 @@ export default function SavingsTransactionsReportPage() {
                           <th className="w-[22%] border-b border-slate-800 px-2.5 py-2 text-left text-[10px] font-semibold uppercase tracking-wider">Name</th>
                           <th className="w-[8%] border-b border-slate-800 px-2.5 py-2 text-left text-[10px] font-semibold uppercase tracking-wider">Ref. No.</th>
                           <th className="w-[8%] border-b border-slate-800 px-2.5 py-2 text-left text-[10px] font-semibold uppercase tracking-wider">Trx No.</th>
-                          <th className="w-[10%] border-b border-slate-800 px-2.5 py-2 text-left text-[10px] font-semibold uppercase tracking-wider">Session Date</th>
+                          <th className="w-[10%] border-b border-slate-800 px-2.5 py-2 text-left text-[10px] font-semibold uppercase tracking-wider">Transaction Date</th>
                           <th className="w-[10%] border-b border-slate-800 px-2.5 py-2 text-left text-[10px] font-semibold uppercase tracking-wider">Trx Date</th>
                           <th className="w-[11%] border-b border-slate-800 px-2.5 py-2 text-right text-[10px] font-semibold uppercase tracking-wider">Debit (UGX)</th>
                           <th className="w-[11%] border-b border-slate-800 px-2.5 py-2 text-right text-[10px] font-semibold uppercase tracking-wider">Credit (UGX)</th>

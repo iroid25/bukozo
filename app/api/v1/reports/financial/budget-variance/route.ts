@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
 import { db } from "@/prisma/db";
 import { UserRole } from "@prisma/client";
+import { IncomeService } from "@/services/income.service";
 
 export const dynamic = "force-dynamic";
 
@@ -88,7 +89,7 @@ async function handler(request: NextRequest) {
     const categoryIds = [...new Set(budgets.map((b) => b.categoryId))];
 
     // Actual spend/income grouped by budgetCategoryId for the year
-    const [actualExpenditures, actualIncomes] = await Promise.all([
+    const [actualExpenditures, incomeRecords] = await Promise.all([
       db.expenditureRecord.groupBy({
         by: ["budgetCategoryId"],
         where: {
@@ -99,24 +100,24 @@ async function handler(request: NextRequest) {
         },
         _sum: { amount: true },
       }),
-      db.incomeRecord.groupBy({
-        by: ["budgetCategoryId"],
-        where: {
-          budgetCategoryId: { in: categoryIds },
-          recordDate: { gte: yearStart, lte: yearEnd },
-          status: { not: "REJECTED" as any },
-          ...(branchId ? { branchId } : {}),
-        },
-        _sum: { amount: true },
+      IncomeService.getUnifiedIncomeRecords({
+        user: { role: user.role, branchId: user.branchId || null },
+        branchId,
+        startDate: yearStart,
+        endDate: yearEnd,
       }),
     ]);
 
     const expenditureMap = new Map(
       actualExpenditures.map((e) => [e.budgetCategoryId!, Number(e._sum.amount) || 0]),
     );
-    const incomeMap = new Map(
-      actualIncomes.map((i) => [i.budgetCategoryId!, Number(i._sum.amount) || 0]),
-    );
+    const incomeMap = new Map<string, number>();
+    for (const record of incomeRecords) {
+      const categoryId = record.budgetCategoryId;
+      if (!categoryId || !categoryIds.includes(categoryId)) continue;
+      const current = incomeMap.get(categoryId) || 0;
+      incomeMap.set(categoryId, current + Number(record.amount || 0));
+    }
 
     const rows = budgets.map((budget) => {
       const budgeted = Number(budget.amount);

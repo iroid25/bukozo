@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { TransactionStatus, UserRole } from "@prisma/client";
 import { getAuthUser } from "@/config/useAuth";
 import { db } from "@/prisma/db";
+import { IncomeService } from "@/services/income.service";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -122,27 +123,15 @@ async function summarizePeriod(
   includedIncomeCategories: string[],
   excludeCategories: string[],
 ): Promise<ProfitLossSummary> {
-  const where = buildRecordWhere(period, branchIds, includedIncomeCategories, excludeCategories);
-
   const [incomeRecords, expenditureRecords] = await Promise.all([
-    db.incomeRecord.findMany({
-      where,
-      select: {
-        amount: true,
-        budgetCategory: {
-          select: {
-            name: true,
-          },
-        },
-        category: {
-          select: {
-            name: true,
-          },
-        },
-      },
+    IncomeService.getUnifiedIncomeRecords({
+      user: { role: UserRole.ADMIN, branchId: null },
+      branchIds,
+      startDate: period.startDate,
+      endDate: period.endDate,
     }),
     db.expenditureRecord.findMany({
-      where,
+      where: buildRecordWhere(period, branchIds, includedIncomeCategories, excludeCategories),
       select: {
         amount: true,
         budgetCategory: {
@@ -159,8 +148,17 @@ async function summarizePeriod(
     }),
   ]);
 
+  const normalizedIncomeRecords = incomeRecords.filter((record) => {
+    const categoryName = (record.budgetCategory?.name || record.category?.name || "").toLowerCase();
+    const includedMatch =
+      includedIncomeCategories.length === 0 ||
+      includedIncomeCategories.some((name) => name.toLowerCase() === categoryName);
+    const excludedMatch = excludeCategories.some((name) => name.toLowerCase() === categoryName);
+    return includedMatch && !excludedMatch;
+  });
+
   const groupByCategory = (
-    records: Array<{ amount: number; budgetCategory: { name: string } | null; category: { name: string } | null }>,
+    records: Array<{ amount: number; budgetCategory?: { name: string } | null; category?: { name: string } | null }>,
   ) => {
     const grouped = new Map<string, number>();
 
@@ -177,7 +175,7 @@ async function summarizePeriod(
       .sort((a, b) => a.categoryName.localeCompare(b.categoryName));
   };
 
-  const incomeByCategory = groupByCategory(incomeRecords);
+  const incomeByCategory = groupByCategory(normalizedIncomeRecords);
   const expenseByCategory = groupByCategory(expenditureRecords);
 
   const totalIncome = incomeByCategory.reduce((sum, item) => sum + item.total, 0);
