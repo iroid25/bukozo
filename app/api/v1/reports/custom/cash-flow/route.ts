@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
 import { db } from "@/prisma/db";
 import { UserRole } from "@prisma/client";
+import { IncomeService } from "@/services/income.service";
 
 export const dynamic = "force-dynamic";
 
@@ -122,7 +123,7 @@ async function handler(request: NextRequest) {
       depositsAgg,
       withdrawalsAgg,
       loanRepaymentsAgg,
-      incomeRecordsAgg,
+      incomeRecords,
       expenditureRecordsAgg,
     ] = await Promise.all([
       db.deposit.aggregate({
@@ -152,16 +153,11 @@ async function handler(request: NextRequest) {
         },
       }),
 
-      db.incomeRecord.aggregate({
-        _sum: { amount: true },
-        _count: { id: true },
-        where: {
-          recordDate: { gte: start, lte: end },
-          status: { not: "REJECTED" as any },
-          ...directBranchWhere,
-          ...categoryIncludeWhere,
-          ...categoryExcludeWhere,
-        },
+      IncomeService.getUnifiedIncomeRecords({
+        user,
+        branchIds: resolvedBranchIds,
+        startDate: start,
+        endDate: end,
       }),
 
       db.expenditureRecord.aggregate({
@@ -238,6 +234,13 @@ async function handler(request: NextRequest) {
     ]);
 
     // ── Assemble ──────────────────────────────────────────────────────────
+    const filteredIncomeRecords = incomeRecords.filter((record) => {
+      const categoryName = (record.budgetCategory?.name || "").toLowerCase();
+      const included = includedCategories.length === 0 || includedCategories.some((name) => name.toLowerCase() === categoryName);
+      const excluded = excludedCategories.some((name) => name.toLowerCase() === categoryName);
+      return included && !excluded && String(record.status) !== "REJECTED";
+    });
+
     const operatingInflows = [
       {
         label: "Member Savings Deposits",
@@ -251,8 +254,8 @@ async function handler(request: NextRequest) {
       },
       {
         label: "Other Income",
-        amount: Number(incomeRecordsAgg._sum.amount) || 0,
-        count: incomeRecordsAgg._count.id,
+        amount: filteredIncomeRecords.reduce((sum, record) => sum + Number(record.amount || 0), 0),
+        count: filteredIncomeRecords.length,
       },
     ];
 

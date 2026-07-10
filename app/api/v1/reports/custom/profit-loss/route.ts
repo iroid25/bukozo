@@ -149,7 +149,7 @@ async function summarizePeriod(
   ]);
 
   const normalizedIncomeRecords = incomeRecords.filter((record) => {
-    const categoryName = (record.budgetCategory?.name || record.category?.name || "").toLowerCase();
+    const categoryName = (record.budgetCategory?.name || "").toLowerCase();
     const includedMatch =
       includedIncomeCategories.length === 0 ||
       includedIncomeCategories.some((name) => name.toLowerCase() === categoryName);

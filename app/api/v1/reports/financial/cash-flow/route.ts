@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
 import { db } from "@/prisma/db";
 import { UserRole } from "@prisma/client";
+import { IncomeService } from "@/services/income.service";
 
 export const dynamic = "force-dynamic";
 
@@ -68,7 +69,7 @@ async function handler(request: NextRequest) {
       depositsAgg,
       withdrawalsAgg,
       loanRepaymentsAgg,
-      incomeRecordsAgg,
+      incomeRecords,
       expenditureRecordsAgg,
     ] = await Promise.all([
       // Inflow: Savings deposits received
@@ -102,14 +103,11 @@ async function handler(request: NextRequest) {
       }),
 
       // Inflow: Other income (fees, interest, etc.)
-      db.incomeRecord.aggregate({
-        _sum: { amount: true },
-        _count: { id: true },
-        where: {
-          recordDate: { gte: start, lte: end },
-          status: { not: "REJECTED" as any },
-          ...(branchId ? { branchId } : {}),
-        },
+      IncomeService.getUnifiedIncomeRecords({
+        user,
+        branchId,
+        startDate: start,
+        endDate: end,
       }),
 
       // Outflow: Operating expenditure
@@ -190,6 +188,10 @@ async function handler(request: NextRequest) {
     ]);
 
     // ── Assemble sections ─────────────────────────────────────────────────
+    const incomeRecordsAgg = incomeRecords.filter(
+      (record) => String(record.status) !== "REJECTED",
+    );
+
     const operatingInflows = [
       {
         label: "Member Savings Deposits",
@@ -203,8 +205,8 @@ async function handler(request: NextRequest) {
       },
       {
         label: "Other Income",
-        amount: Number(incomeRecordsAgg._sum.amount) || 0,
-        count: incomeRecordsAgg._count.id,
+        amount: incomeRecordsAgg.reduce((sum, record) => sum + Number(record.amount || 0), 0),
+        count: incomeRecordsAgg.length,
       },
     ];
 

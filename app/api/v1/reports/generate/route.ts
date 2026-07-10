@@ -2,6 +2,7 @@
 import { db } from "@/prisma/db";
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/config/useAuth";
+import { IncomeService } from "@/services/income.service";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -480,29 +481,21 @@ async function generateOutstandingLoansReport(branchId?: string) {
 }
 
 async function generateIncomeReport(startDate: Date, endDate: Date, branchId?: string) {
-  const income = await db.incomeRecord.findMany({
-    where: {
-      date: { gte: startDate, lte: endDate },
-      ...(branchId && { branchId }),
-    },
-    include: {
-      category: true,
-      budgetCategory: true,
-      receivedBy: true,
-      branch: true,
-      member: { include: { user: true } },
-    },
-    orderBy: { date: "asc" },
+  const income = await IncomeService.getUnifiedIncomeRecords({
+    user: { role: "ADMIN", branchId: null },
+    branchId,
+    startDate,
+    endDate,
   });
 
   const records = income.map((item) => ({
     referenceNumber: item.referenceNumber || item.receiptNo || item.id,
     date: item.date.toISOString().split("T")[0],
     description: item.description || "Income",
-    category: item.budgetCategory?.name || item.category?.name || "Uncategorized",
+    category: item.budgetCategory?.name || "Uncategorized",
     amount: Number(item.amount),
     paymentMethod: item.paymentMethod,
-    receivedBy: item.receivedBy.name,
+    receivedBy: item.receivedBy?.name || "N/A",
     branch: item.branch?.name || "N/A",
     depositor: item.depositorName || item.member?.user?.name || "N/A",
     status: item.status,
@@ -564,12 +557,11 @@ async function generateExpenditureReport(startDate: Date, endDate: Date, branchI
 
 async function generateIncomeVsExpenditureReport(startDate: Date, endDate: Date, branchId?: string) {
   const [income, expenditure] = await Promise.all([
-    db.incomeRecord.findMany({
-      where: {
-        date: { gte: startDate, lte: endDate },
-        status: "COMPLETED",
-        ...(branchId && { branchId }),
-      },
+    IncomeService.getUnifiedIncomeRecords({
+      user: { role: "ADMIN", branchId: null },
+      branchId,
+      startDate,
+      endDate,
     }),
     db.expenditureRecord.findMany({
       where: {
@@ -1387,10 +1379,15 @@ async function generatePerformanceMonitoringReport(startDate: Date, endDate: Dat
       _sum: { amountGranted: true },
       _count: true,
     }),
-    db.incomeRecord.aggregate({
-      where: { date: { gte: startDate, lte: endDate } },
-      _sum: { amount: true },
-    }),
+    IncomeService.getUnifiedIncomeRecords({
+      user: { role: "ADMIN", branchId: null },
+      startDate,
+      endDate,
+    }).then((records) => ({
+      _sum: {
+        amount: records.reduce((sum, record) => sum + Number(record.amount || 0), 0),
+      },
+    })),
     db.expenditureRecord.aggregate({
       where: { date: { gte: startDate, lte: endDate } },
       _sum: { amount: true },

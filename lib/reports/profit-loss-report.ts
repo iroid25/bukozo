@@ -5,6 +5,7 @@ import { AccountLedgerType, TransactionStatus } from "@prisma/client";
 import { calculateAccountBalance } from "@/lib/accounting-rules";
 import { db } from "@/prisma/db";
 import { getBranchFilterForService } from "@/lib/services/financial-reports";
+import { IncomeService } from "@/services/income.service";
 
 function money(value: number) {
   const amount = Number(value || 0);
@@ -363,22 +364,18 @@ export async function buildFinancialYearProfitLossReport(input: FYProfitLossRepo
   const income = buildSection("Income");
   const expenses = buildSection("Expenses");
 
-  const [incPeriod, incYtd, expPeriod, expYtd, insPeriod, insYtd] = await Promise.all([
-    db.incomeRecord.aggregate({
-      where: {
-        status: TransactionStatus.COMPLETED,
-        recordDate: { gte: startOfDayIso(fromDate), lte: endOfDayIso(toDateValue) },
-        ...(branchId ? { branchId } : {}),
-      },
-      _sum: { amount: true },
+  const [incPeriodRecords, incYtdRecords, expPeriod, expYtd, insPeriod, insYtd] = await Promise.all([
+    IncomeService.getUnifiedIncomeRecords({
+      user: input.user,
+      branchId,
+      startDate: startOfDayIso(fromDate),
+      endDate: endOfDayIso(toDateValue),
     }),
-    db.incomeRecord.aggregate({
-      where: {
-        status: TransactionStatus.COMPLETED,
-        recordDate: { gte: startOfDayIso(fyStart), lte: endOfDayIso(toDateValue) },
-        ...(branchId ? { branchId } : {}),
-      },
-      _sum: { amount: true },
+    IncomeService.getUnifiedIncomeRecords({
+      user: input.user,
+      branchId,
+      startDate: startOfDayIso(fyStart),
+      endDate: endOfDayIso(toDateValue),
     }),
     db.expenditureRecord.aggregate({
       where: {
@@ -414,8 +411,8 @@ export async function buildFinancialYearProfitLossReport(input: FYProfitLossRepo
     }),
   ]);
 
-  const opIncPeriod = Number(incPeriod._sum.amount || 0);
-  const opIncYtd = Number(incYtd._sum.amount || 0);
+  const opIncPeriod = incPeriodRecords.reduce((sum, record) => sum + Number(record.amount || 0), 0);
+  const opIncYtd = incYtdRecords.reduce((sum, record) => sum + Number(record.amount || 0), 0);
   const opExpPeriod = Number(expPeriod._sum.amount || 0);
   const opExpYtd = Number(expYtd._sum.amount || 0);
   const insuranceContribPeriod = Number(insPeriod._sum.amount || 0);

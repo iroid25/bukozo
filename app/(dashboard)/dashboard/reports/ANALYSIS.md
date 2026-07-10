@@ -1,12 +1,12 @@
 # Reports Mismatch & Integration Analysis
 
-This analysis examines the connection between the **Core Banking / SACCO Transaction Functionality** and the **Reports Dashboard** (`/dashboard/reports`) to identify data disconnects, missing fallbacks, and schema discrepancies. 
+This analysis examines the connection between the **Core Banking / SACCO Transaction Functionality** and the **Reports Dashboard** (`/dashboard/reports`) to identify data disconnects, missing fallbacks, and schema discrepancies.
 
 ---
 
 ## 🔍 Core Architectural Findings
 
-The application utilizes two parallel sets of database models, leading to data siloing and empty reports:
+The application still has a few parallel model families, but most high-value reports now read from live operational sources rather than stale legacy tables:
 1. **Active Core Models** (Updated during teller operations and active banking features):
    - `Transaction` (general transactions: deposits, withdrawals, transfers)
    - `Deposit` (specific deposit meta-details)
@@ -23,7 +23,7 @@ The application utilizes two parallel sets of database models, leading to data s
    - `SmsLog` (SMS notifications)
    - `AssetDepreciation` (asset depreciation periods)
 
-Some of these models are still legacy-only, but not all of them are empty. The active share module writes to `ShareAccount` / `ShareTransaction`, and the savings balance reports now read from the core `Account` table instead of relying on retired savings extensions.
+Some of these models are still legacy-only, but not all of them are empty. The active share module writes to `ShareAccount` / `ShareTransaction`, the savings balance reports now read from the core `Account` table, and loan-related income now flows through a unified source that includes direct `IncomeRecord` rows plus loan-related fallbacks when needed.
 
 ---
 
@@ -35,14 +35,14 @@ Some of these models are still legacy-only, but not all of them are empty. The a
 - **Impact:** The session-named reports are better treated as legacy wrappers. The float-based cash-status logic now works, but any report still depending on `TransactionSession` directly remains empty.
 
 ### 2. Savings Reports
-- **Queries:** `SavingsAccount` for the balance/zero-balance generators, `Transaction` for statements and activity, and `SavingsTransaction` only in older history paths.
+- **Queries:** `Account` for balances and statements, `Transaction` for activity, and `SavingsTransaction` only in older history paths.
 - **Actual System Behavior:** The core `Account` table is the source of truth for savings balances, and the dedicated balance/zero-balance reports already read from `Account`.
-- **Impact:** The old note that savings balance reports were disconnected is no longer accurate.
+- **Impact:** Savings balance and statement reporting is connected. The only remaining caution is older transaction-history pages that may still prefer `SavingsTransaction` when it exists.
 
 ### 3. Share Reports
 - **Queries:** `ShareAccount` and `ShareTransaction`.
 - **Actual System Behavior:** The share purchase, transfer, and reconciliation flows write to these tables, so share reports can be populated from live operations.
-- **Impact:** Share account balance, statement, concentration, and transaction reports should be treated as connected, not disconnected.
+- **Impact:** Share account balance, statement, concentration, and transaction reports are connected.
 
 ### 4. SMS Banking Logs (`SmsLog`)
 - **Queries:** `db.smsLog`.
@@ -71,12 +71,12 @@ Below is the status of the report endpoints and how they connect to active trans
 | **General Audit Trail** | `/dashboard/reports/activity` | `/api/v1/reports/activity` | `AuditLog` | **Fully Connected** (Logged system actions). |
 | **Customer Accounting System** | `/dashboard/reports/customer-internal-accounting-system` | `/api/v1/reports/customer-internal-accounting-system` | `Account`, `Deposit`, `Withdrawal`, `Loan` | **Fully Connected** (Direct links to core tables). |
 | **Balance Sheet** | `/dashboard/reports/financial-statements/balance-sheet` | `/api/v1/reports/financial/balance-sheet` | `JournalEntry`, `ChartOfAccount` | **Fully Connected** (Double-entry entries recorded). |
-| **Profit & Loss** | `/dashboard/reports/financial-statements/profit-loss` | `/api/v1/reports/financial/profit-loss` | `IncomeRecord`, `ExpenditureRecord` | **Fully Connected** (Synced during deposits/fees). |
+| **Profit & Loss** | `/dashboard/reports/financial-statements/profit-loss` | `/api/v1/reports/financial/profit-loss` | `IncomeRecord`, `ExpenditureRecord`, loan-income fallbacks | **Fully Connected** (Loan-related income now rolls in from the unified income source). |
 | **Trial Balance** | `/dashboard/reports/financial-statements/trial-balance` | `/api/v1/reports/financial/trial-balance` | `JournalEntry`, `ChartOfAccount` | **Fully Connected** (Ledger account balances). |
 | **Statement of Comp. Balance Sheet** | `/dashboard/reports/statement-of-comprehensive-balance-sheet` | `/api/v1/reports/statement-of-comprehensive-balance-sheet` | `JournalEntry`, `ChartOfAccount` | **Fully Connected** (Ledger account balances). |
 | **Savings Account Listing** | `/dashboard/reports/savings/savings-listing` | `/api/v1/reports/savings/account-listing` | `Account` (original model) | **Fully Connected** (Pulls accounts from core database). |
 | **Savings Account Statement** | `/dashboard/reports/savings/savings-account-statement` | `/api/v1/reports/savings/account-statement` | `Account`, `Transaction` | **Fully Connected** (Pulls active transactions). |
-| **Savings Transactions Report** | `/dashboard/reports/savings-shares-reports/savings` | `/api/v1/reports/savings/transactions` | `SavingsTransaction` / `Transaction` | **Partially Connected** (Uses `Transaction` fallback). |
+| **Savings Transactions Report** | `/dashboard/reports/savings-shares-reports/savings` | `/api/v1/reports/savings/transactions` | `SavingsTransaction` / `Transaction` | **Partially Connected** (Uses `Transaction` fallback when the legacy table is empty). |
 | **Savings Account Balances** | `/dashboard/reports/savings/savings-balances` | `/api/v1/reports/savings/account-balance` | `Account` | **Fully Connected** (Core savings balances live in `Account`). |
 | **Savings Zero Balance** | `/dashboard/reports/savings/zero-balance` | `/api/v1/reports/savings/zero-balance` | `Account` | **Fully Connected** (Uses the core account table). |
 | **Share Concentration** | `/dashboard/reports/savings-shares-reports/shares` | `/api/v1/reports/shares/concentration` | `ShareAccount` | **Connected** (Share module writes to `ShareAccount` and `ShareTransaction`). |
@@ -88,7 +88,7 @@ Below is the status of the report endpoints and how they connect to active trans
 | **Transaction Register By Session** | `/dashboard/reports/transactions/register-session` | `/api/v1/reports/transactions/register-session` | `Transaction` | **Connected enough for live data** (legacy session naming, but built from live transactions). |
 | **Transaction Register By Date** | `/dashboard/reports/transactions/general-transaction-register-by-transaction-date` | `/api/v1/reports/transactions/general-transaction-register` | `Transaction` | **Fully Connected** (Pulls all active transactions). |
 | **Journal Listing By Date** | `/dashboard/reports/transactions/journal-transaction` | `/api/v1/reports/transactions/journal-transaction` | `JournalEntry` | **Fully Connected** (Pulls ledger updates). |
-| **Standing Orders** | `/dashboard/reports/standing-orders` | `/api/v1/reports/standing-orders` | `StandingOrder` | **Disconnected** (No active registrations exist). |
+| **Standing Orders** | `/dashboard/reports/standing-orders` | `/api/v1/reports/standing-orders` | `StandingOrder` | **Disconnected** (No active registrations exist yet). |
 | **SMS Banking** | `/dashboard/reports/sms-banking` | `/api/v1/reports/sms-banking` | `Notification` | **Connected** (Bulk SMS writes notification rows; report reads SMS notifications). |
 | **Asset Depreciation Schedule** | `/dashboard/reports/fixed-assets/depreciation` | `/api/v1/reports/fixed-assets` (depr.) | `FixedAsset` | **Connected** (Depreciation is calculated from active fixed assets on demand). |
 
@@ -96,7 +96,7 @@ Below is the status of the report endpoints and how they connect to active trans
 
 ## 🛠️ Recommendations for Synchronization
 
-1. **Unify the Account & Transaction Models**:
+1. **Unify the remaining legacy transaction views**:
    - Keep migrating the remaining legacy reports toward core tables where possible. The savings balance reports already use `Account`, but some older report paths still query extension tables directly.
    
 2. **Introduce a Float-to-Session Bridge**:

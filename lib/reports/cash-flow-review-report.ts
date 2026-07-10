@@ -7,6 +7,7 @@ import { buildTree, sortTreeByCodeOrName } from "@/lib/category-tree";
 import { calculateAccountBalance } from "@/lib/accounting-rules";
 import { REPORT_HEADER_DETAILS } from "@/lib/report-header";
 import { getBranchFilterForService, getOperationalBalances } from "@/lib/services/financial-reports";
+import { IncomeService } from "@/services/income.service";
 
 type AuthUserLike = {
   id?: string | null;
@@ -185,14 +186,18 @@ function queryOperationalIncome(
   toDate: Date,
   branchId: string | undefined,
 ) {
-  return db.incomeRecord.aggregate({
-    where: {
-      status: TransactionStatus.COMPLETED,
-      recordDate: { gte: fromDate, lte: toDate },
-      ...(branchId ? { branchId } : {}),
+  return IncomeService.getUnifiedIncomeRecords({
+    user: { role: UserRole.ADMIN, branchId: null },
+    branchId,
+    startDate: fromDate,
+    endDate: toDate,
+  }).then((records) => ({
+    _sum: {
+      amount: records
+        .filter((record) => String(record.status) === String(TransactionStatus.COMPLETED) || String(record.status) === String(TransactionStatus.APPROVED))
+        .reduce((sum, record) => sum + Number(record.amount || 0), 0),
     },
-    _sum: { amount: true },
-  });
+  }));
 }
 
 function queryOperationalExpenditure(

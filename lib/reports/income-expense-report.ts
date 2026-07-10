@@ -5,6 +5,7 @@ import { REPORT_HEADER_DETAILS } from "@/lib/report-header";
 import { calculateAccountBalance } from "@/lib/accounting-rules";
 import { getBranchFilterForService } from "@/lib/services/financial-reports";
 import { db } from "@/prisma/db";
+import { IncomeService } from "@/services/income.service";
 import type {
   IncomeExpenseAccount,
   IncomeExpenseDrilldown,
@@ -334,46 +335,18 @@ export async function buildIncomeExpenseReport(input: {
     aggregateEntries(accountIds, compareStartDate, compareEndDate, branchId),
   ]);
 
-  const [currentFeeRecords, compareFeeRecords, currentIncAgg, compareIncAgg, currentExpAgg, compareExpAgg] = await Promise.all([
-    db.incomeRecord.findMany({
-      where: {
-        recordDate: { gte: startDate, lte: endDate },
-        status: TransactionStatus.COMPLETED,
-        ...(branchId ? { branchId } : {}),
-      },
-      select: {
-        amount: true,
-        description: true,
-        budgetCategory: {
-          select: {
-            code: true,
-          },
-        },
-      },
+  const [currentFeeRecords, compareFeeRecords, currentExpAgg, compareExpAgg] = await Promise.all([
+    IncomeService.getUnifiedIncomeRecords({
+      user: input.user,
+      branchId,
+      startDate,
+      endDate,
     }),
-    db.incomeRecord.findMany({
-      where: {
-        recordDate: { gte: compareStartDate, lte: compareEndDate },
-        status: TransactionStatus.COMPLETED,
-        ...(branchId ? { branchId } : {}),
-      },
-      select: {
-        amount: true,
-        description: true,
-        budgetCategory: {
-          select: {
-            code: true,
-          },
-        },
-      },
-    }),
-    db.incomeRecord.aggregate({
-      where: { recordDate: { gte: startDate, lte: endDate }, status: TransactionStatus.COMPLETED, ...(branchId ? { branchId } : {}) },
-      _sum: { amount: true },
-    }),
-    db.incomeRecord.aggregate({
-      where: { recordDate: { gte: compareStartDate, lte: compareEndDate }, status: TransactionStatus.COMPLETED, ...(branchId ? { branchId } : {}) },
-      _sum: { amount: true },
+    IncomeService.getUnifiedIncomeRecords({
+      user: input.user,
+      branchId,
+      startDate: compareStartDate,
+      endDate: compareEndDate,
     }),
     db.expenditureRecord.aggregate({
       where: { recordDate: { gte: startDate, lte: endDate }, status: TransactionStatus.COMPLETED, ...(branchId ? { branchId } : {}) },
@@ -385,8 +358,8 @@ export async function buildIncomeExpenseReport(input: {
     }),
   ]);
 
-  const currentIncTotal = Number(currentIncAgg._sum.amount || 0);
-  const compareIncTotal = Number(compareIncAgg._sum.amount || 0);
+  const currentIncTotal = currentFeeRecords.reduce((sum, record) => sum + Number(record.amount || 0), 0);
+  const compareIncTotal = compareFeeRecords.reduce((sum, record) => sum + Number(record.amount || 0), 0);
   const currentExpTotal = Number(currentExpAgg._sum.amount || 0);
   const compareExpTotal = Number(compareExpAgg._sum.amount || 0);
 
