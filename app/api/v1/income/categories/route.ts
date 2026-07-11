@@ -3,8 +3,6 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
 import { db } from "@/prisma/db";
 import { Prisma } from "@prisma/client";
-import { ensureIncomeStructure } from "@/lib/services/income-structure";
-import { HIDDEN_COA_CODES } from "@/lib/accounting/coa-identity";
 
 function toNumericCode(value: unknown) {
   const parsed = Number(String(value || "").trim());
@@ -27,17 +25,6 @@ async function backfillMissingIncomeCodes() {
       },
     },
   });
-
-  await db.$transaction([
-    db.budgetCategory.updateMany({
-      where: { code: { in: Array.from(HIDDEN_COA_CODES) } },
-      data: { isActive: false },
-    }),
-    db.chartOfAccount.updateMany({
-      where: { accountCode: { in: Array.from(HIDDEN_COA_CODES) } },
-      data: { isActive: false },
-    }),
-  ]);
 
   const categoriesById = new Map(categories.map((category) => [category.id, category]));
   const usedCodes = new Set(
@@ -85,24 +72,6 @@ async function backfillMissingIncomeCodes() {
         where: { id: update.id },
         data: { code: update.code },
       });
-
-      const existingCoa = await tx.chartOfAccount.findFirst({
-        where: {
-          ledgerType: "INCOME",
-          accountName: update.name,
-        },
-        orderBy: { createdAt: "desc" },
-      });
-
-      if (existingCoa) {
-        await tx.chartOfAccount.update({
-          where: { id: existingCoa.id },
-          data: {
-            accountCode: update.code,
-            fullCode: update.code,
-          },
-        });
-      }
     }
   });
 
@@ -121,18 +90,12 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const includeInactive = searchParams.get("includeInactive") === "true";
 
-    await ensureIncomeStructure();
     await backfillMissingIncomeCodes();
 
     const categories = await db.budgetCategory.findMany({
       where: {
         kind: "INCOME",
         ...(includeInactive ? {} : { isActive: true }),
-        NOT: {
-          code: {
-            in: Array.from(HIDDEN_COA_CODES),
-          },
-        },
       },
       include: {
         parent: true,
@@ -226,7 +189,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Transaction: Create Category + COA Entry
+    // Transaction: Create / update category only
     const result = await db.$transaction(async (tx) => {
       // 1. Create Budget Category
       const category = trimmedCode
@@ -283,10 +246,6 @@ export async function POST(request: NextRequest) {
         throw new Error("Category with this code already exists");
       }
 
-      // 2. Sync to Chart of Accounts (Hub)
-      const ledgerType = "INCOME";
-      const debitCredit = "CR"; // Income is Credit
-
       const parentCategory = parentId
         ? await tx.budgetCategory.findUnique({
             where: { id: parentId },
@@ -315,35 +274,14 @@ export async function POST(request: NextRequest) {
 
       const generatedCode = parentCategory?.code
         ? String(nextNumericCode).padStart(String(parentCategory.code).length, "0")
-        : `4${String((await tx.chartOfAccount.count({ where: { ledgerType } })) + 1).padStart(4, "0")}`;
+        : `4${String((await tx.budgetCategory.count({ where: { kind: "INCOME" } })) + 1).padStart(4, "0")}`;
 
       const finalAccountCode = trimmedCode || generatedCode;
-
-      // Ensure code is unique in COA
-      const existingCoa = await tx.chartOfAccount.findUnique({
-        where: { accountCode: finalAccountCode }
-      });
-
-      const uniqueAccountCode = existingCoa ? `${finalAccountCode}-${Date.now().toString().slice(-4)}` : finalAccountCode;
-
-      await tx.chartOfAccount.create({
-        data: {
-          accountName: trimmedName,
-          accountCode: uniqueAccountCode,
-          fullCode: uniqueAccountCode,
-          ledgerType: ledgerType,
-          debitCredit: debitCredit,
-          isActive: true,
-          level: 1,
-          description: `Auto-generated from Income Category: ${trimmedName}`,
-          category: "INCOME"
-        }
-      });
 
       const finalCategory = !trimmedCode
         ? await tx.budgetCategory.update({
             where: { id: category.id },
-            data: { code: uniqueAccountCode },
+            data: { code: finalAccountCode },
             include: {
               parent: true,
               children: true,
@@ -357,6 +295,26 @@ export async function POST(request: NextRequest) {
             },
           })
         : category;
+
+      // ── Ensure matching COA row exists for journal entry posting ──
+      const existingCOA = await tx.chartOfAccount.findFirst({
+        where: { accountCode: finalAccountCode, isActive: true },
+      });
+      if (!existingCOA) {
+        await tx.chartOfAccount.create({
+          data: {
+            accountName: trimmedName,
+            accountCode: finalAccountCode,
+            fullCode: finalAccountCode,
+            ledgerType: "INCOME",
+            debitCredit: "CR",
+            isActive: true,
+            level: 1,
+            description: `Auto-generated from INCOME category: ${trimmedName}`,
+            category: "INCOME",
+          },
+        });
+      }
 
       return finalCategory;
     });

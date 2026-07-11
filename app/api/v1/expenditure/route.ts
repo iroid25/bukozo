@@ -104,17 +104,88 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Only pending expenditures can be updated" }, { status: 403 });
     }
 
-    const updatedRecord = await db.expenditureRecord.update({
-      where: { id },
-      data: {
-        budgetCategoryId: data.categoryId,
-        amount: data.amount,
-        description: data.description,
-        payee: data.payee,
-        paymentMethod: data.paymentMethod,
-        voucherNo: data.voucherNo,
-        status: data.status,
-      },
+    // If record is COMPLETED and amount/category is changing, reverse old JEs and re-create
+    const isChangingFinancials =
+      existingRecord.status === TransactionStatus.COMPLETED &&
+      (data.amount !== undefined || data.categoryId !== undefined);
+
+    const updatedRecord = await db.$transaction(async (tx) => {
+      if (isChangingFinancials) {
+        await reverseJournalEntriesForRecord(id, user.id, `Expenditure update - ${existingRecord.description || id}`, tx, existingRecord.recordDate ?? undefined, existingRecord.branchId ?? undefined);
+      }
+
+      const record = await tx.expenditureRecord.update({
+        where: { id },
+        data: {
+          budgetCategoryId: data.categoryId,
+          amount: data.amount,
+          description: data.description,
+          payee: data.payee,
+          paymentMethod: data.paymentMethod,
+          voucherNo: data.voucherNo,
+          status: data.status,
+        },
+      });
+
+      // Re-create JEs if the record is COMPLETED and financials changed
+      if (isChangingFinancials && record.status === TransactionStatus.COMPLETED) {
+        const catId = data.categoryId || existingRecord.budgetCategoryId;
+        const cat = catId ? await tx.budgetCategory.findUnique({ where: { id: catId } }) : null;
+        const catCode = cat?.code;
+        if (catCode) {
+          const expenseAccount = await tx.chartOfAccount.findFirst({
+            where: { accountCode: catCode, isActive: true },
+          });
+          if (expenseAccount) {
+            const assetCode = (data.paymentMethod || existingRecord.paymentMethod) === "CASH" ? "101100" : "102001";
+            const assetAccount = await tx.chartOfAccount.findFirst({
+              where: { accountCode: assetCode, isActive: true },
+            });
+            if (assetAccount) {
+              const entryNumber = `JE-EXP-${Date.now()}`;
+              const { buildAccountBalanceUpdate } = await import("@/lib/accounting-rules");
+              await tx.journalEntry.create({
+                data: {
+                  entryNumber,
+                  accountId: expenseAccount.id,
+                  debitAmount: record.amount,
+                  creditAmount: 0,
+                  description: `Expenditure: ${record.description || cat?.name || ""}`,
+                  entryDate: new Date(),
+                  reference: `EXP-${record.id.slice(0, 8)}`,
+                  branchId: record.branchId || undefined,
+                  transactionId: record.id,
+                  createdByUserId: user.id,
+                },
+              });
+              await tx.journalEntry.create({
+                data: {
+                  entryNumber,
+                  accountId: assetAccount.id,
+                  debitAmount: 0,
+                  creditAmount: record.amount,
+                  description: `Expenditure: ${record.description || cat?.name || ""}`,
+                  entryDate: new Date(),
+                  reference: `EXP-${record.id.slice(0, 8)}`,
+                  branchId: record.branchId || undefined,
+                  transactionId: record.id,
+                  createdByUserId: user.id,
+                },
+              });
+              await tx.chartOfAccount.update({
+                where: { id: expenseAccount.id },
+                data: buildAccountBalanceUpdate(expenseAccount, { debitAmount: record.amount }),
+              });
+              await tx.chartOfAccount.update({
+                where: { id: assetAccount.id },
+                data: buildAccountBalanceUpdate(assetAccount, { creditAmount: record.amount }),
+              });
+            }
+          }
+        }
+      }
+
+      return record;
     });
 
     void bumpAccountingSyncState("Expenditure record updated");

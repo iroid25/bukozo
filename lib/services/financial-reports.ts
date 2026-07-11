@@ -1,6 +1,7 @@
 import { db } from "@/prisma/db";
 import { UserRole, TransactionStatus, CategoryKind, TransactionType } from "@prisma/client";
 import { calculateAccountBalance } from "@/lib/accounting-rules";
+import { getDirectBalanceSheetAccounts, getDirectTrialBalanceAccounts, getDirectOperationalBalances } from "@/lib/reports/direct-source";
 
 const CASH_AT_HAND_CODE = "101100";
 
@@ -596,94 +597,21 @@ export async function getBalanceSheetService(
   const sectionFilter = filters.section || "all";
   const subSectionFilter = filters.subSection || "all";
 
-  const accounts = await db.chartOfAccount.findMany({
-    where: { isActive: true },
-    select: {
-      id: true,
-      accountCode: true,
-      accountName: true,
-      fullCode: true,
-      ledgerType: true,
-      level: true,
-      category: true,
-      parent: {
-        select: {
-          accountCode: true,
-          accountName: true,
-        },
-      },
-      balance: true,
-      debitBalance: true,
-      creditBalance: true,
-    },
-    orderBy: { accountCode: "asc" },
-  });
+  // ── Direct source: read from real tables instead of COA + JournalEntry ──
+  const directAccounts = await getDirectBalanceSheetAccounts(asOf, branchFilter.branchId || undefined);
 
-  const balancesByAccountId = new Map<
-    string,
-    { debit: number; credit: number; balance: number }
-  >();
-
-  if (accounts.length > 0) {
-    const jeWhere: any = {
-      accountId: { in: accounts.map((account) => account.id) },
-      entryDate: { lte: asOf },
-    };
-    if (branchFilter.branchId) {
-      jeWhere.OR = [
-        { transaction: { branchId: branchFilter.branchId } },
-        { transactionId: null, branchId: branchFilter.branchId },
-      ];
-    }
-    const grouped = await db.journalEntry.groupBy({
-      by: ["accountId"],
-      where: jeWhere,
-      _sum: {
-        debitAmount: true,
-        creditAmount: true,
-      },
-    });
-
-    grouped.forEach((entry) => {
-      const account = accounts.find((item) => item.id === entry.accountId);
-      if (!account) return;
-
-      const debit = entry._sum.debitAmount || 0;
-      const credit = entry._sum.creditAmount || 0;
-      const balance = calculateAccountBalance(account.ledgerType, debit, credit);
-
-      balancesByAccountId.set(entry.accountId, { debit, credit, balance });
-    });
-  }
-
-  const mappedAccounts = accounts.map((account) => {
-    const jeBalance = balancesByAccountId.get(account.id);
-
-    return {
-      accountId: account.id,
-      accountCode: account.accountCode,
-      accountName: account.accountName,
-      balance: jeBalance ? jeBalance.balance : 0,
-      debit: jeBalance ? jeBalance.debit : 0,
-      credit: jeBalance ? jeBalance.credit : 0,
-      ledgerType: account.ledgerType,
-      category: account.parent?.accountName || account.category || account.ledgerType,
-      fullCode: account.fullCode,
-      level: account.level,
-    };
-  });
-
-  const cashAtHandPrincipal = await getCashAtHandPrincipalTotal(
-    asOf,
-    branchFilter.branchId || undefined,
-  );
-  for (const account of mappedAccounts) {
-    if (account.accountCode === CASH_AT_HAND_CODE) {
-      account.balance = cashAtHandPrincipal;
-      account.debit = cashAtHandPrincipal;
-      account.credit = 0;
-    }
-  }
+  const mappedAccounts = directAccounts.map((account) => ({
+    accountId: account.id,
+    accountCode: account.accountCode,
+    accountName: account.accountName,
+    balance: account.balance,
+    debit: account.debit,
+    credit: account.credit,
+    ledgerType: account.ledgerType,
+    category: account.category || account.ledgerType,
+    fullCode: account.fullCode || account.accountCode,
+    level: account.level || 1,
+  }));
 
   const visibleAccounts = mappedAccounts.filter((account) => {
     if (!includeZeroBalances && Math.abs(account.balance) <= 0.009) return false;
@@ -722,7 +650,7 @@ export async function getBalanceSheetService(
     nonCurrentAssetAccounts,
     (account) => resolveAssetSection(account).lineItem,
   );
-  let currentLiabilityItems = makeStructuredItems(
+  const currentLiabilityItems = makeStructuredItems(
     currentLiabilityAccounts,
     (account) => resolveLiabilitySection(account).lineItem,
   );
@@ -735,26 +663,28 @@ export async function getBalanceSheetService(
     (account) => resolveEquityLine(account),
   );
 
-  // Member savings live in Account.balance, not in GL journal entries.
-  // The GL liability accounts sum to a small/negative value because savings deposits
-  // never created JournalEntry records. Replacing GL current liabilities entirely with
-  // the operational total makes this page consistent with /accounts/liabilities.
-  const ops = await getOperationalBalances(asOf, branchFilter);
-  if (ops.memberSavingsDeposits > 0) {
-    currentLiabilityItems = [
-      {
-        label: "Member Deposits",
-        amount: ops.memberSavingsDeposits,
-        accounts: [{ code: "", name: "Member Savings Accounts", balance: ops.memberSavingsDeposits }],
+  // Surplus / (Deficit) for the Period — computed from IncomeRecord + ExpenditureRecord
+  const [incomeAgg, expenditureAgg] = await Promise.all([
+    db.incomeRecord.aggregate({
+      where: {
+        status: "COMPLETED",
+        ...(branchFilter.branchId
+          ? { member: { user: { branchId: branchFilter.branchId } } }
+          : {}),
       },
-    ];
-  }
-
-  // Inject Surplus / (Deficit) for the Period from P&L into equity.
-  // Net profit = total income - total expenditure recorded operationally.
-  // This is the figure that would otherwise appear as the red "difference" line,
-  // so placing it in equity makes Assets = Liabilities + Equity balance correctly.
-  const netProfitForPeriod = ops.incomeTotal - ops.expenditureTotal;
+      _sum: { amount: true },
+    }),
+    db.expenditureRecord.aggregate({
+      where: {
+        status: "COMPLETED",
+        ...(branchFilter.branchId
+          ? { member: { user: { branchId: branchFilter.branchId } } }
+          : {}),
+      },
+      _sum: { amount: true },
+    }),
+  ]);
+  const netProfitForPeriod = (incomeAgg._sum?.amount || 0) - (expenditureAgg._sum?.amount || 0);
   const surplusLabel = netProfitForPeriod >= 0 ? "Surplus for the Period" : "Deficit for the Period";
   const surplusItemIdx = equityItems.findIndex(
     (i) => i.label === surplusLabel || i.label === "Surplus for the Period" || i.label === "Deficit for the Period",
@@ -986,121 +916,51 @@ export async function getTrialBalanceService(
 ) {
   const branchFilter = await getBranchFilterForService(user, branchId);
 
-  // All active GL accounts ordered by code
-  const accounts = await db.chartOfAccount.findMany({
-    where: { isActive: true },
-    select: {
-      id: true,
-      accountCode: true,
-      accountName: true,
-      ledgerType: true,
-      debitBalance: true,
-      creditBalance: true,
-    },
-    orderBy: { accountCode: "asc" },
-  }).catch(() => [] as any[]);
+  // Direct source: query real tables at two dates to derive opening/closing
+  const openingDate = new Date(startDate);
+  openingDate.setDate(openingDate.getDate() - 1);
+  openingDate.setHours(23, 59, 59, 999);
 
-  const accountIds = accounts.map((a: any) => a.id);
-
-  // Branch filter: include both transaction-linked and standalone GL entries
-  const txFilter = branchFilter.branchId
-    ? {
-        OR: [
-          { transaction: { branchId: branchFilter.branchId } },
-          { transactionId: null as string | null, branchId: branchFilter.branchId },
-        ],
-      }
-    : {};
-
-  // Two aggregate queries: opening (before period) and period movements
-  const [openingResult, periodResult] = await Promise.allSettled([
-    accountIds.length > 0
-      ? db.journalEntry.groupBy({
-          by: ["accountId"],
-          where: {
-            accountId: { in: accountIds },
-            entryDate: { lt: startDate },
-            ...txFilter,
-          },
-          _sum: { debitAmount: true, creditAmount: true },
-        })
-      : Promise.resolve([] as any[]),
-    accountIds.length > 0
-      ? db.journalEntry.groupBy({
-          by: ["accountId"],
-          where: {
-            accountId: { in: accountIds },
-            entryDate: { gte: startDate, lte: endDate },
-            ...txFilter,
-          },
-          _sum: { debitAmount: true, creditAmount: true },
-        })
-      : Promise.resolve([] as any[]),
+  const [openingAccounts, closingAccounts] = await Promise.all([
+    getDirectTrialBalanceAccounts(openingDate, branchFilter.branchId || undefined),
+    getDirectTrialBalanceAccounts(endDate, branchFilter.branchId || undefined),
   ]);
 
-  const openingMap = new Map<string, { debit: number; credit: number }>();
-  if (openingResult.status === "fulfilled") {
-    for (const row of openingResult.value as any[]) {
-      openingMap.set(row.accountId, {
-        debit: row._sum.debitAmount ?? 0,
-        credit: row._sum.creditAmount ?? 0,
-      });
-    }
-  }
-
-  const periodMap = new Map<string, { debit: number; credit: number }>();
-  if (periodResult.status === "fulfilled") {
-    for (const row of periodResult.value as any[]) {
-      periodMap.set(row.accountId, {
-        debit: row._sum.debitAmount ?? 0,
-        credit: row._sum.creditAmount ?? 0,
-      });
-    }
-  }
-
-  // When no journal entries exist at all, fall back to stored cumulative balances
-  const hasJournalData = openingMap.size > 0 || periodMap.size > 0;
+  // Index closing accounts by code for quick lookup
+  const closingByCode = new Map(closingAccounts.map((a) => [a.accountCode, a]));
 
   const entries: TBEntry[] = [];
 
-  for (const account of accounts as any[]) {
-    let openDr: number, openCr: number, periodDr: number, periodCr: number;
+  for (const opening of openingAccounts) {
+    const closing = closingByCode.get(opening.accountCode);
+    if (!closing) continue;
 
-    if (hasJournalData) {
-      const op = openingMap.get(account.id) ?? { debit: 0, credit: 0 };
-      const pr = periodMap.get(account.id) ?? { debit: 0, credit: 0 };
-      openDr = op.debit;
-      openCr = op.credit;
-      periodDr = pr.debit;
-      periodCr = pr.credit;
-    } else {
-      // Fallback: treat stored balance as opening, no period movements
-      openDr = account.debitBalance ?? 0;
-      openCr = account.creditBalance ?? 0;
-      periodDr = 0;
-      periodCr = 0;
-    }
+    const isDebitNormal = opening.ledgerType === "ASSETS" || opening.ledgerType === "EXPENDITURES";
 
-    const totalDr = openDr + periodDr;
-    const totalCr = openCr + periodCr;
-    if (totalDr === 0 && totalCr === 0) continue;
+    // Opening balances: debit/credit sides
+    const openDr = isDebitNormal ? Math.max(opening.balance, 0) : opening.balance < 0 ? Math.abs(opening.balance) : 0;
+    const openCr = !isDebitNormal ? Math.max(opening.balance, 0) : opening.balance < 0 ? Math.abs(opening.balance) : 0;
 
-    // Net closing balance, placed on normal balance side
-    const isDebitNormal = account.ledgerType === "ASSETS" || account.ledgerType === "EXPENDITURES";
-    const net = isDebitNormal ? totalDr - totalCr : totalCr - totalDr;
-    const closingDebit = isDebitNormal ? Math.max(net, 0) : net < 0 ? Math.abs(net) : 0;
-    const closingCredit = !isDebitNormal ? Math.max(net, 0) : net < 0 ? Math.abs(net) : 0;
+    // Closing balances: debit/credit sides
+    const closeDr = isDebitNormal ? Math.max(closing.balance, 0) : closing.balance < 0 ? Math.abs(closing.balance) : 0;
+    const closeCr = !isDebitNormal ? Math.max(closing.balance, 0) : closing.balance < 0 ? Math.abs(closing.balance) : 0;
+
+    // Period movements = closing - opening
+    const periodDr = Math.max(closeDr - openDr, 0);
+    const periodCr = Math.max(closeCr - openCr, 0);
+
+    if (closeDr === 0 && closeCr === 0) continue;
 
     entries.push({
-      accountCode: account.accountCode,
-      accountName: account.accountName,
-      ledgerType: account.ledgerType,
+      accountCode: opening.accountCode,
+      accountName: opening.accountName,
+      ledgerType: opening.ledgerType,
       openingDebit: openDr,
       openingCredit: openCr,
       periodDebit: periodDr,
       periodCredit: periodCr,
-      closingDebit,
-      closingCredit,
+      closingDebit: closeDr,
+      closingCredit: closeCr,
     });
   }
 

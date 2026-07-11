@@ -1,9 +1,7 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
-import { calculateAccountBalance } from "@/lib/accounting-rules";
-import { db } from "@/prisma/db";
-import { hydrateAccountsWithJournalBalances } from "@/lib/services/chartOfAccounts";
+import { getDirectBalanceSheetAccounts, getDirectIncomeExpenseAccounts } from "@/lib/reports/direct-source";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -28,19 +26,14 @@ async function generateSummary(request: NextRequest) {
       );
     }
 
-    // Get all active accounts and hydrate with live journal balances
-    const accounts = await db.chartOfAccount.findMany({
-      where: { isActive: true },
-      select: {
-        id: true,
-        ledgerType: true,
-        debitBalance: true,
-        creditBalance: true,
-        balance: true,
-      },
-    });
+    // Get all account balances from direct source
+    const now = new Date();
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
 
-    const hydrated = await hydrateAccountsWithJournalBalances(accounts);
+    const [balanceSheetAccounts, incomeExpenseAccounts] = await Promise.all([
+      getDirectBalanceSheetAccounts(now),
+      getDirectIncomeExpenseAccounts(startOfYear, now),
+    ]);
 
     // Calculate totals by ledger type
     const summary = {
@@ -53,42 +46,22 @@ async function generateSummary(request: NextRequest) {
       profitMargin: 0,
     };
 
-    hydrated.forEach((account: any) => {
+    [...balanceSheetAccounts, ...incomeExpenseAccounts].forEach((account) => {
       switch (account.ledgerType) {
         case "INCOME":
-          summary.totalIncome += calculateAccountBalance(
-            account.ledgerType,
-            account.debitBalance,
-            account.creditBalance,
-          );
+          summary.totalIncome += account.balance;
           break;
         case "EXPENDITURES":
-          summary.totalExpenses += calculateAccountBalance(
-            account.ledgerType,
-            account.debitBalance,
-            account.creditBalance,
-          );
+          summary.totalExpenses += account.balance;
           break;
         case "ASSETS":
-          summary.totalAssets += calculateAccountBalance(
-            account.ledgerType,
-            account.debitBalance,
-            account.creditBalance,
-          );
+          summary.totalAssets += account.balance;
           break;
         case "LIABILITIES":
-          summary.totalLiabilities += calculateAccountBalance(
-            account.ledgerType,
-            account.debitBalance,
-            account.creditBalance,
-          );
+          summary.totalLiabilities += account.balance;
           break;
         case "EQUITY":
-          summary.totalEquity += calculateAccountBalance(
-            account.ledgerType,
-            account.debitBalance,
-            account.creditBalance,
-          );
+          summary.totalEquity += account.balance;
           break;
       }
     });

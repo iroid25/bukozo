@@ -5,7 +5,7 @@ import { REPORT_HEADER_DETAILS } from "@/lib/report-header";
 import { calculateAccountBalance } from "@/lib/accounting-rules";
 import { getBranchFilterForService } from "@/lib/services/financial-reports";
 import { db } from "@/prisma/db";
-import { IncomeService } from "@/services/income.service";
+import { getSourceDrilldown } from "@/lib/reports/direct-source";
 import type {
   IncomeExpenseAccount,
   IncomeExpenseDrilldown,
@@ -59,18 +59,6 @@ const SECTION_LABELS: Record<SectionType, string> = {
   EXPENDITURES: "Expenses",
 };
 
-const WITHDRAWAL_FEE_ACCOUNT_CODE = "405001";
-const LOAN_PROCESSING_FEE_ACCOUNT_CODE = "401002";
-
-type AccountRecord = {
-  id: string;
-  accountCode: string;
-  accountName: string;
-  ledgerType: AccountLedgerType;
-};
-
-type Aggregates = Map<string, { debit: number; credit: number; count: number }>;
-
 function normalizeDate(value?: string | Date | null) {
   if (!value) return null;
   const date = typeof value === "string" ? parseISO(value) : value;
@@ -81,15 +69,6 @@ function toEndOfDay(date: Date): Date {
   const d = new Date(date);
   d.setHours(23, 59, 59, 999);
   return d;
-}
-
-function formatMoney(value: number) {
-  const negative = value < 0;
-  const amount = new Intl.NumberFormat("en-UG", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(Math.abs(value || 0));
-  return `${negative ? "(" : ""}${amount}${negative ? ")" : ""}`;
 }
 
 function resolveGroup(accountCode: string, section: SectionType) {
@@ -119,20 +98,6 @@ function getDefaultComparePeriod(currentStart: Date) {
   };
 }
 
-function buildGroupMap(records: AccountRecord[]) {
-  const groups = new Map<string, { definition: GroupDefinition; records: AccountRecord[] }>();
-
-  records.forEach((record) => {
-    const section = record.ledgerType === AccountLedgerType.INCOME ? "INCOME" : "EXPENDITURES";
-    const definition = resolveGroup(record.accountCode, section);
-    const current = groups.get(definition.code) || { definition, records: [] };
-    current.records.push(record);
-    groups.set(definition.code, current);
-  });
-
-  return Array.from(groups.values()).sort((a, b) => a.definition.code.localeCompare(b.definition.code));
-}
-
 async function loadBranchName(branchId?: string | null) {
   if (!branchId) return "All Branches";
   const branch = await db.branch.findUnique({
@@ -140,64 +105,6 @@ async function loadBranchName(branchId?: string | null) {
     select: { name: true },
   });
   return branch?.name || branchId;
-}
-
-async function aggregateEntries(
-  accountIds: string[],
-  startDate: Date,
-  endDate: Date,
-  branchId?: string,
-) {
-  if (accountIds.length === 0) return new Map<string, { debit: number; credit: number; count: number }>();
-
-  const entries = await db.journalEntry.findMany({
-    where: {
-      accountId: { in: accountIds },
-      entryDate: { gte: startDate, lte: endDate },
-      ...(branchId
-        ? {
-            OR: [
-              { transaction: { branchId } },
-              { transactionId: null, branchId },
-            ],
-          }
-        : {}),
-    },
-    select: {
-      accountId: true,
-      debitAmount: true,
-      creditAmount: true,
-    },
-  });
-
-  const aggregates: Aggregates = new Map();
-  for (const entry of entries) {
-    const current = aggregates.get(entry.accountId) || { debit: 0, credit: 0, count: 0 };
-    current.debit += Number(entry.debitAmount || 0);
-    current.credit += Number(entry.creditAmount || 0);
-    current.count += 1;
-    aggregates.set(entry.accountId, current);
-  }
-
-  return aggregates;
-}
-
-function buildAccountRow(record: AccountRecord, current: { debit: number; credit: number; count: number } | undefined, compare: { debit: number; credit: number; count: number } | undefined): IncomeExpenseAccount {
-  const section: SectionType = record.ledgerType === AccountLedgerType.INCOME ? "INCOME" : "EXPENDITURES";
-  const currentValue = calculateAccountBalance(record.ledgerType, current?.debit || 0, current?.credit || 0);
-  const compareValue = calculateAccountBalance(record.ledgerType, compare?.debit || 0, compare?.credit || 0);
-
-  return {
-    code: record.accountCode,
-    name: record.accountName,
-    current_period: currentValue,
-    prior_ytd: compareValue,
-    closing: compareValue + currentValue,
-    journal_count: current?.count || 0,
-    section,
-    group_code: resolveGroup(record.accountCode, section).code,
-    group_name: resolveGroup(record.accountCode, section).name,
-  };
 }
 
 function normalizeAccountName(value: string) {
@@ -224,57 +131,15 @@ function dedupeIncomeExpenseAccounts(accounts: IncomeExpenseAccount[]) {
   return Array.from(grouped.values()).sort((a, b) => a.code.localeCompare(b.code));
 }
 
-function aggregateFeeIncomeRecords(records: Array<{ amount: number; description: string | null; budgetCategory?: { code?: string | null } | null }>) {
-  return records.reduce(
-    (acc, record) => {
-      const description = record.description || "";
-      const categoryCode = record.budgetCategory?.code || "";
-      if (!/withdrawal\s+fee/i.test(description) && !/mobile\s+money\s+withdrawal\s+fee/i.test(description) && !/loan\s+application\s+fee/i.test(description) && !/loan\s+processing\s+fee/i.test(description)) {
-        return acc;
-      }
-
-      if (categoryCode && categoryCode !== WITHDRAWAL_FEE_ACCOUNT_CODE && categoryCode !== LOAN_PROCESSING_FEE_ACCOUNT_CODE) {
-        return acc;
-      }
-
-      acc.amount += Number(record.amount || 0);
-      acc.count += 1;
-      return acc;
-    },
-    { amount: 0, count: 0 },
-  );
-}
-
-function aggregateLoanProcessingFeeRecords(records: Array<{ amount: number; description: string | null; budgetCategory?: { code?: string | null } | null }>) {
-  return records.reduce(
-    (acc, record) => {
-      const description = record.description || "";
-      const categoryCode = record.budgetCategory?.code || "";
-      if (categoryCode === LOAN_PROCESSING_FEE_ACCOUNT_CODE || /loan\s+processing\s+fee/i.test(description)) {
-        acc.amount += Number(record.amount || 0);
-        acc.count += 1;
-      }
-      return acc;
-    },
-    { amount: 0, count: 0 },
-  );
-}
-
 
 export async function listAccountsForIncomeExpense(user: any) {
   const branchFilter = await getBranchFilterForService(user, user.branchId || undefined);
-  const accounts = await db.chartOfAccount.findMany({
-    where: {
-      isActive: true,
-      ledgerType: { in: [AccountLedgerType.INCOME, AccountLedgerType.EXPENDITURES] },
-    },
-    select: {
-      id: true,
-      accountCode: true,
-      accountName: true,
-      ledgerType: true,
-    },
-    orderBy: [{ ledgerType: "asc" }, { accountCode: "asc" }],
+
+  // Read from BudgetCategory instead of COA — BudgetCategory now has matching COA codes
+  const categories = await db.budgetCategory.findMany({
+    where: { isActive: true, kind: { in: ["INCOME", "EXPENSE"] } },
+    select: { id: true, name: true, code: true, kind: true },
+    orderBy: { name: "asc" },
   });
 
   return {
@@ -282,12 +147,12 @@ export async function listAccountsForIncomeExpense(user: any) {
       id: branchFilter.branchId || "all",
       name: await loadBranchName(branchFilter.branchId || null),
     },
-    accounts: accounts.map((account) => ({
-      code: account.accountCode,
-      name: account.accountName,
-      ledgerType: account.ledgerType,
-      section: account.ledgerType === AccountLedgerType.INCOME ? "INCOME" : "EXPENDITURES",
-      group: resolveGroup(account.accountCode, account.ledgerType === AccountLedgerType.INCOME ? "INCOME" : "EXPENDITURES").name,
+    accounts: categories.map((cat) => ({
+      code: cat.code || "",
+      name: cat.name,
+      ledgerType: cat.kind === "INCOME" ? AccountLedgerType.INCOME : AccountLedgerType.EXPENDITURES,
+      section: cat.kind === "INCOME" ? "INCOME" : "EXPENDITURES",
+      group: resolveGroup(cat.code || "", cat.kind === "INCOME" ? "INCOME" : "EXPENDITURES").name,
     })),
   };
 }
@@ -315,163 +180,93 @@ export async function buildIncomeExpenseReport(input: {
   const branchFilter = await getBranchFilterForService(input.user, input.branchId || undefined);
   const branchId = branchFilter.branchId;
 
-  const accounts = await db.chartOfAccount.findMany({
-    where: {
-      isActive: true,
-      ledgerType: { in: [AccountLedgerType.INCOME, AccountLedgerType.EXPENDITURES] },
-    },
-    select: {
-      id: true,
-      accountCode: true,
-      accountName: true,
-      ledgerType: true,
-    },
-    orderBy: [{ ledgerType: "asc" }, { accountCode: "asc" }],
+  // Read BudgetCategory for account structure
+  const categories = await db.budgetCategory.findMany({
+    where: { isActive: true, kind: { in: ["INCOME", "EXPENSE"] } },
+    select: { id: true, name: true, code: true, kind: true },
+    orderBy: [{ kind: "asc" }, { name: "asc" }],
   });
 
-  const accountIds = accounts.map((account) => account.id);
-  const [currentAggregates, compareAggregates] = await Promise.all([
-    aggregateEntries(accountIds, startDate, endDate, branchId),
-    aggregateEntries(accountIds, compareStartDate, compareEndDate, branchId),
+  // Direct source: read from IncomeRecord and ExpenditureRecord
+  const [currentIncomeRecords, compareIncomeRecords, currentExpRecords, compareExpRecords] = await Promise.all([
+    db.incomeRecord.groupBy({
+      by: ["budgetCategoryId"],
+      where: {
+        recordDate: { gte: startDate, lte: endDate },
+        status: { in: [TransactionStatus.COMPLETED, TransactionStatus.APPROVED] },
+        ...(branchId ? { member: { user: { branchId } } } : {}),
+      },
+      _sum: { amount: true },
+      _count: { id: true },
+    }),
+    db.incomeRecord.groupBy({
+      by: ["budgetCategoryId"],
+      where: {
+        recordDate: { gte: compareStartDate, lte: compareEndDate },
+        status: { in: [TransactionStatus.COMPLETED, TransactionStatus.APPROVED] },
+        ...(branchId ? { member: { user: { branchId } } } : {}),
+      },
+      _sum: { amount: true },
+      _count: { id: true },
+    }),
+    db.expenditureRecord.groupBy({
+      by: ["budgetCategoryId"],
+      where: {
+        recordDate: { gte: startDate, lte: endDate },
+        status: { in: [TransactionStatus.COMPLETED, TransactionStatus.APPROVED] },
+        ...(branchId ? { member: { user: { branchId } } } : {}),
+      },
+      _sum: { amount: true },
+      _count: { id: true },
+    }),
+    db.expenditureRecord.groupBy({
+      by: ["budgetCategoryId"],
+      where: {
+        recordDate: { gte: compareStartDate, lte: compareEndDate },
+        status: { in: [TransactionStatus.COMPLETED, TransactionStatus.APPROVED] },
+        ...(branchId ? { member: { user: { branchId } } } : {}),
+      },
+      _sum: { amount: true },
+      _count: { id: true },
+    }),
   ]);
 
-  const [currentFeeRecords, compareFeeRecords, currentExpAgg, compareExpAgg] = await Promise.all([
-    IncomeService.getUnifiedIncomeRecords({
-      user: input.user,
-      branchId,
-      startDate,
-      endDate,
-    }),
-    IncomeService.getUnifiedIncomeRecords({
-      user: input.user,
-      branchId,
-      startDate: compareStartDate,
-      endDate: compareEndDate,
-    }),
-    db.expenditureRecord.aggregate({
-      where: { recordDate: { gte: startDate, lte: endDate }, status: TransactionStatus.COMPLETED, ...(branchId ? { branchId } : {}) },
-      _sum: { amount: true },
-    }),
-    db.expenditureRecord.aggregate({
-      where: { recordDate: { gte: compareStartDate, lte: compareEndDate }, status: TransactionStatus.COMPLETED, ...(branchId ? { branchId } : {}) },
-      _sum: { amount: true },
-    }),
-  ]);
+  // Build maps: budgetCategoryId -> amount/count
+  const currentIncMap = new Map(currentIncomeRecords.map((r) => [r.budgetCategoryId, { amount: Number(r._sum.amount || 0), count: r._count.id }]));
+  const compareIncMap = new Map(compareIncomeRecords.map((r) => [r.budgetCategoryId, { amount: Number(r._sum.amount || 0), count: r._count.id }]));
+  const currentExpMap = new Map(currentExpRecords.map((r) => [r.budgetCategoryId, { amount: Number(r._sum.amount || 0), count: r._count.id }]));
+  const compareExpMap = new Map(compareExpRecords.map((r) => [r.budgetCategoryId, { amount: Number(r._sum.amount || 0), count: r._count.id }]));
 
-  const currentIncTotal = currentFeeRecords.reduce((sum, record) => sum + Number(record.amount || 0), 0);
-  const compareIncTotal = compareFeeRecords.reduce((sum, record) => sum + Number(record.amount || 0), 0);
-  const currentExpTotal = Number(currentExpAgg._sum.amount || 0);
-  const compareExpTotal = Number(compareExpAgg._sum.amount || 0);
-
-  const currentFeeFallback = aggregateFeeIncomeRecords(currentFeeRecords);
-  const compareFeeFallback = aggregateFeeIncomeRecords(compareFeeRecords);
-  const currentLoanProcessingFeeFallback = aggregateLoanProcessingFeeRecords(currentFeeRecords);
-  const compareLoanProcessingFeeFallback = aggregateLoanProcessingFeeRecords(compareFeeRecords);
-
-  const recordsByCode = new Map(accounts.map((account) => [account.accountCode, account] as const));
-
-  const sectionRecords = {
-    INCOME: accounts
-      .filter((account) => account.ledgerType === AccountLedgerType.INCOME)
-      .map((account) => {
-        const current = currentAggregates.get(account.id);
-        const compare = compareAggregates.get(account.id);
-        const useCurrentFallback =
-          account.accountCode === WITHDRAWAL_FEE_ACCOUNT_CODE &&
-          (!current || current.count === 0) &&
-          currentFeeFallback.amount > 0;
-        const useCompareFallback =
-          account.accountCode === WITHDRAWAL_FEE_ACCOUNT_CODE &&
-          (!compare || compare.count === 0) &&
-          compareFeeFallback.amount > 0;
-        const useCurrentLoanProcessingFeeFallback =
-          account.accountCode === LOAN_PROCESSING_FEE_ACCOUNT_CODE &&
-          (!current || current.count === 0) &&
-          currentLoanProcessingFeeFallback.amount > 0;
-        const useCompareLoanProcessingFeeFallback =
-          account.accountCode === LOAN_PROCESSING_FEE_ACCOUNT_CODE &&
-          (!compare || compare.count === 0) &&
-          compareLoanProcessingFeeFallback.amount > 0;
-
-        return buildAccountRow(
-          account,
-          useCurrentLoanProcessingFeeFallback
-            ? { debit: 0, credit: currentLoanProcessingFeeFallback.amount, count: currentLoanProcessingFeeFallback.count }
-            : useCurrentFallback
-            ? { debit: 0, credit: currentFeeFallback.amount, count: currentFeeFallback.count }
-            : current,
-          useCompareLoanProcessingFeeFallback
-            ? { debit: 0, credit: compareLoanProcessingFeeFallback.amount, count: compareLoanProcessingFeeFallback.count }
-            : useCompareFallback
-            ? { debit: 0, credit: compareFeeFallback.amount, count: compareFeeFallback.count }
-            : compare,
-        );
-      }),
-    EXPENDITURES: accounts
-      .filter((account) => account.ledgerType === AccountLedgerType.EXPENDITURES)
-      .map((account) => buildAccountRow(
-        account,
-        currentAggregates.get(account.id),
-        compareAggregates.get(account.id),
-      )),
+  // Build account rows from BudgetCategory + source records
+  const sectionRecords: Record<SectionType, IncomeExpenseAccount[]> = {
+    INCOME: [],
+    EXPENDITURES: [],
   };
+
+  for (const cat of categories) {
+    const section: SectionType = cat.kind === "INCOME" ? "INCOME" : "EXPENDITURES";
+    const catMap = section === "INCOME" ? { current: currentIncMap, compare: compareIncMap } : { current: currentExpMap, compare: compareExpMap };
+    const current = catMap.current.get(cat.id) || { amount: 0, count: 0 };
+    const compare = catMap.compare.get(cat.id) || { amount: 0, count: 0 };
+
+    const group = resolveGroup(cat.code || "", section);
+    sectionRecords[section].push({
+      code: cat.code || "",
+      name: cat.name,
+      current_period: current.amount,
+      prior_ytd: compare.amount,
+      closing: compare.amount + current.amount,
+      journal_count: current.count,
+      section,
+      group_code: group.code,
+      group_name: group.name,
+    });
+  }
 
   const dedupedSectionRecords = {
     INCOME: dedupeIncomeExpenseAccounts(sectionRecords.INCOME),
     EXPENDITURES: dedupeIncomeExpenseAccounts(sectionRecords.EXPENDITURES),
   };
-
-  // Redistribute per-account values proportionally so the section totals match
-  // the authoritative sources used by /dashboard/accounts/incomes (IncomeRecord)
-  // and /dashboard/accounts/expenditures (ExpenditureRecord). GL journal entries
-  // are used only to determine the relative weight of each account within the total.
-  // Fee accounts (405001, 401002) are excluded from redistribution — their values
-  // were already set by description-matching against IncomeRecord and must be preserved
-  // exactly; redistributing them again would corrupt the accurate fallback amounts.
-  {
-    const incRows = dedupedSectionRecords.INCOME;
-    if (incRows.length > 0) {
-      const FEE_CODES = [WITHDRAWAL_FEE_ACCOUNT_CODE, LOAN_PROCESSING_FEE_ACCOUNT_CODE];
-      const feeRows = incRows.filter((r) => FEE_CODES.includes(r.code));
-      const nonFeeRows = incRows.filter((r) => !FEE_CODES.includes(r.code));
-
-      // Subtract fee amounts from the totals so fee accounts don't absorb a double share
-      const feeCurrentTotal = feeRows.reduce((s, r) => s + Math.max(r.current_period, 0), 0);
-      const feeCompareTotal = feeRows.reduce((s, r) => s + Math.max(r.prior_ytd, 0), 0);
-      const nonFeeCurrentTotal = Math.max(currentIncTotal - feeCurrentTotal, 0);
-      const nonFeeCompareTotal = Math.max(compareIncTotal - feeCompareTotal, 0);
-
-      if (nonFeeRows.length > 0) {
-        const glSumCurrent = nonFeeRows.reduce((s, r) => s + Math.max(r.current_period, 0), 0);
-        const glSumCompare = nonFeeRows.reduce((s, r) => s + Math.max(r.prior_ytd, 0), 0);
-        for (const row of nonFeeRows) {
-          const rCurrent = glSumCurrent > 0.001 ? Math.max(row.current_period, 0) / glSumCurrent : 1 / nonFeeRows.length;
-          const rCompare = glSumCompare > 0.001 ? Math.max(row.prior_ytd, 0) / glSumCompare : 1 / nonFeeRows.length;
-          (row as any).current_period = Math.round(nonFeeCurrentTotal * rCurrent * 100) / 100;
-          (row as any).prior_ytd = Math.round(nonFeeCompareTotal * rCompare * 100) / 100;
-          (row as any).closing = (row as any).prior_ytd + (row as any).current_period;
-        }
-      }
-      // Fee rows keep their description-matched fallback values; just update closing
-      for (const row of feeRows) {
-        (row as any).closing = (row as any).prior_ytd + (row as any).current_period;
-      }
-    }
-  }
-  {
-    const expRows = dedupedSectionRecords.EXPENDITURES;
-    if (expRows.length > 0) {
-      const glSumCurrent = expRows.reduce((s, r) => s + Math.max(r.current_period, 0), 0);
-      const glSumCompare = expRows.reduce((s, r) => s + Math.max(r.prior_ytd, 0), 0);
-      for (const row of expRows) {
-        const rCurrent = glSumCurrent > 0.001 ? Math.max(row.current_period, 0) / glSumCurrent : 1 / expRows.length;
-        const rCompare = glSumCompare > 0.001 ? Math.max(row.prior_ytd, 0) / glSumCompare : 1 / expRows.length;
-        (row as any).current_period = Math.round(currentExpTotal * rCurrent * 100) / 100;
-        (row as any).prior_ytd = Math.round(compareExpTotal * rCompare * 100) / 100;
-        (row as any).closing = (row as any).prior_ytd + (row as any).current_period;
-      }
-    }
-  }
 
   const groupedSections: IncomeExpenseSection[] = (["INCOME", "EXPENDITURES"] as SectionType[]).map((section) => {
     const sectionAccounts = dedupedSectionRecords[section];
@@ -578,79 +373,28 @@ export async function buildIncomeExpenseDrilldown(input: {
   const branchFilter = await getBranchFilterForService(input.user, input.branchId || undefined);
   const branchId = branchFilter.branchId;
 
-  const account = await db.chartOfAccount.findFirst({
-    where: {
-      accountCode: input.accountCode,
-      isActive: true,
-      ledgerType: { in: [AccountLedgerType.INCOME, AccountLedgerType.EXPENDITURES] },
-    },
-    select: {
-      id: true,
-      accountCode: true,
-      accountName: true,
-      ledgerType: true,
-    },
-  });
+  const result = await getSourceDrilldown(input.accountCode, startDate, endDate, branchId || undefined);
 
-  if (!account) {
-    throw new Error("Account not found");
-  }
-
-  const entries = await db.journalEntry.findMany({
-    where: {
-      accountId: account.id,
-      entryDate: { gte: startDate, lte: endDate },
-      ...(branchId
-        ? {
-            OR: [
-              { transaction: { branchId } },
-              { transactionId: null, branchId },
-            ],
-          }
-        : {}),
-    },
-    orderBy: [{ entryDate: "asc" }, { createdAt: "asc" }],
-    select: {
-      entryDate: true,
-      reference: true,
-      description: true,
-      debitAmount: true,
-      creditAmount: true,
-    },
-  });
+  const isIncome = result.ledgerType === "INCOME";
+  const section: SectionType = isIncome ? "INCOME" : "EXPENDITURES";
+  const group = resolveGroup(result.accountCode, section);
+  const branchName = await loadBranchName(branchId || null);
 
   let runningDebit = 0;
   let runningCredit = 0;
-  const formattedEntries = entries.map((entry) => {
-    runningDebit += Number(entry.debitAmount || 0);
-    runningCredit += Number(entry.creditAmount || 0);
+  const formattedEntries = result.entries.map((entry) => {
+    runningDebit += entry.debit;
+    runningCredit += entry.credit;
     return {
-      date: format(entry.entryDate, "dd/MM/yyyy"),
-      reference: entry.reference || "",
-      description: entry.description,
-      debit: Number(entry.debitAmount || 0),
-      credit: Number(entry.creditAmount || 0),
-      balance: calculateAccountBalance(account.ledgerType, runningDebit, runningCredit),
+      ...entry,
+      balance: calculateAccountBalance(result.ledgerType, runningDebit, runningCredit),
     };
   });
 
-  const totals = entries.reduce(
-    (acc, entry) => {
-      acc.debit += Number(entry.debitAmount || 0);
-      acc.credit += Number(entry.creditAmount || 0);
-      return acc;
-    },
-    { debit: 0, credit: 0 },
-  );
-
-  const section: SectionType = account.ledgerType === AccountLedgerType.INCOME ? "INCOME" : "EXPENDITURES";
-  const group = resolveGroup(account.accountCode, section);
-  const branchName = await loadBranchName(branchId || null);
-
   return {
     account: {
-      code: account.accountCode,
-      name: account.accountName,
+      code: result.accountCode,
+      name: result.accountName,
       section,
       group: group.name,
     },
@@ -665,9 +409,9 @@ export async function buildIncomeExpenseDrilldown(input: {
     },
     entries: formattedEntries,
     totals: {
-      debit: totals.debit,
-      credit: totals.credit,
-      balance: calculateAccountBalance(account.ledgerType, totals.debit, totals.credit),
+      debit: result.totals.debit,
+      credit: result.totals.credit,
+      balance: calculateAccountBalance(result.ledgerType, result.totals.debit, result.totals.credit),
     },
   } satisfies IncomeExpenseDrilldown;
 }

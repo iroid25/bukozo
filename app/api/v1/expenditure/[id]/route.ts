@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
 import { db } from "@/prisma/db";
 import { UserRole, TransactionStatus } from "@prisma/client";
+import { reverseJournalEntriesForRecord } from "@/lib/journal-entries-extended";
 
 // Helper: Get branch filter
 async function getBranchFilter(userRole: string, userBranchId: string | null) {
@@ -258,8 +259,9 @@ export async function DELETE(
       );
     }
 
-    await db.expenditureRecord.delete({
-      where: { id },
+    await db.$transaction(async (tx) => {
+      await reverseJournalEntriesForRecord(id, user.id, `Expenditure deletion - ${existingRecord.description || id}`, tx, existingRecord.recordDate ?? undefined, existingRecord.branchId ?? undefined);
+      await tx.expenditureRecord.delete({ where: { id } });
     });
 
     return NextResponse.json({

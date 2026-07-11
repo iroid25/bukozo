@@ -2060,6 +2060,30 @@ model StaffAdvanceRepayment {
   @@index([paidAt])
 }
 
+// Real transaction-source record for the two equity buckets that have no
+// other backing table (Statutory Reserves, Grants and Donations). Each row
+// is one discrete recorded event (a reserve allocation decided, a grant or
+// donation received) instead of a freeform ChartOfAccount + JournalEntry
+// pair with no structured metadata.
+model EquityManualEntry {
+  id               String                @id @default(cuid())
+  type             EquityManualEntryType
+  amount           Float
+  description      String
+  source           String?
+  reference        String?
+  date             DateTime              @default(now())
+  branchId         String?
+  recordedByUserId String
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  @@index([type])
+  @@index([branchId])
+  @@index([date])
+  @@index([recordedByUserId])
+}
+
 model AssetDepreciation {
   id                      String     @id @default(cuid())
   assetId                 String
@@ -2672,6 +2696,11 @@ enum VaultTransactionType {
 enum InsuranceContributionType {
   CONTRIBUTION
   PAYMENT_OUT
+}
+
+enum EquityManualEntryType {
+  STATUTORY_RESERVE
+  GRANT_DONATION
 }
 
 enum RepaymentRequestStatus {

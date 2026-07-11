@@ -1,13 +1,12 @@
 import { format, parseISO } from "date-fns";
-import { AccountLedgerType, TransactionStatus, UserRole } from "@prisma/client";
+import { AccountLedgerType, UserRole } from "@prisma/client";
 import ExcelJS from "exceljs";
 
 import { db } from "@/prisma/db";
 import { buildTree, sortTreeByCodeOrName } from "@/lib/category-tree";
-import { calculateAccountBalance } from "@/lib/accounting-rules";
 import { REPORT_HEADER_DETAILS } from "@/lib/report-header";
-import { getBranchFilterForService, getOperationalBalances } from "@/lib/services/financial-reports";
-import { IncomeService } from "@/services/income.service";
+import { getBranchFilterForService } from "@/lib/services/financial-reports";
+import { getDirectBalanceSheetAccounts, getDirectIncomeExpenseAccounts } from "@/lib/reports/direct-source";
 
 type AuthUserLike = {
   id?: string | null;
@@ -140,81 +139,6 @@ function normalizeSections(kind: CashFlowReviewKind) {
     : (["INCOME", "EXPENDITURES"] as const);
 }
 
-async function loadAccountBalances(
-  accountIds: string[],
-  fromDate: Date,
-  toDate: Date,
-  branchId: string | undefined,
-) {
-  if (!accountIds.length) {
-    return new Map<string, { debit: number; credit: number }>();
-  }
-
-  const rows = await db.journalEntry.groupBy({
-    by: ["accountId"],
-    where: {
-      accountId: { in: accountIds },
-      entryDate: { gte: fromDate, lte: toDate },
-      ...(branchId
-        ? {
-            OR: [
-              { transaction: { branchId } },
-              { transactionId: null, branchId },
-            ],
-          }
-        : {}),
-    },
-    _sum: {
-      debitAmount: true,
-      creditAmount: true,
-    },
-  });
-
-  return new Map(
-    rows.map((entry) => [
-      entry.accountId,
-      {
-        debit: Number(entry._sum.debitAmount || 0),
-        credit: Number(entry._sum.creditAmount || 0),
-      },
-    ]),
-  );
-}
-
-function queryOperationalIncome(
-  fromDate: Date,
-  toDate: Date,
-  branchId: string | undefined,
-) {
-  return IncomeService.getUnifiedIncomeRecords({
-    user: { role: UserRole.ADMIN, branchId: null },
-    branchId,
-    startDate: fromDate,
-    endDate: toDate,
-  }).then((records) => ({
-    _sum: {
-      amount: records
-        .filter((record) => String(record.status) === String(TransactionStatus.COMPLETED) || String(record.status) === String(TransactionStatus.APPROVED))
-        .reduce((sum, record) => sum + Number(record.amount || 0), 0),
-    },
-  }));
-}
-
-function queryOperationalExpenditure(
-  fromDate: Date,
-  toDate: Date,
-  branchId: string | undefined,
-) {
-  return db.expenditureRecord.aggregate({
-    where: {
-      status: TransactionStatus.COMPLETED,
-      recordDate: { gte: fromDate, lte: toDate },
-      ...(branchId ? { branchId } : {}),
-    },
-    _sum: { amount: true },
-  });
-}
-
 export async function buildCashFlowReviewReport(input: BuildInput, kind: CashFlowReviewKind): Promise<CashFlowReviewReport> {
   const generatedAt = new Date();
   const branchFilter = await getBranchFilterForService(input.user, input.branchId);
@@ -230,97 +154,54 @@ export async function buildCashFlowReviewReport(input: BuildInput, kind: CashFlo
       ? (["ASSETS", "LIABILITIES", "EQUITY"] as AccountLedgerType[])
       : (["INCOME", "EXPENDITURES"] as AccountLedgerType[]);
 
-  const accounts = await db.chartOfAccount.findMany({
-    where: {
-      isActive: true,
-      ledgerType: { in: ledgerTypes },
-    },
-    select: {
-      id: true,
-      accountCode: true,
-      accountName: true,
-      parentId: true,
-      ledgerType: true,
-      children: { select: { id: true } },
-    },
-    orderBy: [{ ledgerType: "asc" }, { accountCode: "asc" }],
-  });
+  // Direct source: read from real tables instead of COA + JournalEntry
+  const [directP1, directP2] = kind === "balance-sheet"
+    ? await Promise.all([
+        getDirectBalanceSheetAccounts(period1End, branchId),
+        getDirectBalanceSheetAccounts(period2End, branchId),
+      ])
+    : await Promise.all([
+        getDirectIncomeExpenseAccounts(period1Start, period1End, branchId),
+        getDirectIncomeExpenseAccounts(period2Start, period2End, branchId),
+      ]);
 
-  const accountIds = accounts.map((account) => account.id);
-  const period1Map = await loadAccountBalances(accountIds, period1Start, period1End, branchId);
-  const period2Map = await loadAccountBalances(accountIds, period2Start, period2End, branchId);
+  const directP1ByCode = new Map(directP1.filter((a) => !a.isGroup).map((a) => [a.accountCode, a]));
+  const directP2ByCode = new Map(directP2.filter((a) => !a.isGroup).map((a) => [a.accountCode, a]));
 
-  const mapped = accounts.map((account) => {
-    const period1Raw = period1Map.get(account.id) || { debit: 0, credit: 0 };
-    const period2Raw = period2Map.get(account.id) || { debit: 0, credit: 0 };
-    const period1Signed = calculateAccountBalance(account.ledgerType, period1Raw.debit, period1Raw.credit);
-    const period2Signed = calculateAccountBalance(account.ledgerType, period2Raw.debit, period2Raw.credit);
-    const displayPeriod1 = displayBalance(account.ledgerType, period1Signed, kind);
-    const displayPeriod2 = displayBalance(account.ledgerType, period2Signed, kind);
-    const displayNetChange = displayPeriod2 - displayPeriod1;
+  // Use direct source accounts as the tree skeleton — they already have parentId, isGroup, ledgerType
+  const directAccounts = kind === "balance-sheet" ? directP2 : directP2;
 
-    return {
-      id: account.id,
-      accountCode: account.accountCode,
-      accountName: account.accountName,
-      code: account.accountCode,
-      name: account.accountName,
-      parentId: account.parentId,
-      ledgerType: account.ledgerType,
-      period1Balance: displayPeriod1,
-      period2Balance: displayPeriod2,
-      netChange: displayNetChange,
-      growthPercent: growthPercent(period2Signed, period1Signed),
-      displayPeriod1,
-      displayPeriod2,
-      displayNetChange,
-      period1Signed,
-      period2Signed,
-      children: [] as CashFlowReviewAccount[],
-    } satisfies CashFlowReviewAccount;
-  });
+  const mapped = directAccounts
+    .filter((a) => a.ledgerType && ledgerTypes.includes(a.ledgerType as AccountLedgerType))
+    .map((account) => {
+      const direct1 = directP1ByCode.get(account.accountCode);
+      const direct2 = directP2ByCode.get(account.accountCode);
+      const period1Signed = direct1?.balance || 0;
+      const period2Signed = direct2?.balance || 0;
+      const displayPeriod1 = displayBalance(account.ledgerType as AccountLedgerType, period1Signed, kind);
+      const displayPeriod2 = displayBalance(account.ledgerType as AccountLedgerType, period2Signed, kind);
+      const displayNetChange = displayPeriod2 - displayPeriod1;
 
-  if (kind === "balance-sheet") {
-    const [opP1, opP2] = await Promise.all([
-      getOperationalBalances(period1End, { branchId }),
-      getOperationalBalances(period2End, { branchId }),
-    ]);
-    const bsOverrides: Array<{ prefixes: string[]; getVal: (op: typeof opP1) => number }> = [
-      // Loan portfolio → accounts starting with 107
-      { prefixes: ["107"], getVal: (op) => op.loanPortfolio },
-      // Fixed assets net → accounts starting with 1010 (excludes 101100 Cash at hand which starts with 1011)
-      { prefixes: ["1010"], getVal: (op) => op.fixedAssetsNet },
-      // Share capital → accounts starting with 3005 or 304
-      { prefixes: ["3005", "304"], getVal: (op) => op.shareCapital },
-      // Member savings → accounts starting with 201 (matches actual savings liability accounts)
-      // Uses memberSavingsDeposits only — fixedTermDeposits comes from FixedDeposit table
-      // and is already captured in Account.balance for fixed-period account types
-      { prefixes: ["201"], getVal: (op) => op.memberSavingsDeposits },
-    ];
-    for (const override of bsOverrides) {
-      const groupRows = mapped.filter((r) => override.prefixes.some((p) => r.accountCode.startsWith(p)));
-      if (groupRows.length === 0) continue;
-      const p1Total = groupRows.reduce((s, r) => s + r.period1Signed, 0);
-      const p2Total = groupRows.reduce((s, r) => s + r.period2Signed, 0);
-      const targetP1 = override.getVal(opP1);
-      const targetP2 = override.getVal(opP2);
-      if (Math.abs(p2Total) < 0.001 && Math.abs(targetP2) < 0.001) continue;
-      for (const row of groupRows) {
-        const ratio = p2Total !== 0 ? Math.abs(row.period2Signed / p2Total) : 1 / groupRows.length;
-        const rawP1 = Math.round(targetP1 * ratio * 100) / 100;
-        const rawP2 = Math.round(targetP2 * ratio * 100) / 100;
-        row.period1Signed = rawP1;
-        row.period2Signed = rawP2;
-        row.period1Balance = displayBalance(row.ledgerType, rawP1, kind);
-        row.period2Balance = displayBalance(row.ledgerType, rawP2, kind);
-        row.displayPeriod1 = row.period1Balance;
-        row.displayPeriod2 = row.period2Balance;
-        row.netChange = row.period2Balance - row.period1Balance;
-        row.displayNetChange = row.netChange;
-        row.growthPercent = growthPercent(rawP2, rawP1);
-      }
-    }
-  }
+      return {
+        id: account.id,
+        accountCode: account.accountCode,
+        accountName: account.accountName,
+        code: account.accountCode,
+        name: account.accountName,
+        parentId: account.parentId,
+        ledgerType: account.ledgerType as AccountLedgerType,
+        period1Balance: displayPeriod1,
+        period2Balance: displayPeriod2,
+        netChange: displayNetChange,
+        growthPercent: growthPercent(period2Signed, period1Signed),
+        displayPeriod1,
+        displayPeriod2,
+        displayNetChange,
+        period1Signed,
+        period2Signed,
+        children: [] as CashFlowReviewAccount[],
+      } satisfies CashFlowReviewAccount;
+    });
 
   const nodes = sortTreeByCodeOrName(buildTree(mapped));
   const sections = normalizeSections(kind).map((section) => {
@@ -362,44 +243,8 @@ export async function buildCashFlowReviewReport(input: BuildInput, kind: CashFlo
   });
 
   {
-    if (kind === "profit-loss") {
-      const [p1Inc, p1Exp, p2Inc, p2Exp, p1Ins, p2Ins] = await Promise.all([
-        queryOperationalIncome(period1Start, period1End, branchId),
-        queryOperationalExpenditure(period1Start, period1End, branchId),
-        queryOperationalIncome(period2Start, period2End, branchId),
-        queryOperationalExpenditure(period2Start, period2End, branchId),
-        db.insuranceContribution.aggregate({
-          where: { type: "CONTRIBUTION", createdAt: { gte: period1Start, lte: period1End }, ...(branchId ? { account: { branchId } } : {}) },
-          _sum: { amount: true },
-        }),
-        db.insuranceContribution.aggregate({
-          where: { type: "CONTRIBUTION", createdAt: { gte: period2Start, lte: period2End }, ...(branchId ? { account: { branchId } } : {}) },
-          _sum: { amount: true },
-        }),
-      ]);
-      const incomeOperationalP1 = Number(p1Inc._sum.amount || 0) + Number(p1Ins._sum.amount || 0);
-      const incomeOperationalP2 = Number(p2Inc._sum.amount || 0) + Number(p2Ins._sum.amount || 0);
-      const expenditureOperationalP1 = Number(p1Exp._sum.amount || 0);
-      const expenditureOperationalP2 = Number(p2Exp._sum.amount || 0);
-      for (const section of sections) {
-        if (section.section === "INCOME") {
-          section.totalPeriod1 = incomeOperationalP1;
-          section.totalPeriod2 = incomeOperationalP2;
-          section.rawPeriod1 = incomeOperationalP1;
-          section.rawPeriod2 = incomeOperationalP2;
-          section.totalNetChange = incomeOperationalP2 - incomeOperationalP1;
-          section.growthPercent = growthPercent(incomeOperationalP2, incomeOperationalP1);
-        }
-        if (section.section === "EXPENDITURES") {
-          section.totalPeriod1 = expenditureOperationalP1;
-          section.totalPeriod2 = expenditureOperationalP2;
-          section.rawPeriod1 = expenditureOperationalP1;
-          section.rawPeriod2 = expenditureOperationalP2;
-          section.totalNetChange = expenditureOperationalP2 - expenditureOperationalP1;
-          section.growthPercent = growthPercent(expenditureOperationalP2, expenditureOperationalP1);
-        }
-      }
-    }
+    // No operational override needed — tree totals already include all income/expenditure
+    // including InsuranceContribution (via getDirectIncomeExpenseAccounts → getDirectIncome)
   }
 
   const totalAccounts = sections.reduce((sum, section) => sum + section.count, 0);

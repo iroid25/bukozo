@@ -1,9 +1,9 @@
 import { format, parseISO, subDays } from "date-fns";
-import { AccountLedgerType, TransactionStatus } from "@prisma/client";
+import { AccountLedgerType } from "@prisma/client";
 
 import { REPORT_HEADER_DETAILS } from "@/lib/report-header";
-import { getBranchFilterForService, getCashAtHandPrincipalTotal, getOperationalBalances } from "@/lib/services/financial-reports";
-import { calculateAccountBalance } from "@/lib/accounting-rules";
+import { getBranchFilterForService } from "@/lib/services/financial-reports";
+import { getDirectTrialBalanceAccounts } from "@/lib/reports/direct-source";
 import { db } from "@/prisma/db";
 
 export type TrialBalanceAccount = {
@@ -138,14 +138,6 @@ function resolveGroup(accountCode: string, section: TrialBalanceAccount["section
   };
 }
 
-function normalizeBalance(ledgerType: AccountLedgerType, debit: number, credit: number) {
-  return calculateAccountBalance(ledgerType, debit, credit);
-}
-
-function toSignedMovement(ledgerType: AccountLedgerType, debit: number, credit: number) {
-  return calculateAccountBalance(ledgerType, debit, credit);
-}
-
 function toClosingColumns(ledgerType: AccountLedgerType, signedBalance: number) {
   const isDebitNormal = ledgerType === AccountLedgerType.ASSETS || ledgerType === AccountLedgerType.EXPENDITURES;
   if (isDebitNormal) {
@@ -172,51 +164,6 @@ async function loadBranchName(branchId?: string | null) {
   return branch?.name || branchId;
 }
 
-async function aggregateEntries(
-  accountIds: string[],
-  startDate: Date,
-  endDate: Date,
-  branchId?: string,
-) {
-  if (accountIds.length === 0) {
-    return new Map<string, { debit: number; credit: number; count: number }>();
-  }
-
-  const rows = await db.journalEntry.groupBy({
-    by: ["accountId"],
-    where: {
-      accountId: { in: accountIds },
-      entryDate: { gte: startDate, lte: endDate },
-      ...(branchId
-        ? {
-            OR: [
-              { transaction: { branchId } },
-              { transactionId: null as string | null, branchId },
-            ],
-          }
-        : {}),
-    },
-    _sum: {
-      debitAmount: true,
-      creditAmount: true,
-    },
-    _count: {
-      id: true,
-    },
-  });
-
-  return new Map(
-    rows.map((row) => [
-      row.accountId,
-      {
-        debit: row._sum.debitAmount || 0,
-        credit: row._sum.creditAmount || 0,
-        count: row._count.id || 0,
-      },
-    ]),
-  );
-}
-
 function toEndOfDay(date: Date): Date {
   const d = new Date(date);
   d.setHours(23, 59, 59, 999);
@@ -235,152 +182,57 @@ export async function buildTrialBalanceReport(input: {
   const branchFilter = await getBranchFilterForService(input.user, input.branchId || undefined);
   const branchId = branchFilter.branchId;
 
-  const accounts = await db.chartOfAccount.findMany({
-    where: { isActive: true, ledgerType: { in: ["ASSETS", "LIABILITIES", "EQUITY", "INCOME", "EXPENDITURES"] } },
-    select: {
-      id: true,
-      accountCode: true,
-      accountName: true,
-      ledgerType: true,
-    },
-    orderBy: [{ ledgerType: "asc" }, { accountCode: "asc" }],
-  });
-
-  const accountIds = accounts.map((account) => account.id);
+  // Direct source: query real tables at two dates to derive opening/closing
   const priorEnd = subDays(requestedStart, 1);
-  const [openingAgg, movementAgg, priorOperational, currentOperational] = await Promise.all([
-    aggregateEntries(accountIds, new Date("1900-01-01T00:00:00.000Z"), priorEnd, branchId),
-    aggregateEntries(accountIds, requestedStart, requestedEnd, branchId),
-    getOperationalBalances(priorEnd, { branchId }),
-    getOperationalBalances(requestedEnd, { branchId }),
+  priorEnd.setHours(23, 59, 59, 999);
+
+  const [openingAccounts, closingAccounts] = await Promise.all([
+    getDirectTrialBalanceAccounts(priorEnd, branchId || undefined),
+    getDirectTrialBalanceAccounts(requestedEnd, branchId || undefined),
   ]);
 
-  const rows = accounts.map((account) => {
-    const opening = openingAgg.get(account.id) || { debit: 0, credit: 0, count: 0 };
-    const movement = movementAgg.get(account.id) || { debit: 0, credit: 0, count: 0 };
-    const openingSigned = normalizeBalance(account.ledgerType, opening.debit, opening.credit);
-    const movementSigned = toSignedMovement(account.ledgerType, movement.debit, movement.credit);
-    const closingSigned = openingSigned + movementSigned;
-    const closingColumns = toClosingColumns(account.ledgerType, closingSigned);
-    const section = account.ledgerType as TrialBalanceAccount["section"];
-    const group = resolveGroup(account.accountCode, section);
+  // Index opening accounts by code for quick lookup
+  const openingByCode = new Map(openingAccounts.map((a) => [a.accountCode, a]));
 
-    return {
-      code: account.accountCode,
-      name: account.accountName,
+  const rows: TrialBalanceAccount[] = [];
+
+  for (const closing of closingAccounts) {
+    const opening = openingByCode.get(closing.accountCode);
+    const section = closing.ledgerType as TrialBalanceAccount["section"];
+    const group = resolveGroup(closing.accountCode, section);
+
+    const openingBalance = opening?.balance || 0;
+    const closingBalance = closing.balance;
+
+    const priorClosing = openingBalance;
+    const currentClosing = closingBalance;
+    const currentMovement = currentClosing - priorClosing;
+
+    const closingColumns = toClosingColumns(
+      section === "ASSETS" ? AccountLedgerType.ASSETS
+        : section === "LIABILITIES" ? AccountLedgerType.LIABILITIES
+        : section === "INCOME" ? AccountLedgerType.INCOME
+        : section === "EXPENDITURES" ? AccountLedgerType.EXPENDITURES
+        : AccountLedgerType.EQUITY,
+      currentClosing,
+    );
+
+    // Skip zero-balance accounts
+    if (Math.abs(priorClosing) < 0.001 && Math.abs(currentClosing) < 0.001) continue;
+
+    rows.push({
+      code: closing.accountCode,
+      name: closing.accountName,
       section,
       group_code: group.code,
       group_name: group.name,
-      prior_closing: openingSigned,
-      current_movement: movementSigned,
-      current_closing: closingSigned,
+      prior_closing: priorClosing,
+      current_movement: currentMovement,
+      current_closing: currentClosing,
       closing_debit: closingColumns.debit,
       closing_credit: closingColumns.credit,
-      journal_count: (opening.count || 0) + (movement.count || 0),
-    } satisfies TrialBalanceAccount;
-  });
-
-  const cashAtHandPrior = await getCashAtHandPrincipalTotal(priorEnd, branchId);
-  const cashAtHandCurrent = await getCashAtHandPrincipalTotal(requestedEnd, branchId);
-  for (const row of rows) {
-    if (row.code === "101100") {
-      row.prior_closing = cashAtHandPrior;
-      row.current_closing = cashAtHandCurrent;
-      row.current_movement = cashAtHandCurrent - cashAtHandPrior;
-      const cols = toClosingColumns(
-        AccountLedgerType.ASSETS,
-        row.current_closing,
-      );
-      row.closing_debit = cols.debit;
-      row.closing_credit = cols.credit;
-    }
-  }
-
-  const operationalOverrides: Record<string, { prior: number; current: number }> = {
-    "107000": {
-      prior: priorOperational.loanPortfolio,
-      current: currentOperational.loanPortfolio,
-    },
-    "200000": {
-      prior: priorOperational.memberSavingsDeposits + priorOperational.fixedTermDeposits,
-      current: currentOperational.memberSavingsDeposits + currentOperational.fixedTermDeposits,
-    },
-    "300500": {
-      prior: priorOperational.shareCapital,
-      current: currentOperational.shareCapital,
-    },
-    "101000": {
-      prior: priorOperational.fixedAssetsNet,
-      current: currentOperational.fixedAssetsNet,
-    },
-    "200700": {
-      prior: priorOperational.accumulatedDepreciation,
-      current: currentOperational.accumulatedDepreciation,
-    },
-  };
-  for (const [groupCode, target] of Object.entries(operationalOverrides)) {
-    const groupRows = rows.filter((r) => r.group_code === groupCode);
-    if (groupRows.length === 0) continue;
-    const groupPriorSum = groupRows.reduce((s, r) => s + r.prior_closing, 0);
-    const groupCurrentSum = groupRows.reduce((s, r) => s + r.current_closing, 0);
-    if (Math.abs(groupCurrentSum) < 0.001 && Math.abs(target.current) < 0.001) continue;
-    for (const row of groupRows) {
-      const ratio = groupCurrentSum !== 0 ? Math.abs(row.current_closing / groupCurrentSum) : 1 / groupRows.length;
-      row.prior_closing = Math.round(target.prior * ratio * 100) / 100;
-      row.current_closing = Math.round(target.current * ratio * 100) / 100;
-      row.current_movement = Math.round((target.current - target.prior) * ratio * 100) / 100;
-      const cols = toClosingColumns(
-        (row.section === "ASSETS" ? AccountLedgerType.ASSETS : row.section === "LIABILITIES" ? AccountLedgerType.LIABILITIES : AccountLedgerType.EQUITY) as AccountLedgerType,
-        row.current_closing,
-      );
-      row.closing_debit = cols.debit;
-      row.closing_credit = cols.credit;
-    }
-  }
-
-  {
-    const incomeRows = rows.filter((r) => r.section === "INCOME");
-    if (incomeRows.length > 0) {
-      const priorIncome = priorOperational.incomeTotal;
-      const currentIncome = currentOperational.incomeTotal;
-      const incomeAbsSum = incomeRows.reduce((s, r) => s + Math.abs(r.current_closing), 0);
-      const incomeSignedSum = incomeRows.reduce((s, r) => s + r.current_closing, 0);
-      // Only redistribute when JE data exists AND at least one operational period is non-zero
-      if (incomeAbsSum >= 0.001 && (Math.abs(currentIncome) >= 0.001 || Math.abs(priorIncome) >= 0.001)) {
-        // Use signed sum as denominator so ratios sum to 1 and contra-accounts stay negative
-        const denom = Math.abs(incomeSignedSum) >= 0.001 ? incomeSignedSum : incomeAbsSum;
-        for (const row of incomeRows) {
-          const ratio = denom !== 0 ? row.current_closing / denom : 1 / incomeRows.length;
-          row.prior_closing = Math.round(priorIncome * ratio * 100) / 100;
-          row.current_closing = Math.round(currentIncome * ratio * 100) / 100;
-          row.current_movement = Math.round((currentIncome - priorIncome) * ratio * 100) / 100;
-          const cols = toClosingColumns(AccountLedgerType.INCOME, row.current_closing);
-          row.closing_debit = cols.debit;
-          row.closing_credit = cols.credit;
-        }
-      }
-    }
-
-    const expenditureRows = rows.filter((r) => r.section === "EXPENDITURES");
-    if (expenditureRows.length > 0) {
-      const priorExp = priorOperational.expenditureTotal;
-      const currentExp = currentOperational.expenditureTotal;
-      const expAbsSum = expenditureRows.reduce((s, r) => s + Math.abs(r.current_closing), 0);
-      const expSignedSum = expenditureRows.reduce((s, r) => s + r.current_closing, 0);
-      // Only redistribute when JE data exists AND at least one operational period is non-zero
-      if (expAbsSum >= 0.001 && (Math.abs(currentExp) >= 0.001 || Math.abs(priorExp) >= 0.001)) {
-        const denom = Math.abs(expSignedSum) >= 0.001 ? expSignedSum : expAbsSum;
-        for (const row of expenditureRows) {
-          const ratio = denom !== 0 ? row.current_closing / denom : 1 / expenditureRows.length;
-          row.prior_closing = Math.round(priorExp * ratio * 100) / 100;
-          row.current_closing = Math.round(currentExp * ratio * 100) / 100;
-          row.current_movement = Math.round((currentExp - priorExp) * ratio * 100) / 100;
-          const cols = toClosingColumns(AccountLedgerType.EXPENDITURES, row.current_closing);
-          row.closing_debit = cols.debit;
-          row.closing_credit = cols.credit;
-        }
-      }
-    }
+      journal_count: 0,
+    });
   }
 
   const groupedSections = (["ASSETS", "LIABILITIES", "EQUITY", "INCOME", "EXPENDITURES"] as const).map((section) => {

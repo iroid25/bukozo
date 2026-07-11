@@ -9,6 +9,8 @@ import { IncomeService } from "@/services/income.service";
 import { bumpAccountingSyncState } from "@/lib/services/accounting-sync";
 import { resolveBranchScope } from "@/lib/services/branch-scope";
 import { reverseJournalEntriesForRecord } from "@/lib/journal-entries-extended";
+import { buildAccountBalanceUpdate } from "@/lib/accounting-rules";
+import { CASH_AT_HAND_CODE } from "@/lib/services/asset-structure";
 
 // Helpful for type safety
 type AppUser = { id: string; role: string; branchId: string | null };
@@ -127,19 +129,95 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
-    const updatedRecord = await db.incomeRecord.update({
-      where: { id },
-      data: {
-        budgetCategoryId: data.categoryId,
-        amount: data.amount,
-        description: data.description,
-        paymentMethod: data.paymentMethod,
-        receiptNo: data.receiptNo,
-        status: data.status,
-        depositorName: data.depositorName,
-        depositorContact: data.depositorContact,
-        notes: data.notes,
-      },
+    const updatedRecord = await db.$transaction(async (tx) => {
+      // 1. Reverse old journal entries if the record was COMPLETED
+      if (existingRecord.status === TransactionStatus.COMPLETED) {
+        await reverseJournalEntriesForRecord(
+          id,
+          user.id,
+          `Income update - ${existingRecord.description || id}`,
+          tx,
+          existingRecord.recordDate ?? undefined,
+          existingRecord.branchId ?? undefined,
+        );
+      }
+
+      // 2. Update the record
+      const record = await tx.incomeRecord.update({
+        where: { id },
+        data: {
+          budgetCategoryId: data.categoryId,
+          amount: data.amount,
+          description: data.description,
+          paymentMethod: data.paymentMethod,
+          receiptNo: data.receiptNo,
+          status: data.status,
+          depositorName: data.depositorName,
+          depositorContact: data.depositorContact,
+          notes: data.notes,
+        },
+      });
+
+      // 3. Re-create journal entries if the record is COMPLETED
+      if (record.status === TransactionStatus.COMPLETED) {
+        const category = data.categoryId
+          ? await tx.budgetCategory.findUnique({ where: { id: data.categoryId } })
+          : existingRecord.budgetCategory;
+        const categoryCode = category?.code;
+        if (categoryCode) {
+          const incomeAccount = await tx.chartOfAccount.findFirst({
+            where: { accountCode: categoryCode, isActive: true },
+          });
+          if (incomeAccount) {
+            const paymentMethod = data.paymentMethod || existingRecord.paymentMethod;
+            const assetCode = paymentMethod === PaymentMethod.CASH ? CASH_AT_HAND_CODE : "102001";
+            const assetAccount = await tx.chartOfAccount.findFirst({
+              where: { accountCode: assetCode, isActive: true },
+            });
+            if (assetAccount) {
+              const entryNumber = `JE-INC-${Date.now()}`;
+              await tx.journalEntry.create({
+                data: {
+                  entryNumber,
+                  accountId: assetAccount.id,
+                  debitAmount: record.amount,
+                  creditAmount: 0,
+                  description: `Income: ${record.description || record.receiptNo}`,
+                  entryDate: new Date(),
+                  reference: `INC-${record.id.slice(0, 8)}`,
+                  branchId: record.branchId || undefined,
+                  transactionId: record.id,
+                  createdByUserId: user.id,
+                },
+              });
+              await tx.journalEntry.create({
+                data: {
+                  entryNumber,
+                  accountId: incomeAccount.id,
+                  debitAmount: 0,
+                  creditAmount: record.amount,
+                  description: `Income: ${record.description || record.receiptNo}`,
+                  entryDate: new Date(),
+                  reference: `INC-${record.id.slice(0, 8)}`,
+                  branchId: record.branchId || undefined,
+                  transactionId: record.id,
+                  createdByUserId: user.id,
+                },
+              });
+              await tx.chartOfAccount.update({
+                where: { id: assetAccount.id },
+                data: buildAccountBalanceUpdate(assetAccount, { debitAmount: record.amount }),
+              });
+              await tx.chartOfAccount.update({
+                where: { id: incomeAccount.id },
+                data: buildAccountBalanceUpdate(incomeAccount, { creditAmount: record.amount }),
+              });
+            }
+          }
+        }
+      }
+
+      return record;
     });
 
     void bumpAccountingSyncState("Income record updated");

@@ -4,11 +4,23 @@ import { getAuthUser } from '@/config/useAuth';
 import { ensureEquityStructure } from '@/lib/services/equity-structure';
 import { bumpAccountingSyncState } from '@/lib/services/accounting-sync';
 import { resolveBranchScope } from '@/lib/services/branch-scope';
-import { HIDDEN_COA_CODES } from '@/lib/accounting/coa-identity';
+import { getRetainedEarnings } from '@/lib/accounting/getRetainedEarnings';
 
 /**
  * GET /api/v1/equity
- * Returns the Equity tree from the Chart of Accounts.
+ *
+ * Every equity bucket is now backed by a real table:
+ *  - statutoryReserves / grantsAndDonations: EquityManualEntry rows (a real,
+ *    structured record per reserve allocation / grant received). The
+ *    ChartOfAccount leaf + JournalEntry pair created alongside each new
+ *    entry (see POST below) is left untouched and keeps feeding
+ *    reports/trial-balance — this table is the new read path for the page,
+ *    not a replacement for the ledger.
+ *  - retainedEarnings: computed live from IncomeRecord minus
+ *    ExpenditureRecord (no separate table needed — it's arithmetic over
+ *    data that's already real).
+ *  - shareCapital: derived entirely from the real ShareAccount/AccountType
+ *    tables, keyed by the stable `accountTypeId`.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -17,45 +29,37 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // COA structure-seeding must keep running unchanged: journal posting
+    // (the dual-write in POST below) and reports still depend on these
+    // ChartOfAccount rows existing.
     await ensureEquityStructure();
     const requestedBranchId = request.nextUrl.searchParams.get("branchId");
     const branchId = resolveBranchScope(
       user as { role: string; branchId?: string | null },
       requestedBranchId,
     );
+    const branchFilter = branchId ? { branchId } : {};
 
-    const [equityAccounts, shareAccountTypes] = await Promise.all([
-      db.chartOfAccount.findMany({
-        where: {
-          OR: [
-            { accountCode: { startsWith: '3' } },
-            { ledgerType: 'EQUITY' }
-          ],
-          isActive: true,
-          NOT: {
-            accountCode: {
-              in: Array.from(HIDDEN_COA_CODES),
-            },
-          },
-        },
-        include: {
-          parent: {
-            select: {
-              id: true,
-              accountCode: true,
-              accountName: true,
-              fullCode: true,
-            },
-          },
-          _count: {
-            select: {
-              children: true,
-              journalEntries: true,
-            },
-          },
-        },
-        orderBy: { accountCode: 'asc' }
+    // Manual entries: when a specific branch is selected, include both
+    // entries for that branch AND global entries (branchId = null) which
+    // are SACCO-wide and should appear in every branch view.
+    const manualEntryWhere = branchId
+      ? { OR: [{ branchId }, { branchId: null }] }
+      : {};
+
+    // Retained Earnings is always SACCO-wide — it represents cumulative
+    // entity-level profit/loss, not a per-branch figure. Uses the shared
+    // getRetainedEarnings() function (lib/accounting/getRetainedEarnings.ts)
+    // — the same function the income statistics API calls — so both pages
+    // agree on the same numbers by construction.
+    // TODO: When period-close logic exists, this should read
+    // ChartOfAccount.balance for account 303000 instead of computing live.
+    const [manualEntries, retained, shareAccountTypes] = await Promise.all([
+      db.equityManualEntry.findMany({
+        where: manualEntryWhere,
+        orderBy: { date: 'desc' },
       }),
+      getRetainedEarnings(),
       db.accountType.findMany({
         where: {
           OR: [
@@ -66,6 +70,55 @@ export async function GET(request: NextRequest) {
         orderBy: { name: "asc" },
       }),
     ]);
+
+    const toManualEntryNode = (entry: (typeof manualEntries)[number]) => ({
+      source: "EQUITY_MANUAL_ENTRY" as const,
+      id: `EQUITY_MANUAL_ENTRY:${entry.id}`,
+      key: entry.id,
+      isManualLedger: false as const,
+      entryId: entry.id,
+      type: entry.type,
+      amount: entry.amount,
+      description: entry.description,
+      donorOrSource: entry.source,
+      reference: entry.reference,
+      date: entry.date,
+      branchId: entry.branchId,
+      recordedByUserId: entry.recordedByUserId,
+    });
+
+    const statutoryReserveItems = manualEntries
+      .filter((entry) => entry.type === "STATUTORY_RESERVE")
+      .map(toManualEntryNode);
+    const grantItems = manualEntries
+      .filter((entry) => entry.type === "GRANT_DONATION")
+      .map(toManualEntryNode);
+
+    const sumAmount = (items: Array<{ amount: number }>) =>
+      items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+
+    const totalIncome = retained.totalIncome;
+    const totalExpenditure = retained.totalExpenditure;
+
+    const statutoryReserves = {
+      title: "Statutory Reserves",
+      items: statutoryReserveItems,
+      total: sumAmount(statutoryReserveItems),
+    };
+
+    const grantsAndDonations = {
+      title: "Grants and Donations",
+      items: grantItems,
+      total: sumAmount(grantItems),
+    };
+
+    const retainedEarnings = {
+      title: "Retained Earnings",
+      amount: totalIncome - totalExpenditure,
+      totalIncome,
+      totalExpenditure,
+      isComputed: true as const,
+    };
 
     const shareAccountTypeIds = shareAccountTypes.map((accountType) => accountType.id);
     const shareBalanceRows =
@@ -99,14 +152,6 @@ export async function GET(request: NextRequest) {
       ]),
     );
 
-    const getShareCapitalCode = (name: string) => {
-      const normalized = name.toLowerCase();
-      if (normalized.includes("affiliate")) return "304001";
-      if (normalized.includes("ordinary")) return "304002";
-      if (normalized.includes("associate")) return "304003";
-      return "304004";
-    };
-
     const shareCapitalItems = shareAccountTypes.map((accountType) => {
       const aggregate = balanceMap.get(accountType.id) || {
         amount: 0,
@@ -115,12 +160,12 @@ export async function GET(request: NextRequest) {
       };
 
       return {
-        id: accountType.id,
-        sourceType: "SHARE_ACCOUNT_TYPE",
+        source: "SHARE_ACCOUNT_TYPE" as const,
+        id: `SHARE_ACCOUNT_TYPE:${accountType.id}`,
+        key: accountType.id,
+        isManualLedger: false as const,
         accountTypeId: accountType.id,
-        accountCode: getShareCapitalCode(accountType.name),
         name: accountType.name,
-        rawName: accountType.name,
         amount: aggregate.amount,
         accountCount: aggregate.count,
         numberOfShares: aggregate.shares,
@@ -135,13 +180,13 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: equityAccounts,
-      groups: {
-        shareCapital: {
-          title: "Share Capital",
-          items: shareCapitalItems,
-          total: shareCapitalTotal,
-        },
+      statutoryReserves,
+      grantsAndDonations,
+      retainedEarnings,
+      shareCapital: {
+        title: "Share Capital",
+        items: shareCapitalItems,
+        total: shareCapitalTotal,
       },
     });
   } catch (error: any) {
@@ -325,6 +370,10 @@ export async function POST(request: Request) {
 
        // 4. Create Initial Journal Entry if balance > 0
        const initialBalance = Number(data.initialBalance || 0);
+       const userDate = data.recordDate ? new Date(data.recordDate) : new Date();
+       const userReceiptNo = String(data.receiptNo || "").trim() || null;
+       const userDescription = String(data.description || "").trim() || null;
+       const userBranchId = String(data.branchId || "").trim() || null;
 
        if (initialBalance > 0) {
            if (!data.counterpartyAccountCode) {
@@ -340,6 +389,7 @@ export async function POST(request: Request) {
            }
 
            const entryNumber = `JE-EQUITY-INIT-${Date.now()}`;
+           const reference = userReceiptNo || `INIT-${coaCode}`;
 
             // Credit: The New Equity Account (Increases Equity)
             await tx.journalEntry.create({
@@ -349,8 +399,8 @@ export async function POST(request: Request) {
                 debitAmount: 0,
                 creditAmount: initialBalance,
                 description: `Initial Balance for Equity: ${data.equityName}`,
-                entryDate: new Date(),
-                reference: `INIT-${coaCode}`,
+                entryDate: userDate,
+                reference,
                 createdByUserId: user.id,
               }
             });
@@ -363,8 +413,8 @@ export async function POST(request: Request) {
                 debitAmount: initialBalance,
                 creditAmount: 0,
                 description: `Investment for Equity: ${data.equityName}`,
-                entryDate: new Date(),
-                reference: `INIT-${coaCode}`,
+                entryDate: userDate,
+                reference,
                 createdByUserId: user.id,
               }
             });
@@ -379,6 +429,35 @@ export async function POST(request: Request) {
              where: { id: counterpartyAccount.id },
              data: { balance: { increment: initialBalance }, debitBalance: { increment: initialBalance } }
            });
+
+           // Dual-write: the COA leaf + journal entries above stay untouched
+           // (reports/trial-balance/balance-sheet still read them), but the
+           // Equity page itself now reads EquityManualEntry as the real
+           // source for Statutory Reserves / Grants and Donations. Only
+           // record here when the new item falls under one of those two
+           // buckets (304xxx Share Capital already has its own real source
+           // via ShareAccount, and 303000 Retained Earnings is computed
+           // live, not manually entered).
+           const manualEntryType = coaCode.startsWith("301")
+             ? "STATUTORY_RESERVE"
+             : coaCode.startsWith("302")
+               ? "GRANT_DONATION"
+               : null;
+
+           if (manualEntryType) {
+             await tx.equityManualEntry.create({
+               data: {
+                 type: manualEntryType,
+                 amount: initialBalance,
+                 description: data.equityName,
+                 source: userDescription,
+                 reference,
+                 date: userDate,
+                 branchId: userBranchId,
+                 recordedByUserId: user.id,
+               },
+             });
+           }
        }
 
        return coaAccount;

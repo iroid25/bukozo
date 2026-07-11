@@ -1,11 +1,9 @@
 import ExcelJS from "exceljs";
 import { format, parseISO } from "date-fns";
-import { AccountLedgerType, TransactionStatus } from "@prisma/client";
+import { TransactionStatus } from "@prisma/client";
 
-import { calculateAccountBalance } from "@/lib/accounting-rules";
 import { db } from "@/prisma/db";
 import { getBranchFilterForService } from "@/lib/services/financial-reports";
-import { IncomeService } from "@/services/income.service";
 
 function money(value: number) {
   const amount = Number(value || 0);
@@ -208,51 +206,6 @@ function resolveGroup(accountCode: string, section: "Income" | "Expenses"): Grou
   return { code: "509999", name: "OTHER EXPENSES", section, prefixes: [] };
 }
 
-async function aggregateEntries(
-  accountIds: string[],
-  startDate: Date,
-  endDate: Date,
-  branchId?: string,
-): Promise<Map<string, { debit: number; credit: number; count: number }>> {
-  if (accountIds.length === 0) {
-    return new Map();
-  }
-
-  const rows = await db.journalEntry.groupBy({
-    by: ["accountId"],
-    where: {
-      accountId: { in: accountIds },
-      entryDate: { gte: startDate, lte: endDate },
-      ...(branchId
-        ? {
-            OR: [
-              { transaction: { branchId } },
-              { transactionId: null as string | null, branchId },
-            ],
-          }
-        : {}),
-    },
-    _sum: {
-      debitAmount: true,
-      creditAmount: true,
-    },
-    _count: {
-      id: true,
-    },
-  });
-
-  return new Map(
-    rows.map((row) => [
-      row.accountId,
-      {
-        debit: row._sum.debitAmount || 0,
-        credit: row._sum.creditAmount || 0,
-        count: row._count.id || 0,
-      },
-    ]),
-  );
-}
-
 export async function buildFinancialYearProfitLossReport(input: FYProfitLossReportInput): Promise<FYProfitLossReport> {
   const generatedAt = new Date();
   const branchFilter = await getBranchFilterForService(input.user, input.branchId);
@@ -263,43 +216,97 @@ export async function buildFinancialYearProfitLossReport(input: FYProfitLossRepo
   const fromDate = toDate(input.fromDate || financialYear?.startDate || fyStart);
   const toDateValue = toDate(input.toDate || financialYear?.endDate || generatedAt);
 
-  const accounts = await db.chartOfAccount.findMany({
-    where: {
-      isActive: true,
-      ledgerType: { in: [AccountLedgerType.INCOME, AccountLedgerType.EXPENDITURES] },
-    },
-    select: {
-      id: true,
-      accountCode: true,
-      accountName: true,
-      ledgerType: true,
-    },
-    orderBy: [{ ledgerType: "asc" }, { accountCode: "asc" }],
+  // Read BudgetCategory for account structure (instead of COA)
+  const categories = await db.budgetCategory.findMany({
+    where: { isActive: true, kind: { in: ["INCOME", "EXPENSE"] } },
+    select: { id: true, name: true, code: true, kind: true },
+    orderBy: [{ kind: "asc" }, { name: "asc" }],
   });
 
-  const accountIds = accounts.map((account) => account.id);
-  const [periodAgg, ytdAgg] = await Promise.all([
-    aggregateEntries(accountIds, startOfDayIso(fromDate), endOfDayIso(toDateValue), branchId),
-    aggregateEntries(accountIds, startOfDayIso(fyStart), endOfDayIso(toDateValue), branchId),
+  // Direct source: read from IncomeRecord, ExpenditureRecord, InsuranceContribution
+  const [incPeriodRecords, incYtdRecords, expPeriod, expYtd, insPeriod, insYtd] = await Promise.all([
+    db.incomeRecord.groupBy({
+      by: ["budgetCategoryId"],
+      where: {
+        recordDate: { gte: startOfDayIso(fromDate), lte: endOfDayIso(toDateValue) },
+        status: { in: [TransactionStatus.COMPLETED, TransactionStatus.APPROVED] },
+        ...(branchId ? { member: { user: { branchId } } } : {}),
+      },
+      _sum: { amount: true },
+      _count: { id: true },
+    }),
+    db.incomeRecord.groupBy({
+      by: ["budgetCategoryId"],
+      where: {
+        recordDate: { gte: startOfDayIso(fyStart), lte: endOfDayIso(toDateValue) },
+        status: { in: [TransactionStatus.COMPLETED, TransactionStatus.APPROVED] },
+        ...(branchId ? { member: { user: { branchId } } } : {}),
+      },
+      _sum: { amount: true },
+      _count: { id: true },
+    }),
+    db.expenditureRecord.groupBy({
+      by: ["budgetCategoryId"],
+      where: {
+        recordDate: { gte: startOfDayIso(fromDate), lte: endOfDayIso(toDateValue) },
+        status: { in: [TransactionStatus.COMPLETED, TransactionStatus.APPROVED] },
+        ...(branchId ? { member: { user: { branchId } } } : {}),
+      },
+      _sum: { amount: true },
+      _count: { id: true },
+    }),
+    db.expenditureRecord.groupBy({
+      by: ["budgetCategoryId"],
+      where: {
+        recordDate: { gte: startOfDayIso(fyStart), lte: endOfDayIso(toDateValue) },
+        status: { in: [TransactionStatus.COMPLETED, TransactionStatus.APPROVED] },
+        ...(branchId ? { member: { user: { branchId } } } : {}),
+      },
+      _sum: { amount: true },
+      _count: { id: true },
+    }),
+    db.insuranceContribution.aggregate({
+      where: {
+        type: "CONTRIBUTION",
+        createdAt: { gte: startOfDayIso(fromDate), lte: endOfDayIso(toDateValue) },
+        ...(branchId ? { account: { branchId } } : {}),
+      },
+      _sum: { amount: true },
+    }),
+    db.insuranceContribution.aggregate({
+      where: {
+        type: "CONTRIBUTION",
+        createdAt: { gte: startOfDayIso(fyStart), lte: endOfDayIso(toDateValue) },
+        ...(branchId ? { account: { branchId } } : {}),
+      },
+      _sum: { amount: true },
+    }),
   ]);
 
-  const sectionForLedger = (ledgerType: AccountLedgerType): "Income" | "Expenses" =>
-    ledgerType === AccountLedgerType.INCOME ? "Income" : "Expenses";
+  const incPeriodMap = new Map(incPeriodRecords.map((r) => [r.budgetCategoryId, { amount: Number(r._sum.amount || 0), count: r._count.id }]));
+  const incYtdMap = new Map(incYtdRecords.map((r) => [r.budgetCategoryId, { amount: Number(r._sum.amount || 0), count: r._count.id }]));
+  const expPeriodMap = new Map(expPeriod.map((r) => [r.budgetCategoryId, { amount: Number(r._sum.amount || 0), count: r._count.id }]));
+  const expYtdMap = new Map(expYtd.map((r) => [r.budgetCategoryId, { amount: Number(r._sum.amount || 0), count: r._count.id }]));
+
+  const insuranceContribPeriod = Number(insPeriod._sum.amount || 0);
+  const insuranceContribYtd = Number(insYtd._sum.amount || 0);
+
+  const sectionForKind = (kind: string): "Income" | "Expenses" =>
+    kind === "INCOME" ? "Income" : "Expenses";
 
   const buildSection = (section: "Income" | "Expenses") => {
-    const sectionAccounts = accounts.filter(
-      (account) => sectionForLedger(account.ledgerType) === section,
-    );
+    const sectionCats = categories.filter((cat) => sectionForKind(cat.kind) === section);
 
-    const groups = new Map<string, { definition: GroupDefinition; accounts: typeof sectionAccounts }>();
-    for (const account of sectionAccounts) {
-      const groupDef = resolveGroup(account.accountCode, section);
-      const existing = groups.get(groupDef.code) || { definition: groupDef, accounts: [] };
-      existing.accounts.push(account);
+    const groups = new Map<string, { definition: GroupDefinition; cats: typeof sectionCats }>();
+    for (const cat of sectionCats) {
+      const groupDef = resolveGroup(cat.code || "", section);
+      const existing = groups.get(groupDef.code) || { definition: groupDef, cats: [] };
+      existing.cats.push(cat);
       groups.set(groupDef.code, existing);
     }
 
     const rows: FYCategoryRow[] = [];
+    const catMap = section === "Income" ? { period: incPeriodMap, ytd: incYtdMap } : { period: expPeriodMap, ytd: expYtdMap };
 
     for (const [, group] of groups) {
       rows.push({
@@ -312,29 +319,63 @@ export async function buildFinancialYearProfitLossReport(input: FYProfitLossRepo
         ytd: { debit_balance: 0, credit_balance: 0 },
       });
 
-      for (const account of group.accounts) {
-        const periodData = periodAgg.get(account.id) || { debit: 0, credit: 0, count: 0 };
-        const ytdData = ytdAgg.get(account.id) || { debit: 0, credit: 0, count: 0 };
+      for (const cat of group.cats) {
+        const periodData = catMap.period.get(cat.id) || { amount: 0, count: 0 };
+        const ytdData = catMap.ytd.get(cat.id) || { amount: 0, count: 0 };
 
-        const periodSigned = calculateAccountBalance(account.ledgerType, periodData.debit, periodData.credit);
-        const ytdSigned = calculateAccountBalance(account.ledgerType, ytdData.debit, ytdData.credit);
-
-        rows.push({
-          account_code: account.accountCode,
-          account_name: account.accountName,
-          is_group_header: false,
-          parent_group: group.definition.name,
-          section,
-          period: {
-            debit: section === "Expenses" ? Math.max(periodSigned, 0) : 0,
-            credit: section === "Income" ? Math.max(periodSigned, 0) : 0,
-            net_change: section === "Income" ? periodSigned : -periodSigned,
-          },
-          ytd: {
-            debit_balance: section === "Expenses" ? Math.max(ytdSigned, 0) : 0,
-            credit_balance: section === "Income" ? Math.max(ytdSigned, 0) : 0,
-          },
-        });
+        // Handle insurance contribution separately
+        if (cat.code?.startsWith("401960")) {
+          rows.push({
+            account_code: cat.code || "",
+            account_name: cat.name,
+            is_group_header: false,
+            parent_group: group.definition.name,
+            section,
+            period: {
+              debit: 0,
+              credit: insuranceContribPeriod,
+              net_change: insuranceContribPeriod,
+            },
+            ytd: {
+              debit_balance: 0,
+              credit_balance: insuranceContribYtd,
+            },
+          });
+        } else if (section === "Income") {
+          rows.push({
+            account_code: cat.code || "",
+            account_name: cat.name,
+            is_group_header: false,
+            parent_group: group.definition.name,
+            section,
+            period: {
+              debit: 0,
+              credit: periodData.amount,
+              net_change: periodData.amount,
+            },
+            ytd: {
+              debit_balance: 0,
+              credit_balance: ytdData.amount,
+            },
+          });
+        } else {
+          rows.push({
+            account_code: cat.code || "",
+            account_name: cat.name,
+            is_group_header: false,
+            parent_group: group.definition.name,
+            section,
+            period: {
+              debit: periodData.amount,
+              credit: 0,
+              net_change: -periodData.amount,
+            },
+            ytd: {
+              debit_balance: ytdData.amount,
+              credit_balance: 0,
+            },
+          });
+        }
       }
     }
 
@@ -363,128 +404,6 @@ export async function buildFinancialYearProfitLossReport(input: FYProfitLossRepo
 
   const income = buildSection("Income");
   const expenses = buildSection("Expenses");
-
-  const [incPeriodRecords, incYtdRecords, expPeriod, expYtd, insPeriod, insYtd] = await Promise.all([
-    IncomeService.getUnifiedIncomeRecords({
-      user: input.user,
-      branchId,
-      startDate: startOfDayIso(fromDate),
-      endDate: endOfDayIso(toDateValue),
-    }),
-    IncomeService.getUnifiedIncomeRecords({
-      user: input.user,
-      branchId,
-      startDate: startOfDayIso(fyStart),
-      endDate: endOfDayIso(toDateValue),
-    }),
-    db.expenditureRecord.aggregate({
-      where: {
-        status: TransactionStatus.COMPLETED,
-        recordDate: { gte: startOfDayIso(fromDate), lte: endOfDayIso(toDateValue) },
-        ...(branchId ? { branchId } : {}),
-      },
-      _sum: { amount: true },
-    }),
-    db.expenditureRecord.aggregate({
-      where: {
-        status: TransactionStatus.COMPLETED,
-        recordDate: { gte: startOfDayIso(fyStart), lte: endOfDayIso(toDateValue) },
-        ...(branchId ? { branchId } : {}),
-      },
-      _sum: { amount: true },
-    }),
-    db.insuranceContribution.aggregate({
-      where: {
-        type: "CONTRIBUTION",
-        createdAt: { gte: startOfDayIso(fromDate), lte: endOfDayIso(toDateValue) },
-        ...(branchId ? { account: { branchId } } : {}),
-      },
-      _sum: { amount: true },
-    }),
-    db.insuranceContribution.aggregate({
-      where: {
-        type: "CONTRIBUTION",
-        createdAt: { gte: startOfDayIso(fyStart), lte: endOfDayIso(toDateValue) },
-        ...(branchId ? { account: { branchId } } : {}),
-      },
-      _sum: { amount: true },
-    }),
-  ]);
-
-  const opIncPeriod = incPeriodRecords.reduce((sum, record) => sum + Number(record.amount || 0), 0);
-  const opIncYtd = incYtdRecords.reduce((sum, record) => sum + Number(record.amount || 0), 0);
-  const opExpPeriod = Number(expPeriod._sum.amount || 0);
-  const opExpYtd = Number(expYtd._sum.amount || 0);
-  const insuranceContribPeriod = Number(insPeriod._sum.amount || 0);
-  const insuranceContribYtd = Number(insYtd._sum.amount || 0);
-
-  // Deduct insurance from IncomeRecord totals to avoid double-counting: insurance rows
-  // get their values from the InsuranceContribution table and are assigned directly to
-  // 401960 below, so removing them here prevents inflating non-insurance accounts.
-  const opIncPeriodExclIns = opIncPeriod - insuranceContribPeriod;
-  const opIncYtdExclIns = opIncYtd - insuranceContribYtd;
-
-  // Override income accounts proportionally with operational data (excluding insurance)
-  {
-    const incRows = income.accounts.filter((r) => !r.is_group_header && !r.account_code.startsWith("401960"));
-    const incJePeriod = incRows.reduce((s, r) => s + r.period.credit, 0);
-    const incJeYtd = incRows.reduce((s, r) => s + r.ytd.credit_balance, 0);
-    if ((Math.abs(incJeYtd) >= 0.001 || Math.abs(opIncYtdExclIns) >= 0.001) && incRows.length > 0) {
-      for (const row of incRows) {
-        // Use period-specific weights for period column and YTD weights for YTD column
-        const periodRatio = incJePeriod !== 0 ? (row.period.credit / incJePeriod) : 1 / incRows.length;
-        const ytdRatio = incJeYtd !== 0 ? (row.ytd.credit_balance / incJeYtd) : 1 / incRows.length;
-        const rowPeriod = Math.round(opIncPeriodExclIns * periodRatio * 100) / 100;
-        const rowYtd = Math.round(opIncYtdExclIns * ytdRatio * 100) / 100;
-        row.period.credit = Math.max(rowPeriod, 0);
-        row.period.debit = 0;
-        row.period.net_change = rowPeriod;
-        row.ytd.credit_balance = Math.max(rowYtd, 0);
-        row.ytd.debit_balance = 0;
-      }
-    }
-    // Assign insurance contributions directly to 401960 accounts
-    const insRows = income.accounts.filter((r) => !r.is_group_header && r.account_code.startsWith("401960"));
-    for (const row of insRows) {
-      row.period.credit = insuranceContribPeriod;
-      row.period.debit = 0;
-      row.period.net_change = insuranceContribPeriod;
-      row.ytd.credit_balance = insuranceContribYtd;
-      row.ytd.debit_balance = 0;
-    }
-  }
-
-  // Override expense accounts proportionally with operational data
-  {
-    const expRows = expenses.accounts.filter((r) => !r.is_group_header);
-    const expJeYtd = expRows.reduce((s, r) => s + r.ytd.debit_balance, 0);
-    if ((Math.abs(expJeYtd) >= 0.001 || Math.abs(opExpYtd) >= 0.001) && expRows.length > 0) {
-      for (const row of expRows) {
-        const ratio = expJeYtd !== 0 ? (row.ytd.debit_balance / expJeYtd) : 1 / expRows.length;
-        const rowPeriod = Math.round(opExpPeriod * ratio * 100) / 100;
-        const rowYtd = Math.round(opExpYtd * ratio * 100) / 100;
-        row.period.debit = Math.max(rowPeriod, 0);
-        row.period.credit = 0;
-        row.period.net_change = -rowPeriod;
-        row.ytd.debit_balance = Math.max(rowYtd, 0);
-        row.ytd.credit_balance = 0;
-      }
-    }
-  }
-
-  // Recompute totals after operational overrides
-  {
-    const sumAccounts = (section: { accounts: FYCategoryRow[] }) => {
-      const accRows = section.accounts.filter((r) => !r.is_group_header);
-      const pd = accRows.reduce((s, r) => s + r.period.debit, 0);
-      const pc = accRows.reduce((s, r) => s + r.period.credit, 0);
-      const yd = accRows.reduce((s, r) => s + r.ytd.debit_balance, 0);
-      const yc = accRows.reduce((s, r) => s + r.ytd.credit_balance, 0);
-      return { account_count: accRows.length, period: { debit: pd, credit: pc, net_change: pc - pd }, ytd: { debit_balance: yd, credit_balance: yc } };
-    };
-    income.total = sumAccounts(income);
-    expenses.total = sumAccounts(expenses);
-  }
 
   const grandTotal = {
     account_count: income.total.account_count + expenses.total.account_count,

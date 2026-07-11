@@ -316,7 +316,7 @@ export default function ExpenditureCategoriesPage() {
               <TableHead>Code</TableHead>
               <TableHead>Category Name</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Linked to COA</TableHead>
+              <TableHead>Source</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -360,9 +360,9 @@ export default function ExpenditureCategoriesPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="text-[10px] uppercase">
-                         Auto-Synced
-                      </Badge>
+                        <Badge variant="outline" className="text-[10px] uppercase">
+                         Budget source
+                        </Badge>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
@@ -443,8 +443,8 @@ export default function ExpenditureCategoriesPage() {
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex gap-3">
         <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5" />
         <div className="text-sm text-amber-800">
-          <p className="font-bold">Sync to Chart of Accounts</p>
-          <p>Every expense category created here is automatically synced to the Chart of Accounts (COA) for financial transparency and accurate ledger reporting. Do not manually create ledger entries for these in the COA module.</p>
+          <p className="font-bold">Budget category source</p>
+          <p>Expense categories are now stored and managed directly in budget categories. They keep their codes and hierarchy there without relying on COA as the form source.</p>
         </div>
       </div>
     </div>

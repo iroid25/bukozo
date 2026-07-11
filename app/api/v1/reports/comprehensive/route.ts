@@ -1,10 +1,8 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
-import { calculateAccountBalance } from "@/lib/accounting-rules";
-import { HIDDEN_COA_CODES } from "@/lib/accounting/coa-identity";
 import { db } from "@/prisma/db";
-import { hydrateAccountsWithJournalBalances } from "@/lib/services/chartOfAccounts";
+import { getDirectBalanceSheetAccounts, getDirectIncomeExpenseAccounts, getDirectTrialBalanceAccounts } from "@/lib/reports/direct-source";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -248,34 +246,22 @@ async function generateSavingsOverdrawnByAgeReport() {
   return { data: records, summary: { totalRecords: records.length } };
 }
 
-// COA Listing (hydrated from journal entries)
+// COA Listing (all accounts from direct source)
 async function generateCOAListingReport() {
-  const accounts = await db.chartOfAccount.findMany({
-    where: {
-      isActive: true,
-      NOT: {
-        accountCode: {
-          in: Array.from(HIDDEN_COA_CODES),
-        },
-      },
-    },
-    orderBy: [{ ledgerType: "asc" }, { accountCode: "asc" }],
-  });
+  const now = new Date();
+  const startOfYear = new Date(now.getFullYear(), 0, 1);
+  const allAccounts = await getDirectTrialBalanceAccounts(startOfYear, now);
 
-  const hydrated = await hydrateAccountsWithJournalBalances(accounts);
-
-  const records = hydrated.map((account: any) => ({
-    accountCode: account.accountCode,
-    accountName: account.accountName,
-    ledgerType: account.ledgerType,
-    debitBalance: Number(account.debitBalance),
-    creditBalance: Number(account.creditBalance),
-    balance: calculateAccountBalance(
-      account.ledgerType,
-      Number(account.debitBalance),
-      Number(account.creditBalance),
-    ),
-  }));
+  const records = allAccounts
+    .filter((a) => !a.isGroup)
+    .map((account) => ({
+      accountCode: account.accountCode,
+      accountName: account.accountName,
+      ledgerType: account.ledgerType,
+      debitBalance: account.debit,
+      creditBalance: account.credit,
+      balance: account.balance,
+    }));
 
   return { data: records, summary: { totalRecords: records.length } };
 }
@@ -336,28 +322,16 @@ async function generateBudgetVarianceReport(year: number) {
   };
 }
 
-// Comprehensive Trial Balance (hydrated from journal entries)
+// Comprehensive Trial Balance (direct source)
 async function generateComprehensiveTrialBalanceReport(start: Date, end: Date) {
-  const accounts = await db.chartOfAccount.findMany({
-    where: {
-      isActive: true,
-      NOT: {
-        accountCode: {
-          in: Array.from(HIDDEN_COA_CODES),
-        },
-      },
-    },
-    orderBy: [{ ledgerType: "asc" }, { accountCode: "asc" }],
-  });
+  const accounts = await getDirectTrialBalanceAccounts(start, end);
 
-  const hydrated = await hydrateAccountsWithJournalBalances(accounts);
-
-  const records = hydrated.map((account: any) => ({
+  const records = accounts.map((account) => ({
     accountCode: account.accountCode,
     accountName: account.accountName,
     ledgerType: account.ledgerType,
-    debit: Number(account.debitBalance),
-    credit: Number(account.creditBalance),
+    debit: account.debit,
+    credit: account.credit,
   }));
 
   const totalDebits = records.reduce((sum, r) => sum + r.debit, 0);
@@ -369,91 +343,60 @@ async function generateComprehensiveTrialBalanceReport(start: Date, end: Date) {
   };
 }
 
-// Comprehensive Balance Sheet (hydrated from journal entries)
+// Comprehensive Balance Sheet (direct source)
 async function generateComprehensiveBalanceSheetReport(asOfDate: Date) {
-  const accounts = await db.chartOfAccount.findMany({
-    where: { isActive: true, ledgerType: { in: ["ASSETS", "LIABILITIES", "EQUITY"] } },
-  });
+  const accounts = await getDirectBalanceSheetAccounts(asOfDate);
 
-  const hydrated = await hydrateAccountsWithJournalBalances(accounts);
+  const assets = accounts.filter((a) => a.ledgerType === "ASSETS");
+  const liabilities = accounts.filter((a) => a.ledgerType === "LIABILITIES");
+  const equity = accounts.filter((a) => a.ledgerType === "EQUITY");
 
-  const assets = hydrated.filter((a: any) => a.ledgerType === "ASSETS");
-  const liabilities = hydrated.filter((a: any) => a.ledgerType === "LIABILITIES");
-  const equity = hydrated.filter((a: any) => a.ledgerType === "EQUITY");
-
-  const totalAssets = assets.reduce(
-    (sum: number, a: any) => sum + calculateAccountBalance(a.ledgerType, Number(a.debitBalance), Number(a.creditBalance)),
-    0,
-  );
-  const totalLiabilities = liabilities.reduce(
-    (sum: number, a: any) => sum + calculateAccountBalance(a.ledgerType, Number(a.debitBalance), Number(a.creditBalance)),
-    0,
-  );
-  const totalEquity = equity.reduce(
-    (sum: number, a: any) => sum + calculateAccountBalance(a.ledgerType, Number(a.debitBalance), Number(a.creditBalance)),
-    0,
-  );
+  const totalAssets = assets.reduce((sum, a) => sum + a.balance, 0);
+  const totalLiabilities = liabilities.reduce((sum, a) => sum + a.balance, 0);
+  const totalEquity = equity.reduce((sum, a) => sum + a.balance, 0);
 
   return {
     asOfDate: asOfDate.toISOString().split("T")[0],
-    assets: assets.map((a: any) => ({
+    assets: assets.map((a) => ({
       code: a.accountCode,
       name: a.accountName,
-      amount: calculateAccountBalance(a.ledgerType, Number(a.debitBalance), Number(a.creditBalance)),
+      amount: a.balance,
     })),
-    liabilities: liabilities.map((a: any) => ({
+    liabilities: liabilities.map((a) => ({
       code: a.accountCode,
       name: a.accountName,
-      amount: calculateAccountBalance(a.ledgerType, Number(a.debitBalance), Number(a.creditBalance)),
+      amount: a.balance,
     })),
-    equity: equity.map((a: any) => ({
+    equity: equity.map((a) => ({
       code: a.accountCode,
       name: a.accountName,
-      amount: calculateAccountBalance(a.ledgerType, Number(a.debitBalance), Number(a.creditBalance)),
+      amount: a.balance,
     })),
     summary: { totalAssets, totalLiabilities, totalEquity },
   };
 }
 
-// Comprehensive Income (hydrated from journal entries)
+// Comprehensive Income (direct source)
 async function generateComprehensiveIncomeReport(start: Date, end: Date) {
-  const accounts = await db.chartOfAccount.findMany({
-    where: {
-      isActive: true,
-      NOT: {
-        accountCode: {
-          in: Array.from(HIDDEN_COA_CODES),
-        },
-      },
-      ledgerType: { in: ["INCOME", "EXPENDITURES"] },
-    },
-  });
+  const accounts = await getDirectIncomeExpenseAccounts(start, end);
 
-  const hydrated = await hydrateAccountsWithJournalBalances(accounts);
+  const income = accounts.filter((a) => a.ledgerType === "INCOME");
+  const expenses = accounts.filter((a) => a.ledgerType === "EXPENDITURES");
 
-  const income = hydrated.filter((a: any) => a.ledgerType === "INCOME");
-  const expenses = hydrated.filter((a: any) => a.ledgerType === "EXPENDITURES");
-
-  const totalIncome = income.reduce(
-    (sum: number, a: any) => sum + calculateAccountBalance(a.ledgerType, Number(a.debitBalance), Number(a.creditBalance)),
-    0,
-  );
-  const totalExpenses = expenses.reduce(
-    (sum: number, a: any) => sum + calculateAccountBalance(a.ledgerType, Number(a.debitBalance), Number(a.creditBalance)),
-    0,
-  );
+  const totalIncome = income.reduce((sum, a) => sum + a.balance, 0);
+  const totalExpenses = expenses.reduce((sum, a) => sum + a.balance, 0);
 
   return {
     period: { start: start.toISOString().split("T")[0], end: end.toISOString().split("T")[0] },
-    income: income.map((a: any) => ({
+    income: income.map((a) => ({
       code: a.accountCode,
       name: a.accountName,
-      amount: calculateAccountBalance(a.ledgerType, Number(a.debitBalance), Number(a.creditBalance)),
+      amount: a.balance,
     })),
-    expenses: expenses.map((a: any) => ({
+    expenses: expenses.map((a) => ({
       code: a.accountCode,
       name: a.accountName,
-      amount: calculateAccountBalance(a.ledgerType, Number(a.debitBalance), Number(a.creditBalance)),
+      amount: a.balance,
     })),
     summary: { totalIncome, totalExpenses, netIncome: totalIncome - totalExpenses },
   };

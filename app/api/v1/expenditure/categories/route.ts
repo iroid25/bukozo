@@ -153,7 +153,7 @@ export async function POST(request: NextRequest) {
         throw new Error("Category with this name already exists");
       }
 
-      // 1. Create Budget Category
+      // Create the category in the budget category source of truth.
       const category = await tx.budgetCategory.create({
         data: {
           name: trimmedName,
@@ -176,39 +176,25 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // 2. Sync to Chart of Accounts (Hub)
-      const ledgerType = "EXPENDITURES";
-      const debitCredit = "DR"; // Expenses are Debit
-
-      const coaCount = await tx.chartOfAccount.count({
-        where: { ledgerType },
+      // ── Ensure matching COA row exists for journal entry posting ──
+      const existingCOA = await tx.chartOfAccount.findFirst({
+        where: { accountCode: generatedCode, isActive: true },
       });
-
-      const coaPrefix = "6"; // 6xxxx for Expenses
-      const coaNextNum = (coaCount + 1).toString().padStart(4, "0");
-      const coaGeneratedCode = `${coaPrefix}${coaNextNum}`;
-
-      const existingCoa = await tx.chartOfAccount.findUnique({
-        where: { accountCode: coaGeneratedCode },
-      });
-
-      const uniqueAccountCode = existingCoa
-        ? `${coaGeneratedCode}-${Date.now().toString().slice(-4)}`
-        : coaGeneratedCode;
-
-      await tx.chartOfAccount.create({
-        data: {
-          accountName: trimmedName,
-          accountCode: uniqueAccountCode,
-          fullCode: uniqueAccountCode,
-          ledgerType: ledgerType,
-          debitCredit: debitCredit,
-          isActive: true,
-          level: 1,
-          description: `Auto-generated from Expense Category: ${trimmedName}`,
-          category: "EXPENDITURES"
-        }
-      });
+      if (!existingCOA) {
+        await tx.chartOfAccount.create({
+          data: {
+            accountName: trimmedName,
+            accountCode: generatedCode,
+            fullCode: generatedCode,
+            ledgerType: "EXPENDITURES",
+            debitCredit: "DR",
+            isActive: true,
+            level: 1,
+            description: `Auto-generated from EXPENSE category: ${trimmedName}`,
+            category: "EXPENDITURE",
+          },
+        });
+      }
 
       return category;
     });

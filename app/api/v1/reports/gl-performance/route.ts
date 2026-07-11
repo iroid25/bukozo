@@ -1,25 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
-import { calculateAccountBalance, isDebitNormalBalance } from "@/lib/accounting-rules";
+import { isDebitNormalBalance } from "@/lib/accounting-rules";
 import { db } from "@/prisma/db";
 import { UserRole } from "@prisma/client";
-import { hydrateAccountsWithJournalBalances } from "@/lib/services/chartOfAccounts";
+import { getDirectBalanceSheetAccounts, getDirectIncomeExpenseAccounts, getSourceDrilldown, getDirectAccountsByCategory } from "@/lib/reports/direct-source";
 
 export const dynamic = "force-dynamic";
-
-const JOURNAL_INCLUDE = {
-  account: { select: { accountName: true, accountCode: true } },
-  transaction: {
-    select: {
-      paymentMethod: true,
-      externalReference: true,
-      processedByUser: { select: { name: true } },
-      member: { select: { user: { select: { name: true } } } },
-    },
-  },
-  createdBy: { select: { name: true, branch: { select: { name: true } } } },
-} as const;
 
 const CATEGORY_LABELS: Record<string, string> = {
   ASSETS: "Assets",
@@ -65,87 +52,45 @@ export async function GET(request: NextRequest) {
       if (user.branchId) branchIdFilter = user.branchId;
     }
 
-    const branchCondition = branchIdFilter
-      ? {
-          OR: [
-            { transaction: { branchId: branchIdFilter } },
-            { transactionId: null as string | null, branchId: branchIdFilter },
-            { createdBy: { branchId: branchIdFilter } },
-          ],
-        }
-      : {};
-
     // ============================================================================
-    // CASE A: SPECIFIC ACCOUNT CODE (e.g. accountCode=201003 or accountCode=300502)
+    // CASE A: SPECIFIC ACCOUNT CODE — source-table drilldown
     // ============================================================================
     if (accountCode) {
-      const accounts = await db.chartOfAccount.findMany({
-        where: { accountCode: { startsWith: accountCode }, isActive: true },
-        orderBy: { accountCode: "asc" },
-      });
+      const result = await getSourceDrilldown(accountCode, startDate, endDate, branchIdFilter);
+      const creditNormal = isCreditNormalType(result.ledgerType);
 
-      if (!accounts.length) {
-        return NextResponse.json(
-          { error: `No accounts found for code: ${accountCode}` },
-          { status: 404 }
-        );
+      // Compute opening balance from direct source
+      let openingBalance = 0;
+      if (["ASSETS", "LIABILITIES", "EQUITY"].includes(result.ledgerType)) {
+        const bsAccounts = await getDirectBalanceSheetAccounts(startDate, branchIdFilter);
+        const match = bsAccounts.find((a) => a.accountCode === accountCode);
+        openingBalance = match?.balance || 0;
+      } else if (["INCOME", "EXPENDITURES"].includes(result.ledgerType)) {
+        const startOfYear = new Date(startDate.getFullYear(), 0, 1);
+        const ieAccounts = await getDirectIncomeExpenseAccounts(startOfYear, startDate, branchIdFilter);
+        const match = ieAccounts.find((a) => a.accountCode === accountCode);
+        openingBalance = match?.balance || 0;
       }
 
-      const primaryAccount = accounts[0];
-      const creditNormal = isCreditNormalType(primaryAccount.ledgerType);
-      const accountIds = accounts.map((a) => a.id);
-
-      const accountLabel =
-        accounts.length === 1
-          ? `${primaryAccount.accountCode} - ${primaryAccount.accountName}`
-          : `${accountCode}xxx - ${primaryAccount.accountName}`;
-
-      const openingEntries = await db.journalEntry.aggregate({
-        where: {
-          accountId: { in: accountIds },
-          entryDate: { lt: startDate },
-          ...branchCondition,
-        },
-        _sum: { debitAmount: true, creditAmount: true },
-      });
-
-      const openingDebit = openingEntries._sum.debitAmount || 0;
-      const openingCredit = openingEntries._sum.creditAmount || 0;
-      const openingBalance = creditNormal
-        ? openingCredit - openingDebit
-        : openingDebit - openingCredit;
-
-      const periodEntries = await db.journalEntry.findMany({
-        where: {
-          accountId: { in: accountIds },
-          entryDate: { gte: startDate, lte: endDate },
-          ...branchCondition,
-        },
-        include: JOURNAL_INCLUDE,
-        orderBy: { entryDate: "asc" },
-      });
-
-      let totalPeriodDebit = 0;
-      let totalPeriodCredit = 0;
-      const enrichedTransactions = periodEntries.map((entry) => {
-        totalPeriodDebit += entry.debitAmount;
-        totalPeriodCredit += entry.creditAmount;
-        return {
-          ...entry,
-          effect: creditNormal
-            ? entry.creditAmount - entry.debitAmount
-            : entry.debitAmount - entry.creditAmount,
-        };
-      });
-
+      const totalPeriodDebit = result.totals.debit;
+      const totalPeriodCredit = result.totals.credit;
       const netPeriodMovement = creditNormal
         ? totalPeriodCredit - totalPeriodDebit
         : totalPeriodDebit - totalPeriodCredit;
 
+      const transactions = result.entries.map((e) => ({
+        date: e.date,
+        reference: e.reference,
+        description: e.description,
+        debitAmount: e.debit,
+        creditAmount: e.credit,
+        effect: creditNormal ? e.credit - e.debit : e.debit - e.credit,
+      }));
+
       return NextResponse.json({
         success: true,
         data: {
-          category: { id: accountCode, name: accountLabel, isCreditNormal: creditNormal },
+          category: { id: accountCode, name: result.accountName, isCreditNormal: creditNormal },
           summary: {
             openingBalance,
             totalPeriodDebit,
@@ -153,70 +98,61 @@ export async function GET(request: NextRequest) {
             netPeriodMovement,
             closingBalance: openingBalance + netPeriodMovement,
           },
-          transactions: enrichedTransactions,
+          transactions,
         },
       });
     }
 
     // ============================================================================
-    // CASE B: BROAD LEDGER CATEGORY (ASSETS / LIABILITIES / etc.)
+    // CASE B: BROAD LEDGER CATEGORY — source-table drilldown
     // ============================================================================
     if (category && category !== "all") {
       const isValidCategory = Object.keys(CATEGORY_LABELS).includes(category);
       if (!isValidCategory)
         return NextResponse.json({ error: "Invalid ledger category" }, { status: 400 });
 
-      const accounts = await db.chartOfAccount.findMany({
-        where: { ledgerType: category as any },
-      });
-
-      if (!accounts.length) {
-        return NextResponse.json(
-          { error: "No accounts found for this category" },
-          { status: 404 }
-        );
-      }
-
-      const accountIds = accounts.map((a) => a.id);
       const creditNormal = isCreditNormalType(category);
 
-      const openingEntries = await db.journalEntry.aggregate({
-        where: {
-          accountId: { in: accountIds },
-          entryDate: { lt: startDate },
-          ...branchCondition,
-        },
-        _sum: { debitAmount: true, creditAmount: true },
-      });
+      // Opening balance from direct source
+      let openingBalance = 0;
+      if (["ASSETS", "LIABILITIES", "EQUITY"].includes(category)) {
+        const bsAccounts = await getDirectBalanceSheetAccounts(startDate, branchIdFilter);
+        openingBalance = bsAccounts
+          .filter((a) => a.ledgerType === category && !a.isGroup)
+          .reduce((sum, a) => sum + a.balance, 0);
+      } else if (["INCOME", "EXPENDITURES"].includes(category)) {
+        const startOfYear = new Date(startDate.getFullYear(), 0, 1);
+        const ieAccounts = await getDirectIncomeExpenseAccounts(startOfYear, startDate, branchIdFilter);
+        openingBalance = ieAccounts
+          .filter((a) => a.ledgerType === category && !a.isGroup)
+          .reduce((sum, a) => sum + a.balance, 0);
+      }
 
-      const openingDebit = openingEntries._sum.debitAmount || 0;
-      const openingCredit = openingEntries._sum.creditAmount || 0;
-      const openingBalance = creditNormal
-        ? openingCredit - openingDebit
-        : openingDebit - openingCredit;
-
-      const periodEntries = await db.journalEntry.findMany({
-        where: {
-          accountId: { in: accountIds },
-          entryDate: { gte: startDate, lte: endDate },
-          ...branchCondition,
-        },
-        include: JOURNAL_INCLUDE,
-        orderBy: { entryDate: "asc" },
-      });
+      // Get all direct accounts for this category and drill down into each
+      const categoryAccounts = await getDirectAccountsByCategory(category, startDate, endDate, branchIdFilter);
+      const leafAccounts = categoryAccounts.filter((a) => !a.isGroup);
 
       let totalPeriodDebit = 0;
       let totalPeriodCredit = 0;
-      const enrichedTransactions = periodEntries.map((entry) => {
-        totalPeriodDebit += entry.debitAmount;
-        totalPeriodCredit += entry.creditAmount;
-        return {
-          ...entry,
-          effect: creditNormal
-            ? entry.creditAmount - entry.debitAmount
-            : entry.debitAmount - entry.creditAmount,
-        };
-      });
+      const allTransactions: any[] = [];
+
+      for (const acct of leafAccounts) {
+        const drilldown = await getSourceDrilldown(acct.accountCode, startDate, endDate, branchIdFilter);
+        totalPeriodDebit += drilldown.totals.debit;
+        totalPeriodCredit += drilldown.totals.credit;
+        for (const e of drilldown.entries) {
+          allTransactions.push({
+            date: e.date,
+            reference: e.reference,
+            description: `[${acct.accountCode}] ${e.description}`,
+            debitAmount: e.debit,
+            creditAmount: e.credit,
+            effect: creditNormal ? e.credit - e.debit : e.debit - e.credit,
+          });
+        }
+      }
+
+      allTransactions.sort((a, b) => a.date.localeCompare(b.date));
 
       const netPeriodMovement = creditNormal
         ? totalPeriodCredit - totalPeriodDebit
@@ -237,19 +173,19 @@ export async function GET(request: NextRequest) {
             netPeriodMovement,
             closingBalance: openingBalance + netPeriodMovement,
           },
-          transactions: enrichedTransactions,
+          transactions: allTransactions,
         },
       });
     }
 
     // ============================================================================
-    // CASE C: ALL CATEGORIES SUMMARY (hydrated from journal entries)
+    // CASE C: ALL CATEGORIES SUMMARY (direct source)
     // ============================================================================
-    const allAccounts = await db.chartOfAccount.findMany({
-      orderBy: { accountCode: "asc" },
-    });
-
-    const hydrated = await hydrateAccountsWithJournalBalances(allAccounts, branchIdFilter);
+    const [bsAccounts, ieAccounts] = await Promise.all([
+      getDirectBalanceSheetAccounts(endDate, branchIdFilter),
+      getDirectIncomeExpenseAccounts(startDate, endDate, branchIdFilter),
+    ]);
+    const allDirectAccounts = [...bsAccounts, ...ieAccounts];
 
     const categories = {
       assets: { name: "Assets", accounts: [] as any[], totalBalance: 0 },
@@ -257,11 +193,10 @@ export async function GET(request: NextRequest) {
       equity: { name: "Equity", accounts: [] as any[], totalBalance: 0 },
       income: { name: "Income", accounts: [] as any[], totalBalance: 0 },
       expenses: { name: "Expenses", accounts: [] as any[], totalBalance: 0 },
-      others: { name: "Other Accounts", accounts: [] as any[], totalBalance: 0 },
     };
 
-    hydrated.forEach((acc: any) => {
-      let catKey: keyof typeof categories = "others";
+    allDirectAccounts.forEach((acc) => {
+      let catKey: keyof typeof categories;
       switch (acc.ledgerType) {
         case "ASSETS":
           catKey = "assets";
@@ -278,19 +213,20 @@ export async function GET(request: NextRequest) {
         case "EXPENDITURES":
           catKey = "expenses";
           break;
+        default:
+          return;
       }
 
-      const balance = calculateAccountBalance(acc.ledgerType, acc.debitBalance, acc.creditBalance);
       categories[catKey].accounts.push({
         id: acc.id,
         code: acc.accountCode,
         name: acc.accountName,
-        balance,
-        debitBalance: acc.debitBalance,
-        creditBalance: acc.creditBalance,
+        balance: acc.balance,
+        debitBalance: acc.debit,
+        creditBalance: acc.credit,
         isCreditNormal: !isDebitNormalBalance(acc.ledgerType),
       });
-      categories[catKey].totalBalance += balance;
+      categories[catKey].totalBalance += acc.balance;
     });
 
     return NextResponse.json({

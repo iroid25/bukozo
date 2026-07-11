@@ -1,10 +1,11 @@
 import { format, parseISO } from "date-fns";
-import { UserRole } from "@prisma/client";
+import { TransactionStatus, UserRole } from "@prisma/client";
 
 import { db } from "@/prisma/db";
 import { calculateAccountBalance } from "@/lib/accounting-rules";
 import { buildTree, sortTreeByCodeOrName } from "@/lib/category-tree";
-import { getBranchFilterForService, getCashAtHandPrincipalTotal, getOperationalBalances } from "@/lib/services/financial-reports";
+import { getBranchFilterForService } from "@/lib/services/financial-reports";
+import { getDirectBalanceSheetAccounts } from "@/lib/reports/direct-source";
 
 type AuthUserLike = {
   id?: string | null;
@@ -160,66 +161,11 @@ async function resolveFinancialYear(input: BuildInput) {
 }
 
 async function loadBalanceSummaries(accountIds: string[], fromDate: Date, toDate: Date, branchId?: string) {
-  if (!accountIds.length) {
-    return {
-      period: new Map<string, { debit: number; credit: number }>(),
-      ytd: new Map<string, { debit: number; credit: number }>(),
-    };
-  }
-
-  const branchWhere = (branchId: string) => ({
-    OR: [
-      { transaction: { branchId } },
-      { transactionId: null as string | null, branchId },
-    ],
-  });
-
-  const [periodRows, ytdRows] = await Promise.all([
-    db.journalEntry.groupBy({
-      by: ["accountId"],
-      where: {
-        accountId: { in: accountIds },
-        entryDate: { gte: fromDate, lte: toDate },
-        ...(branchId ? branchWhere(branchId) : {}),
-      },
-      _sum: {
-        debitAmount: true,
-        creditAmount: true,
-      },
-    }),
-    db.journalEntry.groupBy({
-      by: ["accountId"],
-      where: {
-        accountId: { in: accountIds },
-        entryDate: { lte: toDate },
-        ...(branchId ? branchWhere(branchId) : {}),
-      },
-      _sum: {
-        debitAmount: true,
-        creditAmount: true,
-      },
-    }),
-  ]);
-
+  // DEPRECATED: This function used to query JournalEntry. Kept for compatibility
+  // but the main report now uses direct source reads instead.
   return {
-    period: new Map(
-      periodRows.map((entry) => [
-        entry.accountId,
-        {
-          debit: entry._sum.debitAmount || 0,
-          credit: entry._sum.creditAmount || 0,
-        },
-      ]),
-    ),
-    ytd: new Map(
-      ytdRows.map((entry) => [
-        entry.accountId,
-        {
-          debit: entry._sum.debitAmount || 0,
-          credit: entry._sum.creditAmount || 0,
-        },
-      ]),
-    ),
+    period: new Map<string, { debit: number; credit: number }>(),
+    ytd: new Map<string, { debit: number; credit: number }>(),
   };
 }
 
@@ -269,204 +215,39 @@ export async function buildFinancialYearBalanceSheetReport(input: BuildInput): P
   const toDate: Date = parseDate(input.toDate) || parseDate(financialYear?.endDate) || new Date();
   const fromDate: Date = parseDate(input.fromDate) || fyStart;
 
-  const accounts = await db.chartOfAccount.findMany({
-    where: {
-      isActive: true,
-      ledgerType: { in: ["ASSETS", "LIABILITIES", "EQUITY"] },
-    },
-    orderBy: [{ ledgerType: "asc" }, { accountCode: "asc" }],
-    select: {
-      id: true,
-      accountCode: true,
-      accountName: true,
-      parentId: true,
-      ledgerType: true,
-      children: {
-        select: {
-          id: true,
-        },
-      },
-    },
-  });
-
-  const accountIds = accounts.map((account) => account.id);
-  const balances = await loadBalanceSummaries(accountIds, fromDate, toDate, branchId || undefined);
-
-  const mapped = accounts.map((account) => {
-    const section = account.ledgerType as FinancialYearBalanceSheetAccount["ledgerType"];
-    const periodSummary = balances.period.get(account.id) || { debit: 0, credit: 0 };
-    const ytdSummary = balances.ytd.get(account.id) || { debit: 0, credit: 0 };
-    const periodNet = calculateAccountBalance(section, periodSummary.debit, periodSummary.credit);
-    const ytdBalance = calculateAccountBalance(section, ytdSummary.debit, ytdSummary.credit);
-    return {
-      id: account.id,
-      accountCode: account.accountCode,
-      accountName: account.accountName,
-      code: account.accountCode,
-      name: account.accountName,
-      parentId: account.parentId,
-      isGroup: account.children.length > 0,
-      ledgerType: section,
-      periodNet,
-      ytdBalance,
-      displayPeriodNet: displaySide(section, periodNet),
-      displayYtdBalance: displaySide(section, ytdBalance),
-      children: [] as FinancialYearBalanceSheetAccount[],
-    };
-  });
-
-  const cashAtHandFyStart = await getCashAtHandPrincipalTotal(fyStart, branchId || undefined);
-  const cashAtHandToDate = await getCashAtHandPrincipalTotal(toDate, branchId || undefined);
-  for (const row of mapped) {
-    if (row.accountCode === "101100") {
-      row.ytdBalance = cashAtHandToDate;
-      row.periodNet = cashAtHandToDate - cashAtHandFyStart;
-      row.displayYtdBalance = displaySide(row.ledgerType, row.ytdBalance);
-      row.displayPeriodNet = displaySide(row.ledgerType, row.periodNet);
-    }
-  }
-
-  const [opFyStart, opToDate] = await Promise.all([
-    getOperationalBalances(fyStart, { branchId: branchId || undefined }),
-    getOperationalBalances(toDate, { branchId: branchId || undefined }),
+  // Direct source: read from real tables at two dates to derive period/YTD
+  const [directFyStart, directToDate] = await Promise.all([
+    getDirectBalanceSheetAccounts(fyStart, branchId || undefined),
+    getDirectBalanceSheetAccounts(toDate, branchId || undefined),
   ]);
 
-  {
+  // Use direct source accounts directly — they already contain parentId, isGroup, and financial data
+  const directStartByCode = new Map(directFyStart.map((a) => [a.accountCode, a]));
 
-    // Prefix-based overrides for loans and depreciation (NOT fixed assets — handled separately below)
-    const fyOverrides: Array<{ prefixes: string[]; getOp: (o: typeof opFyStart) => number }> = [
-      { prefixes: ["107"], getOp: (o) => o.loanPortfolio },
-      { prefixes: ["200700"], getOp: (o) => o.accumulatedDepreciation },
-    ];
-    for (const ov of fyOverrides) {
-      const grp = mapped.filter((r) => ov.prefixes.some((p) => r.accountCode.startsWith(p)));
-      if (grp.length === 0) continue;
-      const ytdSum = grp.reduce((s, r) => s + r.ytdBalance, 0);
-      const targetStart = ov.getOp(opFyStart);
-      const targetEnd = ov.getOp(opToDate);
-      if (Math.abs(ytdSum) < 0.001 && Math.abs(targetEnd) < 0.001) continue;
-      for (const row of grp) {
-        const ratio = ytdSum !== 0 ? Math.abs(row.ytdBalance / ytdSum) : 1 / grp.length;
-        const rawPeriod = Math.round((targetEnd - targetStart) * ratio * 100) / 100;
-        const rawYtd = Math.round(targetEnd * ratio * 100) / 100;
-        row.periodNet = rawPeriod;
-        row.ytdBalance = rawYtd;
-        row.displayPeriodNet = displaySide(row.ledgerType, rawPeriod);
-        row.displayYtdBalance = displaySide(row.ledgerType, rawYtd);
-      }
-    }
-
-    // Fetch fixed assets, savings types, share types, and FTD types in parallel
-    const [fixedAssets, savingsTypes, shareTypes, ftdTypes] = await Promise.all([
-      db.fixedAsset.findMany({
-        where: { status: "ACTIVE", accountId: { not: null }, purchaseDate: { lte: toDate }, ...(branchId ? { branchId } : {}) },
-        select: { accountId: true, currentValue: true },
-      }),
-      db.accountType.findMany({
-        where: { isShareAccount: false, hasFixedPeriod: false, ledgerAccountId: { not: null } },
-        select: { id: true, ledgerAccountId: true },
-      }),
-      db.accountType.findMany({
-        where: { isShareAccount: true, ledgerAccountId: { not: null } },
-        select: { id: true, ledgerAccountId: true },
-      }),
-      db.accountType.findMany({
-        where: { hasFixedPeriod: true, ledgerAccountId: { not: null } },
-        select: { id: true, ledgerAccountId: true },
-      }),
-    ]);
-
-    // Fixed assets: use each asset's actual currentValue mapped to its individual COA accountId.
-    for (const asset of fixedAssets) {
-      if (!asset.accountId) continue;
-      const row = mapped.find((r) => r.id === asset.accountId);
-      if (!row) continue;
-      const endBal = Number(asset.currentValue ?? 0);
-      const glPeriod = balances.period.get(asset.accountId) ?? { debit: 0, credit: 0 };
-      const periodNet = calculateAccountBalance(row.ledgerType, glPeriod.debit, glPeriod.credit);
-      row.ytdBalance = endBal;
-      row.periodNet = periodNet || endBal;
-      row.displayYtdBalance = displaySide(row.ledgerType, endBal);
-      row.displayPeriodNet = displaySide(row.ledgerType, row.periodNet);
-    }
-
-    // Run savings and share follow-up aggregates in parallel
-    const needsSavings = savingsTypes.length > 0 && opToDate.memberSavingsDeposits > 0;
-    const needsShares = shareTypes.length > 0;
-    const [savingsRows, shareRows] = await Promise.all([
-      needsSavings
-        ? db.account.groupBy({
-            by: ["accountTypeId"],
-            where: { accountTypeId: { in: savingsTypes.map((t) => t.id) }, status: { not: "CLOSED" }, ...(branchId ? { branchId } : {}) },
-            _sum: { balance: true },
-          })
-        : Promise.resolve([] as { accountTypeId: string; _sum: { balance: number | null } }[]),
-      needsShares
-        ? db.shareAccount.groupBy({
-            by: ["accountTypeId"],
-            where: {
-              accountTypeId: { in: shareTypes.map((t) => t.id) },
-              status: { in: ["ACTIVE", "DORMANT", "ON_HOLD", "FROZEN"] },
-              openedDate: { lte: toDate },
-              ...(branchId ? { branchId } : {}),
-            },
-            _sum: { totalValue: true },
-          })
-        : Promise.resolve([] as { accountTypeId: string; _sum: { totalValue: number | null } }[]),
-    ]);
-
-    // Member savings: override each savings product's ledger account with actual Account.balance per type
-    if (needsSavings) {
-      const endMap = new Map(savingsRows.map((r) => [r.accountTypeId, Number(r._sum.balance ?? 0)]));
-      for (const st of savingsTypes) {
-        const row = mapped.find((r) => r.id === st.ledgerAccountId);
-        if (!row) continue;
-        const endBal = endMap.get(st.id) ?? 0;
-        const glPeriod = balances.period.get(st.ledgerAccountId!) ?? { debit: 0, credit: 0 };
-        const periodNet = calculateAccountBalance(row.ledgerType, glPeriod.debit, glPeriod.credit);
-        row.ytdBalance = endBal;
-        row.periodNet = periodNet;
-        row.displayYtdBalance = displaySide(row.ledgerType, endBal);
-        row.displayPeriodNet = displaySide(row.ledgerType, periodNet);
-      }
-    }
-
-    // Share capital: override accounts linked to share account types
-    if (needsShares) {
-      const endMap = new Map(shareRows.map((r) => [r.accountTypeId, Number(r._sum.totalValue ?? 0)]));
-      for (const st of shareTypes) {
-        const row = mapped.find((r) => r.id === st.ledgerAccountId);
-        if (!row) continue;
-        const endBal = endMap.get(st.id) ?? 0;
-        const glPeriod = balances.period.get(st.ledgerAccountId!) ?? { debit: 0, credit: 0 };
-        const periodNet = calculateAccountBalance(row.ledgerType, glPeriod.debit, glPeriod.credit);
-        row.ytdBalance = endBal;
-        row.periodNet = periodNet;
-        row.displayYtdBalance = displaySide(row.ledgerType, endBal);
-        row.displayPeriodNet = displaySide(row.ledgerType, periodNet);
-      }
-    }
-
-    // Fixed-term deposits: override GL accounts linked to FTD account types.
-    if (ftdTypes.length > 0 && opToDate.fixedTermDeposits > 0) {
-      const ledgerAccIds = [...new Set(ftdTypes.map((t) => t.ledgerAccountId!))];
-      const ftdRows = mapped.filter((r) => ledgerAccIds.includes(r.id));
-      if (ftdRows.length > 0) {
-        const total = opToDate.fixedTermDeposits;
-        const glSum = ftdRows.reduce((s, r) => s + Math.abs(r.ytdBalance), 0);
-        for (const row of ftdRows) {
-          const ratio = glSum > 0.001 ? Math.abs(row.ytdBalance) / glSum : 1 / ftdRows.length;
-          const endBal = Math.round(total * ratio * 100) / 100;
-          const glPeriod = balances.period.get(row.id) ?? { debit: 0, credit: 0 };
-          const periodNet = calculateAccountBalance(row.ledgerType, glPeriod.debit, glPeriod.credit);
-          row.ytdBalance = endBal;
-          row.periodNet = periodNet;
-          row.displayYtdBalance = displaySide(row.ledgerType, endBal);
-          row.displayPeriodNet = displaySide(row.ledgerType, periodNet);
-        }
-      }
-    }
-  }
+  const mapped = directToDate
+    .filter((a) => a.ledgerType === "ASSETS" || a.ledgerType === "LIABILITIES" || a.ledgerType === "EQUITY")
+    .map((account) => {
+      const section = account.ledgerType as FinancialYearBalanceSheetAccount["ledgerType"];
+      const directStart = directStartByCode.get(account.accountCode);
+      const ytdBalance = account.balance || 0;
+      const startBalance = directStart?.balance || 0;
+      const periodNet = ytdBalance - startBalance;
+      return {
+        id: account.id,
+        accountCode: account.accountCode,
+        accountName: account.accountName,
+        code: account.accountCode,
+        name: account.accountName,
+        parentId: account.parentId,
+        isGroup: account.isGroup,
+        ledgerType: section,
+        periodNet,
+        ytdBalance,
+        displayPeriodNet: displaySide(section, periodNet),
+        displayYtdBalance: displaySide(section, ytdBalance),
+        children: [] as FinancialYearBalanceSheetAccount[],
+      };
+    });
 
   const nodes = buildTree(mapped);
   const sortedNodes = sortTreeByCodeOrName(nodes);
@@ -514,9 +295,36 @@ export async function buildFinancialYearBalanceSheetReport(input: BuildInput): P
   ];
 
   // Inject Surplus / (Deficit) for the Period into equity.
-  // Net profit = cumulative income minus cumulative expenditure to the reporting date.
-  // This is the same figure shown by the P&L statement and makes the balance sheet balance.
-  const netProfitForPeriod = opToDate.incomeTotal - opToDate.expenditureTotal;
+  // Compute from IncomeRecord + ExpenditureRecord + InsuranceContribution, scoped to the reporting period.
+  const periodWhere = {
+    recordDate: { gte: fromDate, lte: toDate },
+    status: { in: [TransactionStatus.COMPLETED, TransactionStatus.APPROVED] as TransactionStatus[] },
+    ...(branchId ? { member: { user: { branchId } } } : {}),
+  };
+  const [incomeAgg, expenditureAgg, insuranceAgg] = await Promise.all([
+    db.incomeRecord.aggregate({
+      where: periodWhere,
+      _sum: { amount: true },
+    }),
+    db.expenditureRecord.aggregate({
+      where: {
+        recordDate: { gte: fromDate, lte: toDate },
+        status: TransactionStatus.COMPLETED,
+        ...(branchId ? { member: { user: { branchId } } } : {}),
+      },
+      _sum: { amount: true },
+    }),
+    db.insuranceContribution.aggregate({
+      where: {
+        type: "CONTRIBUTION",
+        createdAt: { gte: fromDate, lte: toDate },
+        ...(branchId ? { account: { branchId } } : {}),
+      },
+      _sum: { amount: true },
+    }),
+  ]);
+  const totalIncome = (incomeAgg._sum?.amount || 0) + (insuranceAgg._sum?.amount || 0);
+  const netProfitForPeriod = totalIncome - (expenditureAgg._sum?.amount || 0);
   const surplusLabel = netProfitForPeriod >= 0 ? "Surplus for the Period" : "Deficit for the Period";
   if (Math.abs(netProfitForPeriod) > 0.009) {
     const syntheticRow: FinancialYearBalanceSheetAccount = {
@@ -548,7 +356,7 @@ export async function buildFinancialYearBalanceSheetReport(input: BuildInput): P
     equitySection.totalPeriodNet += netProfitForPeriod;
   }
 
-  const totalAccounts = accounts.length;
+  const totalAccounts = mapped.length;
   const totalPeriodNet = sections.reduce((sum, section) => sum + section.totalPeriodNet, 0);
   const totalYtdBalance = sections.reduce((sum, section) => sum + section.totalYtdBalance, 0);
   const difference = sections[0].totalYtdBalance - sections[1].totalYtdBalance - sections[2].totalYtdBalance;

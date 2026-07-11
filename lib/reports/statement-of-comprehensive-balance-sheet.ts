@@ -1,6 +1,7 @@
 import { format, startOfMonth, endOfMonth, subMonths, parseISO } from "date-fns";
 import { db } from "@/prisma/db";
-import { getBranchFilterForService, getCashAtHandPrincipalTotal, getOperationalBalances } from "@/lib/services/financial-reports";
+import { getBranchFilterForService } from "@/lib/services/financial-reports";
+import { getDirectBalanceSheetAccounts, getSourceDrilldown } from "@/lib/reports/direct-source";
 
 export type ComprehensiveBalanceSheetAccount = {
   code: string;
@@ -173,53 +174,6 @@ function resolveGroup(accountCode: string, section: "ASSET" | "LIABILITY" | "EQU
   return { code: "309999", name: "OTHER EQUITY", section, prefixes: [] };
 }
 
-async function loadAccountBalances(
-  accountIds: string[],
-  endDate: Date,
-  branchId?: string,
-) {
-  if (accountIds.length === 0) return new Map<string, { debit: number; credit: number; balance: number; count: number }>();
-
-  const grouped = await db.journalEntry.groupBy({
-    by: ["accountId"],
-    where: {
-      accountId: { in: accountIds },
-      entryDate: { lte: endDate },
-      ...(branchId
-        ? {
-            OR: [
-              { transaction: { branchId } },
-              { transactionId: null, branchId },
-            ],
-          }
-        : {}),
-    },
-    _sum: {
-      debitAmount: true,
-      creditAmount: true,
-    },
-    _count: {
-      id: true,
-    },
-  });
-
-  return new Map(
-    grouped.map((entry) => {
-      const debit = entry._sum.debitAmount || 0;
-      const credit = entry._sum.creditAmount || 0;
-      return [
-        entry.accountId,
-        {
-          debit,
-          credit,
-          balance: debit - credit,
-          count: entry._count.id || 0,
-        },
-      ] as const;
-    }),
-  );
-}
-
 function applyBalanceSide(section: "ASSET" | "LIABILITY" | "EQUITY", rawBalance: number) {
   if (section === "ASSET") return rawBalance;
   // credit-normal accounts: invert debit-credit to get credit-debit (positive = normal credit balance)
@@ -256,111 +210,41 @@ export async function buildComprehensiveBalanceSheetReport(input: {
       }
     : getDefaultComparePeriod(current.start);
 
-  const accounts = await db.chartOfAccount.findMany({
-    where: { isActive: true, ledgerType: { in: ["ASSETS", "LIABILITIES", "EQUITY"] } },
-    select: {
-      id: true,
-      accountCode: true,
-      accountName: true,
-      ledgerType: true,
-      fullCode: true,
-      level: true,
-      category: true,
-    },
-    orderBy: [{ ledgerType: "asc" }, { accountCode: "asc" }],
-  });
-
-  const accountIds = accounts.map((account) => account.id);
-  const [compareBalances, currentBalances] = await Promise.all([
-    loadAccountBalances(accountIds, compare.end, effectiveBranchId),
-    loadAccountBalances(accountIds, current.end, effectiveBranchId),
+  // Direct source: read from real tables instead of COA + JournalEntry
+  const [compareDirectAccounts, currentDirectAccounts] = await Promise.all([
+    getDirectBalanceSheetAccounts(compare.end, effectiveBranchId),
+    getDirectBalanceSheetAccounts(current.end, effectiveBranchId),
   ]);
 
-  const accountRows = accounts.map((account) => {
-    const section = account.ledgerType === "ASSETS" ? "ASSET" : account.ledgerType === "LIABILITIES" ? "LIABILITY" : "EQUITY";
-    const group = resolveGroup(account.accountCode, section);
-    const compareBalance = compareBalances.get(account.id)?.balance || 0;
-    const currentBalance = currentBalances.get(account.id)?.balance || 0;
-    const movement = currentBalance - compareBalance;
-    const closingBalance = currentBalance;
+  const compareByCode = new Map(compareDirectAccounts.map((a) => [a.accountCode, a]));
 
-    const signedCompare = applyBalanceSide(section, compareBalance);
-    const signedMovement = applyBalanceSide(section, movement);
-    const signedClosing = applyBalanceSide(section, closingBalance);
+  const accountRows = currentDirectAccounts
+    .filter((account) => !account.isGroup)
+    .map((account) => {
+      const section = account.ledgerType === "ASSETS" ? "ASSET" : account.ledgerType === "LIABILITIES" ? "LIABILITY" : "EQUITY";
+      const group = resolveGroup(account.accountCode, section);
+      const currentBalance = account.balance;
+      const compareBalance = compareByCode.get(account.accountCode)?.balance || 0;
+      const movement = currentBalance - compareBalance;
+      const closingBalance = currentBalance;
 
-    return {
-      id: account.id,
-      code: account.accountCode,
-      name: account.accountName,
-      section,
-      groupCode: group.code,
-      groupName: group.name,
-      compare_balance: signedCompare,
-      movement: signedMovement,
-      closing_balance: signedClosing,
-      journal_count: currentBalances.get(account.id)?.count || 0,
-    };
-  });
+      const signedCompare = applyBalanceSide(section, compareBalance);
+      const signedMovement = applyBalanceSide(section, movement);
+      const signedClosing = applyBalanceSide(section, closingBalance);
 
-  const cashAtHandCompare = await getCashAtHandPrincipalTotal(compare.end, effectiveBranchId);
-  const cashAtHandCurrent = await getCashAtHandPrincipalTotal(current.end, effectiveBranchId);
-  for (const row of accountRows) {
-    if (row.code === "101100") {
-      row.compare_balance = cashAtHandCompare;
-      row.closing_balance = cashAtHandCurrent;
-      row.movement = cashAtHandCurrent - cashAtHandCompare;
-    }
-  }
-
-  // ── Operational overrides ──────────────────────────────────────────────────
-  // GL journal entries understate savings, loans, and share capital because
-  // deposit posting credits one generic account rather than the correct account.
-  // Override those groups with authoritative operational table totals.
-  {
-    const [opCompare, opCurrent] = await Promise.all([
-      getOperationalBalances(compare.end, { branchId: effectiveBranchId }),
-      getOperationalBalances(current.end, { branchId: effectiveBranchId }),
-    ]);
-
-    const applyGroupOverride = (
-      prefixFilter: (code: string) => boolean,
-      compareVal: number,
-      currentVal: number,
-    ) => {
-      const grp = accountRows.filter((r) => prefixFilter(r.code));
-      if (grp.length === 0) return;
-      const sumAbs = grp.reduce((s, r) => s + Math.abs(r.closing_balance), 0);
-      for (const row of grp) {
-        const ratio = sumAbs > 0.001 ? Math.abs(row.closing_balance) / sumAbs : 1 / grp.length;
-        row.closing_balance = Math.round(currentVal * ratio * 100) / 100;
-        row.compare_balance = Math.round(compareVal * ratio * 100) / 100;
-        row.movement = row.closing_balance - row.compare_balance;
-      }
-    };
-
-    // Loan portfolio (ASSET 107xxx)
-    applyGroupOverride(
-      (code) => code.startsWith("107"),
-      opCompare.loanPortfolio,
-      opCurrent.loanPortfolio,
-    );
-
-    // Member deposit liabilities (savings + fixed-term deposits, LIABILITY 200xxx deposits)
-    const DEPOSIT_PREFIXES = ["201001", "201002", "201003", "201004", "200600"];
-    applyGroupOverride(
-      (code) => DEPOSIT_PREFIXES.some((p) => code.startsWith(p)),
-      opCompare.memberSavingsDeposits + opCompare.fixedTermDeposits,
-      opCurrent.memberSavingsDeposits + opCurrent.fixedTermDeposits,
-    );
-
-    // Share capital (EQUITY 300501-300504, 304xxx)
-    const SHARE_PREFIXES = ["300501", "300502", "300503", "300504", "304"];
-    applyGroupOverride(
-      (code) => SHARE_PREFIXES.some((p) => code.startsWith(p)),
-      opCompare.shareCapital,
-      opCurrent.shareCapital,
-    );
-  }
+      return {
+        id: account.id,
+        code: account.accountCode,
+        name: account.accountName,
+        section,
+        groupCode: group.code,
+        groupName: group.name,
+        compare_balance: signedCompare,
+        movement: signedMovement,
+        closing_balance: signedClosing,
+        journal_count: 0,
+      };
+    });
 
   const buildSection = (section: "ASSET" | "LIABILITY" | "EQUITY"): ComprehensiveBalanceSheetSection => {
     const rows = accountRows.filter((row) => row.section === section);
@@ -459,59 +343,16 @@ export async function buildComprehensiveBalanceSheetDrilldown(input: {
   const startDate = normalizeDate(input.startDate) || startOfMonth(new Date());
   const endDate = toEndOfDay(normalizeDate(input.endDate) || new Date());
 
-  const account = await db.chartOfAccount.findUnique({
-    where: { accountCode: input.accountCode },
-    select: {
-      id: true,
-      accountCode: true,
-      accountName: true,
-      ledgerType: true,
-    },
-  });
+  const result = await getSourceDrilldown(input.accountCode, startDate, endDate, branchId);
 
-  if (!account) {
-    throw new Error("Account not found");
-  }
-
-  const entries = await db.journalEntry.findMany({
-    where: {
-      accountId: account.id,
-      entryDate: { gte: startDate, lte: endDate },
-      ...(branchId
-        ? {
-            OR: [
-              { transaction: { branchId } },
-              { transactionId: null, branchId },
-            ],
-          }
-        : {}),
-    },
-    orderBy: { entryDate: "asc" },
-    select: {
-      entryDate: true,
-      reference: true,
-      description: true,
-      debitAmount: true,
-      creditAmount: true,
-    },
-  });
-
-  const totals = entries.reduce(
-    (acc, entry) => ({
-      debit: acc.debit + (entry.debitAmount || 0),
-      credit: acc.credit + (entry.creditAmount || 0),
-    }),
-    { debit: 0, credit: 0 },
-  );
-
-  const section = account.ledgerType === "ASSETS" ? "ASSET" : account.ledgerType === "LIABILITIES" ? "LIABILITY" : "EQUITY";
-  const group = resolveGroup(account.accountCode, section);
-  const balance = applyBalanceSide(section, totals.debit - totals.credit);
+  const section = result.ledgerType === "ASSETS" ? "ASSET" : result.ledgerType === "LIABILITIES" ? "LIABILITY" : "EQUITY";
+  const group = resolveGroup(result.accountCode, section);
+  const balance = applyBalanceSide(section, result.totals.debit - result.totals.credit);
 
   return {
     account: {
-      code: account.accountCode,
-      name: account.accountName,
+      code: result.accountCode,
+      name: result.accountName,
       section,
       group: group.name,
     },
@@ -524,17 +365,17 @@ export async function buildComprehensiveBalanceSheetDrilldown(input: {
       id: branchId || "all",
       name: branchId ? (await db.branch.findUnique({ where: { id: branchId }, select: { name: true } }))?.name || "Selected Branch" : "All Branches",
     },
-    entries: entries.map((entry) => ({
-      date: format(entry.entryDate, "yyyy-MM-dd"),
-      reference: entry.reference || "",
-      description: entry.description || "",
-      debit: entry.debitAmount || 0,
-      credit: entry.creditAmount || 0,
-      narration: entry.description || "",
+    entries: result.entries.map((entry) => ({
+      date: entry.date,
+      reference: entry.reference,
+      description: entry.description,
+      debit: entry.debit,
+      credit: entry.credit,
+      narration: entry.description,
     })),
     totals: {
-      debit: totals.debit,
-      credit: totals.credit,
+      debit: result.totals.debit,
+      credit: result.totals.credit,
       balance,
     },
   } satisfies ComprehensiveBalanceSheetDrilldown;
@@ -572,19 +413,9 @@ export async function listReportPeriods() {
 export async function listAccountsForBalanceSheet(user: any) {
   const branchFilter = await getBranchFilterForService(user, user.branchId || undefined);
   const branchId = branchFilter.branchId && branchFilter.branchId !== "all" ? branchFilter.branchId : undefined;
-  const accounts = await db.chartOfAccount.findMany({
-    where: { isActive: true, ledgerType: { in: ["ASSETS", "LIABILITIES", "EQUITY"] } },
-    orderBy: [{ ledgerType: "asc" }, { accountCode: "asc" }],
-    select: {
-      id: true,
-      accountCode: true,
-      accountName: true,
-      ledgerType: true,
-      fullCode: true,
-      level: true,
-      category: true,
-    },
-  });
+  const now = new Date();
+  const startOfYear = new Date(now.getFullYear(), 0, 1);
+  const accounts = await getDirectBalanceSheetAccounts(now, branchId);
 
   return accounts.map((account) => {
     const section = account.ledgerType === "ASSETS" ? "ASSET" : account.ledgerType === "LIABILITIES" ? "LIABILITY" : "EQUITY";

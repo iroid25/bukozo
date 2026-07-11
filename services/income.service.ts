@@ -490,11 +490,17 @@ export class IncomeService {
         const incomeAccount = await tx.chartOfAccount.findFirst({
           where: { accountCode: categoryCode, isActive: true },
         });
+        if (!incomeAccount) {
+          console.warn(`[IncomeService] COA account not found for category code ${categoryCode} — journal entries skipped for income ${incomeRecord.id}`);
+        }
         if (incomeAccount) {
           const assetCode = incomeRecord.paymentMethod === PaymentMethod.CASH ? CASH_AT_HAND_CODE : "102001";
           const assetAccount = await tx.chartOfAccount.findFirst({
             where: { accountCode: assetCode, isActive: true },
           });
+          if (!assetAccount) {
+            console.warn(`[IncomeService] COA asset account not found for code ${assetCode} — journal entries skipped for income ${incomeRecord.id}`);
+          }
           if (assetAccount) {
             const entryNumber = `JE-INC-${Date.now()}`;
             await tx.journalEntry.create({
@@ -535,6 +541,8 @@ export class IncomeService {
             });
           }
         }
+      } else {
+        console.warn(`[IncomeService] No category code found for income ${incomeRecord.id} — journal entries skipped`);
       }
 
       return incomeRecord;

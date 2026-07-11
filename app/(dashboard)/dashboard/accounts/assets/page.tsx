@@ -9,13 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
   Table,
   TableBody,
   TableCell,
@@ -34,11 +27,9 @@ import {
 import {
   ChevronDown,
   ChevronRight,
-  Eye,
   FileText,
   Folder,
   Landmark,
-  Layers,
   Loader2,
   Trash2,
 } from "lucide-react";
@@ -48,51 +39,51 @@ import { CurrentAssetTransferForm } from "./components/CurrentAssetTransferForm"
 import { AssetActionDialog } from "./components/AssetActionDialog";
 import { type AssetDisposalTarget } from "./components/AssetDisposalForm";
 
-interface ChartOfAccount {
+// --- Real-source asset tree types (mirrors app/api/v1/accounts/assets response) ---
+// Shared NodeRef convention across the Assets/Equity/Liabilities pages: every
+// tree node carries a synthetic composite id so the UI can key state off it
+// without needing a ChartOfAccount row to exist for each entry.
+type AssetNodeSource =
+  | "FIXED_ASSET_CATEGORY"
+  | "CURRENT_ASSET_CATEGORY"
+  | "LOAN_ASSET_BUCKET";
+
+interface AssetCategoryNode {
+  source: AssetNodeSource;
+  key: string;
   id: string;
-  accountCode: string;
-  accountName: string;
-  fullCode: string;
-  ledgerType: string;
-  level: number;
-  balance: number;
-  debitBalance: number;
-  creditBalance: number;
-  isActive: boolean;
-  currency: string;
-  category?: string;
-  product?: string;
-  description?: string;
-  parent?: {
-    id: string;
-    accountCode: string;
-    accountName: string;
-    fullCode: string;
-  };
-  children?: Array<{
-    id: string;
-    accountCode: string;
-    accountName: string;
-    fullCode: string;
-    level: number;
-    balance: number;
-  }>;
-  _count?: {
-    children: number;
-    journalEntries: number;
-    debitTransactions: number;
-    creditTransactions: number;
-  };
+  isManualLedger: false;
+  label: string;
+  amount: number;
+  count: number;
 }
 
-interface AssetItem {
+interface AssetsSummaryResponse {
+  fixedAssets: { total: number; categories: AssetCategoryNode[] };
+  currentAssets: { total: number; categories: AssetCategoryNode[] };
+  loans: AssetCategoryNode;
+  cashAtHand: { amount: number; count: number; label: string; isModeled: boolean };
+  totalAssets: number;
+}
+
+interface AssetLedgerItem {
   id: string;
   name: string;
   code: string;
   date: string;
   amount: number;
-  status: string;
+  status?: string;
   details?: string;
+  assetCode?: string;
+  assetName?: string;
+  assetType?: string;
+  category?: string | null;
+  approvalStatus?: string;
+  receiptNo?: string | null;
+  accountId?: string | null;
+  currentValue?: number | null;
+  purchasePrice?: number | null;
+  branch?: { id: string; name: string } | null;
 }
 
 interface CurrentAssetRecord {
@@ -154,34 +145,6 @@ interface DisposalAssetTarget extends AssetDisposalTarget {
   assetType?: string;
 }
 
-const ASSET_ROOT_CODE = "100000";
-const FIXED_ASSETS_CODE = "101000";
-const CURRENT_ASSETS_CODE = "102000";
-const CASH_AT_HAND_CODE = "101100";
-
-const FORCE_EXPANDABLE_CODES = new Set([
-  ASSET_ROOT_CODE,
-  FIXED_ASSETS_CODE,
-  CURRENT_ASSETS_CODE,
-]);
-
-const isLoanAssetAccount = (account: ChartOfAccount) =>
-  account.accountCode.startsWith("107") ||
-  account.accountName.toLowerCase().includes("loan");
-
-const isCashAtHandAccount = (account: ChartOfAccount) =>
-  account.accountCode === CASH_AT_HAND_CODE;
-
-const isPrincipalOnlyAssetAccount = (account: ChartOfAccount) =>
-  isLoanAssetAccount(account) || isCashAtHandAccount(account);
-
-const filterRetiredLoanAssetAccounts = <T extends ChartOfAccount>(
-  accounts: T[],
-) => accounts;
-
-const getAssetBalanceLabel = (account: ChartOfAccount) =>
-  isPrincipalOnlyAssetAccount(account) ? "Principal" : "Balance";
-
 export default function AssetsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -192,16 +155,11 @@ export default function AssetsPage() {
     isAdmin ||
     session?.user?.role === "ACCOUNTANT" ||
     session?.user?.role === "BRANCHMANAGER";
-  const [accounts, setAccounts] = useState<ChartOfAccount[]>([]);
-  const [selectedAccount, setSelectedAccount] = useState<ChartOfAccount | null>(
+
+  const [assetsData, setAssetsData] = useState<AssetsSummaryResponse | null>(
     null,
   );
-  const [detailsOpen, setDetailsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [detailsLoading, setDetailsLoading] = useState(false);
-  const [accountItems, setAccountItems] = useState<AssetItem[]>([]);
-  const [itemsType, setItemsType] = useState<string>("GENERIC");
-  const [itemsLoading, setItemsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isCurrentCreateOpen, setIsCurrentCreateOpen] = useState(false);
@@ -219,31 +177,19 @@ export default function AssetsPage() {
   const [currentAssetsLoading, setCurrentAssetsLoading] = useState(false);
   const [currentTransfersLoading, setCurrentTransfersLoading] = useState(false);
   const [selectedBranchId, setSelectedBranchId] = useState<string>("all");
-  const [cashAtHandPrincipalTotal, setCashAtHandPrincipalTotal] = useState<
-    number | null
-  >(null);
   const [branchOptions, setBranchOptions] = useState<
     Array<{ id: string; name: string }>
   >([]);
   const [branchLoading, setBranchLoading] = useState(false);
-  const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({
-    [ASSET_ROOT_CODE]: true,
-  });
-  const [nodeChildren, setNodeChildren] = useState<
-    Record<string, ChartOfAccount[]>
-  >({});
-  const [nodeLoading, setNodeLoading] = useState<Record<string, boolean>>({});
-  const [nodeItems, setNodeItems] = useState<Record<string, any[]>>({});
+  const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>(
+    {},
+  );
+  const [nodeItems, setNodeItems] = useState<Record<string, AssetLedgerItem[]>>(
+    {},
+  );
   const [nodeItemsLoading, setNodeItemsLoading] = useState<
     Record<string, boolean>
   >({});
-  const loanPrincipalTotal = useMemo(
-    () =>
-      selectedAccount && isLoanAssetAccount(selectedAccount)
-        ? accountItems.reduce((sum, item) => sum + Number(item.amount || 0), 0)
-        : 0,
-    [accountItems, selectedAccount],
-  );
 
   const closeAssetDialogs = () => {
     setIsCreateOpen(false);
@@ -258,9 +204,8 @@ export default function AssetsPage() {
 
   useEffect(() => {
     if (status === "authenticated") {
-      void fetchAccounts();
+      void fetchAssetsSummary();
       void fetchCurrentAssetLedger();
-      void fetchCashAtHandPrincipalTotal();
     }
   }, [status, selectedBranchId]);
 
@@ -301,62 +246,29 @@ export default function AssetsPage() {
   const getCurrentAssetAmount = (asset: CurrentAssetRecord) =>
     Number(asset.currentValue || asset.purchasePrice || 0);
 
-  const getLevelBadge = (level: number) => {
-    const colors: Record<number, string> = {
-      0: "bg-slate-100 text-slate-700",
-      1: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-      2: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
-      3: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
-    };
-    const labels: Record<number, string> = {
-      0: "Control",
-      1: "Main",
-      2: "Sub",
-      3: "Account",
-    };
+  const branchQueryString = () =>
+    isAdmin && selectedBranchId !== "all"
+      ? `?branchId=${encodeURIComponent(selectedBranchId)}`
+      : "";
 
-    return (
-      <span
-        className={cn(
-          "rounded px-2 py-1 text-xs font-medium",
-          colors[level] || colors[3],
-        )}
-      >
-        {labels[level] || "Detail"}
-      </span>
-    );
-  };
-
-  const sortChartAccounts = (items: ChartOfAccount[]) =>
-    [...items].sort((a, b) => {
-      if (a.level !== b.level) return a.level - b.level;
-      return a.accountCode.localeCompare(b.accountCode);
-    });
-
-  const fetchAccounts = async () => {
+  const fetchAssetsSummary = async () => {
     if (status !== "authenticated") return;
 
     try {
       setLoading(true);
       setError(null);
-      setNodeChildren({});
-      setNodeLoading({});
+      setExpandedNodes({});
       setNodeItems({});
       setNodeItemsLoading({});
-      setExpandedNodes({ [ASSET_ROOT_CODE]: true });
 
-      const params = new URLSearchParams({
-        page: "1",
-        limit: "200",
-        isActive: "true",
-      });
-
+      const params = new URLSearchParams();
       if (isAdmin && selectedBranchId !== "all") {
         params.set("branchId", selectedBranchId);
       }
+      const query = params.toString();
 
-      const assetsResponse = await fetch(
-        `/api/v1/accounts/assets?${params.toString()}`,
+      const response = await fetch(
+        `/api/v1/accounts/assets${query ? `?${query}` : ""}`,
         {
           method: "GET",
           headers: { "Content-Type": "application/json" },
@@ -364,30 +276,32 @@ export default function AssetsPage() {
         },
       );
 
-      if (!assetsResponse.ok) {
-        const errorData = await assetsResponse.json().catch(() => null);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
         throw new Error(
-          errorData?.details ||
-            errorData?.error ||
-            `HTTP ${assetsResponse.status}`,
+          errorData?.details || errorData?.error || `HTTP ${response.status}`,
         );
       }
 
-      const data = await assetsResponse.json();
+      const data = await response.json();
 
-      if (!data?.data || !Array.isArray(data.data)) {
+      if (!data || !data.fixedAssets || !data.currentAssets) {
         throw new Error("Invalid response format");
       }
 
-      setAccounts(
-        sortChartAccounts(filterRetiredLoanAssetAccounts(data.data)),
-      );
+      setAssetsData({
+        fixedAssets: data.fixedAssets,
+        currentAssets: data.currentAssets,
+        loans: data.loans,
+        cashAtHand: data.cashAtHand,
+        totalAssets: Number(data.totalAssets || 0),
+      });
     } catch (err) {
       console.error("Error fetching assets:", err);
       const message =
         err instanceof Error ? err.message : "Failed to fetch assets";
       setError(message);
-      setAccounts([]);
+      setAssetsData(null);
       toast.error(message);
     } finally {
       setLoading(false);
@@ -401,10 +315,7 @@ export default function AssetsPage() {
       setCurrentAssetsLoading(true);
       setCurrentTransfersLoading(true);
 
-      const branchQuery =
-        isAdmin && selectedBranchId !== "all"
-          ? `?branchId=${encodeURIComponent(selectedBranchId)}`
-          : "";
+      const branchQuery = branchQueryString();
 
       const [assetsResponse, transfersResponse] = await Promise.all([
         fetch(`/api/v1/current-assets${branchQuery}`, {
@@ -443,40 +354,6 @@ export default function AssetsPage() {
     } finally {
       setCurrentAssetsLoading(false);
       setCurrentTransfersLoading(false);
-    }
-  };
-
-  const fetchCashAtHandPrincipalTotal = async () => {
-    if (status !== "authenticated") return;
-
-    try {
-      setCashAtHandPrincipalTotal(null);
-
-      const branchQuery =
-        isAdmin && selectedBranchId !== "all"
-          ? `?branchId=${encodeURIComponent(selectedBranchId)}`
-          : "";
-
-      const response = await fetch(
-        `/api/v1/loans/repayments/statistics${branchQuery}`,
-        {
-          method: "GET",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const payload = await response.json();
-      setCashAtHandPrincipalTotal(
-        Number(payload?.totalPrincipalPaid || 0),
-      );
-    } catch (error) {
-      console.error("Error fetching cash-at-hand principal total:", error);
-      setCashAtHandPrincipalTotal(null);
     }
   };
 
@@ -593,471 +470,165 @@ export default function AssetsPage() {
     }
   };
 
-  const accountChildrenMap = useMemo(() => {
-    const map = new Map<string, ChartOfAccount[]>();
-    filterRetiredLoanAssetAccounts(accounts).forEach((account) => {
-      const parentId = account.parent?.id;
-      if (!parentId) return;
-      const siblings = map.get(parentId) || [];
-      siblings.push(account);
-      map.set(parentId, siblings);
-    });
-    return map;
-  }, [accounts]);
+  // --- Drill-down fetchers, keyed by NodeRef.id ---
 
-  const fetchNodeDetails = async (accountId: string) => {
+  const fetchCategoryItems = async (
+    node: AssetCategoryNode,
+    assetType: "FIXED" | "CURRENT",
+  ) => {
     try {
-      setNodeLoading((prev) => ({ ...prev, [accountId]: true }));
-      const branchQuery =
-        isAdmin && selectedBranchId !== "all"
-          ? `?branchId=${encodeURIComponent(selectedBranchId)}`
-          : "";
+      setNodeItemsLoading((prev) => ({ ...prev, [node.id]: true }));
+      const params = new URLSearchParams({ assetType, category: node.key });
+      if (isAdmin && selectedBranchId !== "all") {
+        params.set("branchId", selectedBranchId);
+      }
+
       const response = await fetch(
-        `/api/v1/chart-of-accounts/${accountId}${branchQuery}`,
-        {
-          method: "GET",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-        },
+        `/api/v1/accounts/assets/items?${params.toString()}`,
+        { method: "GET", credentials: "include" },
       );
 
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-      const data = await response.json();
-      const children = Array.isArray(data?.data?.children)
-        ? data.data.children.map((child: any) => ({
-            ...child,
-            ledgerType: data.data.ledgerType,
-            debitBalance: child.debitBalance || 0,
-            creditBalance: child.creditBalance || 0,
-            isActive: child.isActive ?? true,
-            currency: child.currency || data.data.currency || "UGX",
-            _count: child._count || {
-              children: 0,
-              journalEntries: 0,
-              debitTransactions: 0,
-              creditTransactions: 0,
-            },
-          }))
-        : [];
-
-      setNodeChildren((prev) => ({
+      const payload = await response.json();
+      setNodeItems((prev) => ({
         ...prev,
-        [accountId]: sortChartAccounts(
-          filterRetiredLoanAssetAccounts(children),
-        ),
+        [node.id]: Array.isArray(payload.items) ? payload.items : [],
       }));
-
-      setNodeItemsLoading((prev) => ({ ...prev, [accountId]: true }));
-      try {
-        const itemsResponse = await fetch(
-          `/api/v1/chart-of-accounts/${accountId}/items${branchQuery}`,
-          {
-            method: "GET",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-          },
-        );
-
-        if (itemsResponse.ok) {
-          const itemsData = await itemsResponse.json();
-          setNodeItems((prev) => ({
-            ...prev,
-            [accountId]: Array.isArray(itemsData.items) ? itemsData.items : [],
-          }));
-        } else {
-          setNodeItems((prev) => ({ ...prev, [accountId]: [] }));
-        }
-      } finally {
-        setNodeItemsLoading((prev) => ({ ...prev, [accountId]: false }));
-      }
     } catch (err) {
-      console.error("Error fetching node details:", err);
-      toast.error("Failed to expand asset category");
+      console.error("Error fetching asset category items:", err);
+      toast.error("Failed to load underlying items");
+      setNodeItems((prev) => ({ ...prev, [node.id]: [] }));
     } finally {
-      setNodeLoading((prev) => ({ ...prev, [accountId]: false }));
+      setNodeItemsLoading((prev) => ({ ...prev, [node.id]: false }));
     }
   };
 
-  const fetchAccountDetails = async (accountId: string) => {
+  const fetchLoanBackedItems = async (nodeId: string) => {
     try {
-      setDetailsLoading(true);
-      setAccountItems([]);
-      setItemsType("GENERIC");
-      setSelectedDisposalAsset(null);
-      const branchQuery =
-        isAdmin && selectedBranchId !== "all"
-          ? `?branchId=${encodeURIComponent(selectedBranchId)}`
-          : "";
+      setNodeItemsLoading((prev) => ({ ...prev, [nodeId]: true }));
+      const params = new URLSearchParams();
+      if (isAdmin && selectedBranchId !== "all") {
+        params.set("branchId", selectedBranchId);
+      }
+      const query = params.toString();
 
       const response = await fetch(
-        `/api/v1/chart-of-accounts/${accountId}${branchQuery}`,
-        {
-          method: "GET",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-        },
+        `/api/v1/accounts/assets/loans-items${query ? `?${query}` : ""}`,
+        { method: "GET", credentials: "include" },
       );
 
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-      const data = await response.json();
-      if (!data?.data) throw new Error("Invalid response format");
-
-      setSelectedAccount(data.data);
-      setDetailsOpen(true);
-
-      setItemsLoading(true);
-      try {
-        const itemsResponse = await fetch(
-          `/api/v1/chart-of-accounts/${accountId}/items${branchQuery}`,
-          {
-            method: "GET",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-          },
-        );
-
-        if (itemsResponse.ok) {
-          const itemsData = await itemsResponse.json();
-          setAccountItems(
-            Array.isArray(itemsData.items) ? itemsData.items : [],
-          );
-          setItemsType(itemsData.itemsType || "GENERIC");
-        }
-      } finally {
-        setItemsLoading(false);
-      }
+      const payload = await response.json();
+      setNodeItems((prev) => ({
+        ...prev,
+        [nodeId]: Array.isArray(payload.items) ? payload.items : [],
+      }));
     } catch (err) {
-      console.error("Error fetching account details:", err);
-      toast.error("Failed to fetch account details");
+      console.error("Error fetching loan-backed items:", err);
+      toast.error("Failed to load underlying items");
+      setNodeItems((prev) => ({ ...prev, [nodeId]: [] }));
     } finally {
-      setDetailsLoading(false);
+      setNodeItemsLoading((prev) => ({ ...prev, [nodeId]: false }));
     }
   };
 
-  const getDirectChildren = (account: ChartOfAccount) => {
-    const fromCache = nodeChildren[account.id] || [];
-    const fromTree = accountChildrenMap.get(account.id) || [];
-    const combined = [...fromTree, ...fromCache];
-    return filterRetiredLoanAssetAccounts(combined).filter(
-      (child, index, list) =>
-      list.findIndex((item) => item.id === child.id) === index,
-    );
-  };
+  const toggleCategoryNode = (
+    node: AssetCategoryNode,
+    assetType: "FIXED" | "CURRENT",
+  ) => {
+    const willExpand = !expandedNodes[node.id];
+    setExpandedNodes((prev) => ({ ...prev, [node.id]: willExpand }));
 
-  const getLoanPrincipalTotal = (items: any[] = []) =>
-    items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-
-  const getDisplayAccountTotal = (account: ChartOfAccount) => {
-    if (isCashAtHandAccount(account)) {
-      if (cashAtHandPrincipalTotal !== null) {
-        return cashAtHandPrincipalTotal;
+    if (willExpand && !nodeItems[node.id]) {
+      if (node.source === "LOAN_ASSET_BUCKET") {
+        void fetchLoanBackedItems(node.id);
+      } else {
+        void fetchCategoryItems(node, assetType);
       }
     }
-
-    if (isLoanAssetAccount(account)) {
-      const loadedLoanItems = nodeItems[account.id] || [];
-      const principalTotal = getLoanPrincipalTotal(loadedLoanItems);
-
-      if (principalTotal !== 0) {
-        return principalTotal;
-      }
-    }
-
-    return getAccountBranchTotal(account);
   };
 
-  const getAccountBranchTotal = (
-    account: ChartOfAccount,
-    visited = new Set<string>(),
-  ): number => {
-    if (visited.has(account.id)) return 0;
-    visited.add(account.id);
+  const toggleCashAtHandNode = () => {
+    const nodeId = "cash-at-hand";
+    const willExpand = !expandedNodes[nodeId];
+    setExpandedNodes((prev) => ({ ...prev, [nodeId]: willExpand }));
 
-    if (isCashAtHandAccount(account)) {
-      return cashAtHandPrincipalTotal ?? Number(account.balance || 0);
-    }
-
-    if (isLoanAssetAccount(account)) {
-      const loadedLoanItems = nodeItems[account.id] || [];
-      const principalTotal = getLoanPrincipalTotal(loadedLoanItems);
-
-      if (principalTotal !== 0) {
-        return principalTotal;
-      }
-    }
-
-    const descendants = getDirectChildren(account);
-    if (descendants.length === 0) {
-      return Number(account.balance || 0);
-    }
-
-    const childrenTotal = descendants.reduce(
-      (sum, child) => sum + getAccountBranchTotal(child, new Set(visited)),
-      0,
-    );
-
-    return childrenTotal !== 0 ? childrenTotal : Number(account.balance || 0);
-  };
-
-  const toggleNode = async (account: ChartOfAccount) => {
-    const nextExpanded = !expandedNodes[account.id];
-    setExpandedNodes((prev) => ({ ...prev, [account.id]: nextExpanded }));
-
-    if (
-      nextExpanded &&
-      !nodeChildren[account.id] &&
-      !nodeItems[account.id] &&
-      (FORCE_EXPANDABLE_CODES.has(account.accountCode) ||
-        (account._count?.children || 0) > 0 ||
-        account.level >= 2)
-    ) {
-      await fetchNodeDetails(account.id);
+    if (willExpand && !nodeItems[nodeId]) {
+      void fetchLoanBackedItems(nodeId);
     }
   };
 
-  const renderNodeItems = (account: ChartOfAccount, depth: number) => {
-    const items = nodeItems[account.id] || [];
-    const isNodeItemsLoading = !!nodeItemsLoading[account.id];
-
-    if (isNodeItemsLoading) {
-      return (
-        <div
-          className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-3 text-sm text-muted-foreground"
-          style={{ marginLeft: `${depth * 24}px` }}
-        >
-          Loading underlying items...
-        </div>
-      );
-    }
-
-    if (items.length === 0) return null;
-
-    return (
-      <div
-        className="rounded-xl border border-slate-200 bg-white px-4 py-3"
-        style={{ marginLeft: `${depth * 24}px` }}
-      >
-        <div className="mb-2 flex items-center justify-between">
-          <p className="text-sm font-semibold">Underlying Items</p>
-          <span className="text-xs text-muted-foreground">
-            {items.length} item{items.length === 1 ? "" : "s"}
-          </span>
-        </div>
-        <div className="overflow-hidden rounded-lg border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Reference</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Details</TableHead>
-                <TableHead className="text-right">
-                  {isPrincipalOnlyAssetAccount(account) ? "Principal" : "Amount"}
-                </TableHead>
-                  </TableRow>
-                </TableHeader>
-            <TableBody>
-              {items.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell className="text-xs">
-                    {item.date ? new Date(item.date).toLocaleDateString() : "-"}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs">
-                    {item.code || "-"}
-                  </TableCell>
-                  <TableCell className="text-sm font-medium">
-                    {item.name || "-"}
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {item.details || "-"}
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-sm">
-                    {formatCurrency(Number(item.amount || 0))}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
-    );
+  const openDisposeFromItem = (item: AssetLedgerItem) => {
+    setSelectedDisposalAsset({
+      id: item.id,
+      assetCode: item.assetCode || item.code,
+      assetName: item.assetName || item.name,
+      status: item.status || "ACTIVE",
+      assetType: item.assetType,
+      category: item.category,
+      approvalStatus: item.approvalStatus,
+      receiptNo: item.receiptNo,
+      accountId: item.accountId,
+      currentValue: item.currentValue,
+      purchasePrice: item.purchasePrice,
+      branch: item.branch,
+    });
+    setAssetActionsTab("dispose");
+    setIsAssetActionsOpen(true);
   };
 
-  const renderTreeNode = (account: ChartOfAccount, depth = 0) => {
-    const children = getDirectChildren(account);
-    const isExpandable =
-      children.length > 0 ||
-      (account._count?.children || 0) > 0 ||
-      FORCE_EXPANDABLE_CODES.has(account.accountCode) ||
-      account.level >= 2;
-    const isExpanded = !!expandedNodes[account.id];
-    const isNodeLoading = !!nodeLoading[account.id];
-
-    return (
-      <div key={account.id} className="space-y-2">
-        <div
-          className={cn(
-            "group flex items-center justify-between rounded-2xl border bg-background px-4 py-3 shadow-sm transition-all",
-            depth === 0 && "border-slate-200",
-            depth > 0 && "border-slate-100 bg-slate-50/60",
-          )}
-          style={{ marginLeft: `${depth * 24}px` }}
-        >
-          <div
-            className={cn(
-              "flex min-w-0 flex-1 items-center gap-3",
-              isExpandable && "cursor-pointer",
-            )}
-            onClick={() => isExpandable && toggleNode(account)}
-          >
-            {isExpandable ? (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 rounded-lg"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  void toggleNode(account);
-                }}
-              >
-                {isNodeLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : isExpanded ? (
-                  <ChevronDown className="h-4 w-4" />
-                ) : (
-                  <ChevronRight className="h-4 w-4" />
-                )}
-              </Button>
-            ) : (
-              <div className="w-7" />
-            )}
-
-            {isExpandable ? (
-              <Folder className="h-4 w-4 text-blue-500" />
-            ) : (
-              <FileText className="h-4 w-4 text-emerald-500" />
-            )}
-
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="rounded-md bg-muted px-2 py-1 font-mono text-xs font-semibold text-muted-foreground">
-                  {account.accountCode}
-                </span>
-                <span className="truncate text-sm font-semibold text-foreground">
-                  {account.accountName}
-                </span>
-              </div>
-              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                {getLevelBadge(account.level)}
-                {account.accountCode === ASSET_ROOT_CODE && (
-                  <span>Control account</span>
-                )}
-                {children.length > 0 && (
-                  <span>
-                    {children.length} child account
-                    {children.length === 1 ? "" : "s"}
-                  </span>
-                )}
-                <span>{account.isActive ? "Active" : "Inactive"}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <div className="text-right">
-              <p className="text-xs uppercase tracking-widest text-muted-foreground">
-                {getAssetBalanceLabel(account)}
-              </p>
-              <p className="font-mono text-lg font-bold text-foreground">
-                {formatCurrency(getDisplayAccountTotal(account))}
-              </p>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => void fetchAccountDetails(account.id)}
-              disabled={detailsLoading}
-              className="bg-primary/5 hover:bg-primary/15"
-            >
-              {detailsLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Eye className="h-4 w-4" />
-              )}
-            </Button>
-          </div>
-        </div>
-
-        {isExpandable && isExpanded && (
-          <div className="space-y-2">
-            {children.map((child) => renderTreeNode(child, depth + 1))}
-            {renderNodeItems(account, depth + 1)}
-            {!isNodeLoading && children.length === 0 && (
-                <div
-                  className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-3 text-sm text-muted-foreground"
-                  style={{ marginLeft: `${(depth + 1) * 24}px` }}
-                >
-                  No child accounts available yet. Open this node to review its
-                  items or sub-accounts.
-                </div>
-              )}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const assetRootAccount = useMemo(
-    () =>
-      filterRetiredLoanAssetAccounts(accounts).find(
-        (account) => account.accountCode === ASSET_ROOT_CODE,
-      ) ||
-      null,
-    [accounts],
-  );
+  // --- Derived totals ---
 
   const totals = useMemo(() => {
-    const byCode = (code: string) => {
-      const account = filterRetiredLoanAssetAccounts(accounts).find(
-        (item) => item.accountCode === code,
-      );
-      return account ? getAccountBranchTotal(account) : 0;
-    };
-
+    if (!assetsData) return { totalAssets: 0, current: 0, fixed: 0 };
     return {
-      totalAssets: byCode(ASSET_ROOT_CODE),
-      current: byCode(CURRENT_ASSETS_CODE),
-      fixed: byCode(FIXED_ASSETS_CODE),
+      totalAssets: assetsData.totalAssets,
+      current:
+        assetsData.currentAssets.total +
+        assetsData.loans.amount +
+        assetsData.cashAtHand.amount,
+      fixed: assetsData.fixedAssets.total,
     };
-  }, [accounts, nodeChildren, nodeItems]);
+  }, [assetsData]);
 
-  const visibleAccounts = filterRetiredLoanAssetAccounts(accounts);
+  const categoryCount = useMemo(() => {
+    if (!assetsData) return 0;
+    return (
+      assetsData.fixedAssets.categories.length +
+      assetsData.currentAssets.categories.length +
+      2 // Loans + Cash at hand
+    );
+  }, [assetsData]);
 
-  const activeAccountsCount = visibleAccounts.filter(
-    (account) => account.isActive,
-  ).length;
-  const detailAccountsCount = visibleAccounts.filter(
-    (account) => account.level >= 2,
-  ).length;
+  const recordCount = useMemo(() => {
+    if (!assetsData) return 0;
+    const fixedCount = assetsData.fixedAssets.categories.reduce(
+      (sum, node) => sum + node.count,
+      0,
+    );
+    const currentCount = assetsData.currentAssets.categories.reduce(
+      (sum, node) => sum + node.count,
+      0,
+    );
+    return (
+      fixedCount + currentCount + assetsData.loans.count + assetsData.cashAtHand.count
+    );
+  }, [assetsData]);
 
-  const largestBucket = [
-    { code: CURRENT_ASSETS_CODE, title: "Current Assets" },
-    { code: FIXED_ASSETS_CODE, title: "Fixed Assets" },
-  ]
-    .map((bucket) => {
-      const account = visibleAccounts.find(
-        (item) => item.accountCode === bucket.code,
-      );
-      return account
-        ? { ...bucket, account, total: getAccountBranchTotal(account) }
-        : null;
-    })
-    .filter(Boolean)
-    .sort((a, b) => Math.abs(b?.total || 0) - Math.abs(a?.total || 0))[0] as
-    | { title: string; total: number; account: ChartOfAccount }
-    | undefined;
+  const largestBucket = useMemo(() => {
+    if (!assetsData) return undefined;
+    const buckets = [
+      {
+        title: "Current Assets",
+        total:
+          assetsData.currentAssets.total +
+          assetsData.loans.amount +
+          assetsData.cashAtHand.amount,
+      },
+      { title: "Fixed Assets", total: assetsData.fixedAssets.total },
+    ];
+    return buckets.sort((a, b) => Math.abs(b.total) - Math.abs(a.total))[0];
+  }, [assetsData]);
 
   const currentAssetTotals = useMemo(() => {
     const approved = currentAssets.filter(
@@ -1097,6 +668,153 @@ export default function AssetsPage() {
       ),
     [currentTransfers],
   );
+
+  // --- Tree rendering ---
+
+  const renderItemsTable = (nodeId: string, amountLabel = "Amount") => {
+    const items = nodeItems[nodeId] || [];
+    const isLoadingItems = !!nodeItemsLoading[nodeId];
+
+    if (isLoadingItems) {
+      return (
+        <div className="ml-8 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-3 text-sm text-muted-foreground">
+          Loading underlying items...
+        </div>
+      );
+    }
+
+    if (items.length === 0) {
+      return (
+        <div className="ml-8 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-3 text-sm text-muted-foreground">
+          No underlying items found.
+        </div>
+      );
+    }
+
+    const showDisposeAction = items.some(
+      (item) => item.assetType === "FIXED" && item.assetCode,
+    );
+
+    return (
+      <div className="ml-8 rounded-xl border border-slate-200 bg-white px-4 py-3">
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-sm font-semibold">Underlying Items</p>
+          <span className="text-xs text-muted-foreground">
+            {items.length} item{items.length === 1 ? "" : "s"}
+          </span>
+        </div>
+        <div className="overflow-hidden rounded-lg border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Date</TableHead>
+                <TableHead>Reference</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead>Details</TableHead>
+                <TableHead className="text-right">{amountLabel}</TableHead>
+                {showDisposeAction && (
+                  <TableHead className="text-right">Actions</TableHead>
+                )}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {items.map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell className="text-xs">
+                    {item.date ? new Date(item.date).toLocaleDateString() : "-"}
+                  </TableCell>
+                  <TableCell className="font-mono text-xs">
+                    {item.code || "-"}
+                  </TableCell>
+                  <TableCell className="text-sm font-medium">
+                    {item.name || "-"}
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {item.details || "-"}
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-sm">
+                    {formatCurrency(Number(item.amount || 0))}
+                  </TableCell>
+                  {showDisposeAction && (
+                    <TableCell className="text-right">
+                      {item.assetType === "FIXED" && item.assetCode ? (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                          onClick={() => openDisposeFromItem(item)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      ) : null}
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+    );
+  };
+
+  const renderCategoryNode = (
+    node: AssetCategoryNode,
+    assetType: "FIXED" | "CURRENT",
+    amountLabel = "Balance",
+    subtitle?: string,
+  ) => {
+    const isExpanded = !!expandedNodes[node.id];
+    const isLoadingItems = !!nodeItemsLoading[node.id];
+
+    return (
+      <div key={node.id} className="space-y-2">
+        <div className="group ml-6 flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/60 px-4 py-3 shadow-sm">
+          <div
+            className="flex min-w-0 flex-1 cursor-pointer items-center gap-3"
+            onClick={() => toggleCategoryNode(node, assetType)}
+          >
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 rounded-lg"
+              onClick={(event) => {
+                event.stopPropagation();
+                toggleCategoryNode(node, assetType);
+              }}
+            >
+              {isLoadingItems ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : isExpanded ? (
+                <ChevronDown className="h-4 w-4" />
+              ) : (
+                <ChevronRight className="h-4 w-4" />
+              )}
+            </Button>
+            <FileText className="h-4 w-4 text-emerald-500" />
+            <div className="min-w-0">
+              <span className="truncate text-sm font-semibold text-foreground">
+                {node.label}
+              </span>
+              <div className="mt-1 text-xs text-muted-foreground">
+                {subtitle ||
+                  `${node.count} record${node.count === 1 ? "" : "s"}`}
+              </div>
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-xs uppercase tracking-widest text-muted-foreground">
+              {amountLabel}
+            </p>
+            <p className="font-mono text-lg font-bold text-foreground">
+              {formatCurrency(node.amount)}
+            </p>
+          </div>
+        </div>
+        {isExpanded && renderItemsTable(node.id, amountLabel)}
+      </div>
+    );
+  };
 
   if (status === "loading") {
     return (
@@ -1191,7 +909,7 @@ export default function AssetsPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => void fetchAccounts()}
+              onClick={() => void fetchAssetsSummary()}
               className="ml-4"
             >
               Retry
@@ -1212,7 +930,7 @@ export default function AssetsPage() {
               {formatCurrency(totals.totalAssets)}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              100000 asset control account
+              Fixed Assets + Current Assets + Loans + Cash at hand
             </p>
           </CardContent>
         </Card>
@@ -1227,7 +945,7 @@ export default function AssetsPage() {
               {formatCurrency(totals.current)}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              102000 current assets
+              Current asset categories, Loans, Cash at hand
             </p>
           </CardContent>
         </Card>
@@ -1242,7 +960,7 @@ export default function AssetsPage() {
               {formatCurrency(totals.fixed)}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              101000 fixed assets
+              Land, Motor Vehicle, Furniture and fittings, etc.
             </p>
           </CardContent>
         </Card>
@@ -1252,21 +970,21 @@ export default function AssetsPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">
-              Active Accounts
+              Asset Categories
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{activeAccountsCount}</p>
+            <p className="text-2xl font-bold">{categoryCount}</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">
-              Detail Accounts
+              Underlying Records
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{detailAccountsCount}</p>
+            <p className="text-2xl font-bold">{recordCount}</p>
           </CardContent>
         </Card>
         <Card>
@@ -1277,12 +995,12 @@ export default function AssetsPage() {
           </CardHeader>
           <CardContent>
             <p className="truncate text-lg font-bold">
-              {largestBucket?.account?.accountName || "None"}
+              {largestBucket?.title || "None"}
             </p>
             <p className="text-xs text-muted-foreground">
               {largestBucket
                 ? formatCurrency(largestBucket.total)
-                : "No asset accounts"}
+                : "No asset data"}
             </p>
           </CardContent>
         </Card>
@@ -1516,7 +1234,8 @@ export default function AssetsPage() {
         <CardHeader className="border-b bg-muted/10">
           <CardTitle>Asset Structure</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Review the asset control account and its main buckets.
+            Fixed and Current Asset totals sourced directly from registered
+            assets and loan balances (no Chart of Accounts lookups).
           </p>
         </CardHeader>
         <CardContent className="space-y-6 p-6">
@@ -1524,268 +1243,132 @@ export default function AssetsPage() {
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
-          ) : accounts.length === 0 ? (
+          ) : !assetsData ? (
             <div className="py-12 text-center text-muted-foreground">
-              No asset accounts found
+              No asset data found
             </div>
           ) : (
             <div className="space-y-4">
-              {assetRootAccount ? (
-                renderTreeNode(assetRootAccount)
-              ) : (
-                <div className="rounded-2xl border border-dashed border-muted-foreground/20 bg-background px-6 py-8 text-sm text-muted-foreground">
-                  No asset buckets found in the chart of accounts.
+              <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-background px-4 py-3 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <Folder className="h-4 w-4 text-blue-500" />
+                  <div>
+                    <span className="rounded-md bg-muted px-2 py-1 font-mono text-xs font-semibold text-muted-foreground">
+                      Assets
+                    </span>
+                    <span className="ml-2 text-sm font-semibold text-foreground">
+                      Control total
+                    </span>
+                  </div>
                 </div>
-              )}
+                <p className="font-mono text-lg font-bold text-foreground">
+                  {formatCurrency(assetsData.totalAssets)}
+                </p>
+              </div>
+
+              <div className="ml-2 space-y-2">
+                <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-amber-50/40 px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <Folder className="h-4 w-4 text-amber-500" />
+                    <span className="text-sm font-semibold">Fixed Assets</span>
+                  </div>
+                  <p className="font-mono text-base font-bold">
+                    {formatCurrency(assetsData.fixedAssets.total)}
+                  </p>
+                </div>
+                {assetsData.fixedAssets.categories.length === 0 ? (
+                  <div className="ml-6 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-3 text-sm text-muted-foreground">
+                    No fixed asset categories found.
+                  </div>
+                ) : (
+                  assetsData.fixedAssets.categories.map((node) =>
+                    renderCategoryNode(node, "FIXED"),
+                  )
+                )}
+              </div>
+
+              <div className="ml-2 space-y-2">
+                <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-sky-50/40 px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <Folder className="h-4 w-4 text-sky-500" />
+                    <span className="text-sm font-semibold">Current Assets</span>
+                  </div>
+                  <p className="font-mono text-base font-bold">
+                    {formatCurrency(totals.current)}
+                  </p>
+                </div>
+
+                {assetsData.currentAssets.categories.map((node) =>
+                  renderCategoryNode(node, "CURRENT"),
+                )}
+
+                {/* Cash at hand - not a FixedAsset category; modeled from
+                    LoanRepayment.principalPaid, drill-down reuses the
+                    loans-items endpoint since it is the same underlying data. */}
+                <div className="space-y-2">
+                  <div className="ml-6 flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/60 px-4 py-3 shadow-sm">
+                    <div
+                      className="flex min-w-0 flex-1 cursor-pointer items-center gap-3"
+                      onClick={toggleCashAtHandNode}
+                    >
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 rounded-lg"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          toggleCashAtHandNode();
+                        }}
+                      >
+                        {nodeItemsLoading["cash-at-hand"] ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : expandedNodes["cash-at-hand"] ? (
+                          <ChevronDown className="h-4 w-4" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4" />
+                        )}
+                      </Button>
+                      <FileText className="h-4 w-4 text-emerald-500" />
+                      <div className="min-w-0">
+                        <span className="truncate text-sm font-semibold text-foreground">
+                          {assetsData.cashAtHand.label}
+                        </span>
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          Modeled from loan-repayment principal collected — not
+                          literal till cash.
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs uppercase tracking-widest text-muted-foreground">
+                        Principal
+                      </p>
+                      <p className="font-mono text-lg font-bold text-foreground">
+                        {formatCurrency(assetsData.cashAtHand.amount)}
+                      </p>
+                    </div>
+                  </div>
+                  {expandedNodes["cash-at-hand"] &&
+                    renderItemsTable("cash-at-hand", "Principal")}
+                </div>
+
+                {renderCategoryNode(
+                  assetsData.loans,
+                  "CURRENT",
+                  "Principal",
+                  `${assetsData.loans.count} active loan${assetsData.loans.count === 1 ? "" : "s"}`,
+                )}
+              </div>
             </div>
           )}
         </CardContent>
       </Card>
 
-      <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
-        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
-          <DialogHeader className="border-b pb-4">
-            <DialogTitle className="flex items-center gap-2 text-2xl font-bold">
-              <Eye className="h-6 w-6 text-primary" />
-              Account Details
-            </DialogTitle>
-            <DialogDescription className="text-base">
-              Comprehensive breakdown of asset ledger status
-            </DialogDescription>
-          </DialogHeader>
-
-          {selectedAccount && (
-            <div className="space-y-8 py-4">
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-                <div className="rounded-lg bg-muted/30 p-4">
-                  <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                    Account Code
-                  </label>
-                  <p className="font-mono text-2xl font-black text-primary">
-                    {selectedAccount.accountCode}
-                  </p>
-                </div>
-                  <div className="col-span-2 rounded-lg bg-muted/30 p-4">
-                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                      Account Name
-                    </label>
-                    <p className="text-2xl font-bold">
-                      {selectedAccount.accountName}
-                    </p>
-                  </div>
-                </div>
-
-              {isLoanAssetAccount(selectedAccount) && (
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                  <Card className="border-none bg-primary/10">
-                    <CardHeader className="pb-1">
-                      <CardTitle className="text-xs font-extrabold uppercase tracking-wider">
-                        Principal
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-2xl font-mono font-black text-primary">
-                        {formatCurrency(
-                          loanPrincipalTotal || selectedAccount.balance,
-                        )}
-                      </p>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
-
-              {itemsType === "FIXED_ASSET" && (
-                <div className="flex flex-col gap-3 rounded-xl border border-dashed border-destructive/30 bg-destructive/5 p-4 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold text-destructive">
-                        Asset action
-                      </p>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      Open the asset action popup to transfer or record a
-                      disposal.
-                    </p>
-                  </div>
-                  <Button
-                    variant="destructive"
-                    onClick={() => {
-                      setAssetActionsTab("dispose");
-                      setIsAssetActionsOpen(true);
-                    }}
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Open Asset Actions
-                  </Button>
-                </div>
-              )}
-
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="flex items-center gap-2 text-xl font-extrabold">
-                    <Layers className="h-5 w-5 text-primary" />
-                    Underlying Items
-                    <span className="ml-2 rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary">
-                      {itemsType.replace("_", " ")}
-                    </span>
-                  </h3>
-                </div>
-                <div
-                  className={cn(
-                    "min-h-[200px] transition-opacity duration-300",
-                    detailsLoading ? "opacity-50" : "opacity-100",
-                  )}
-                >
-                  {itemsLoading ? (
-                    <div className="py-4 text-center text-muted-foreground">
-                      Loading underlying items...
-                    </div>
-                  ) : !accountItems || accountItems.length === 0 ? (
-                    <div className="rounded border border-dashed bg-muted/50 p-4 text-center text-sm text-muted-foreground">
-                      No underlying items found.
-                    </div>
-                  ) : (
-                    <div className="mt-2 overflow-hidden rounded-lg border shadow-sm">
-                      <Table>
-              <TableHeader className="bg-muted/30">
-                          <TableRow>
-                            <TableHead>Date</TableHead>
-                            <TableHead>Reference</TableHead>
-                            <TableHead>Description</TableHead>
-                            <TableHead>Details</TableHead>
-                            <TableHead className="text-right">
-                              {selectedAccount &&
-                              isPrincipalOnlyAssetAccount(selectedAccount)
-                                ? "Principal"
-                                : "Amount"}
-                            </TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {accountItems.map((item) => (
-                            <TableRow
-                              key={item.id}
-                              className="transition-colors hover:bg-muted/50"
-                            >
-                              <TableCell className="text-xs">
-                                {item.date
-                                  ? new Date(item.date).toLocaleDateString()
-                                  : "-"}
-                              </TableCell>
-                              <TableCell className="font-mono text-xs text-primary">
-                                {item.code || "-"}
-                              </TableCell>
-                              <TableCell className="text-sm font-medium">
-                                {item.name || "-"}
-                              </TableCell>
-                              <TableCell className="max-w-[220px] truncate text-xs text-muted-foreground">
-                                {item.details || "-"}
-                              </TableCell>
-                              <TableCell className="text-right font-mono text-sm font-semibold">
-                                {formatCurrency(Number(item.amount || 0))}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-4">
-              <h3 className="text-xl font-extrabold">
-                  {selectedAccount &&
-                  isPrincipalOnlyAssetAccount(selectedAccount)
-                    ? "Principal Analysis"
-                    : "Balance Analysis"}
-                </h3>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                  <Card className="border-none bg-emerald-50/50 dark:bg-emerald-900/10">
-                    <CardHeader className="pb-1">
-                      <CardTitle className="text-xs uppercase tracking-wider">
-                        Debit Total
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-2xl font-mono font-bold text-emerald-700 dark:text-emerald-400">
-                        {formatCurrency(selectedAccount.debitBalance)}
-                      </p>
-                    </CardContent>
-                  </Card>
-                  <Card className="border-none bg-amber-50/50 dark:bg-amber-900/10">
-                    <CardHeader className="pb-1">
-                      <CardTitle className="text-xs uppercase tracking-wider">
-                        Credit Total
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-2xl font-mono font-bold text-amber-700 dark:text-amber-400">
-                        {formatCurrency(selectedAccount.creditBalance)}
-                      </p>
-                    </CardContent>
-                  </Card>
-                  <Card className="border-none bg-primary/10">
-                    <CardHeader className="pb-1">
-                      <CardTitle className="text-xs font-extrabold uppercase tracking-wider">
-                        {selectedAccount &&
-                        isPrincipalOnlyAssetAccount(selectedAccount)
-                          ? "Principal"
-                          : "Net Asset Value"}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-2xl font-mono font-black text-primary">
-                        {formatCurrency(
-                          selectedAccount &&
-                          isPrincipalOnlyAssetAccount(selectedAccount)
-                            ? loanPrincipalTotal || selectedAccount.balance
-                            : selectedAccount.balance,
-                        )}
-                      </p>
-                    </CardContent>
-                  </Card>
-                </div>
-              </div>
-
-              {selectedAccount.children &&
-                selectedAccount.children.length > 0 && (
-                  <div className="space-y-4">
-                    <h3 className="text-xl font-extrabold">
-                      Sub-Accounts ({selectedAccount.children.length})
-                    </h3>
-                    <div className="grid max-h-60 grid-cols-1 gap-3 overflow-y-auto pr-2 md:grid-cols-2">
-                      {selectedAccount.children.map((child) => (
-                        <div
-                          key={child.id}
-                          className="flex items-center justify-between rounded-lg border border-muted-foreground/10 bg-muted/40 p-3"
-                        >
-                          <div className="flex flex-col">
-                            <span className="font-mono text-xs font-bold text-primary">
-                              {child.accountCode}
-                            </span>
-                            <span className="text-sm font-semibold">
-                              {child.accountName}
-                            </span>
-                          </div>
-                          <span className="font-mono text-sm font-black">
-                            {formatCurrency(child.balance)}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
       <AssetCreateForm
         isOpen={isCreateOpen}
         onClose={closeAssetDialogs}
         onSuccess={() => {
-          void fetchAccounts();
+          void fetchAssetsSummary();
           closeAssetDialogs();
         }}
       />
@@ -1795,7 +1378,7 @@ export default function AssetsPage() {
         onClose={closeAssetDialogs}
         onSuccess={() => {
           void fetchCurrentAssetLedger();
-          void fetchAccounts();
+          void fetchAssetsSummary();
           closeAssetDialogs();
         }}
       />
@@ -1819,8 +1402,7 @@ export default function AssetsPage() {
         }}
         onSuccess={() => {
           void fetchCurrentAssetLedger();
-          void fetchAccounts();
-          setDetailsOpen(false);
+          void fetchAssetsSummary();
           setIsAssetActionsOpen(false);
           setSelectedDisposalAsset(null);
         }}

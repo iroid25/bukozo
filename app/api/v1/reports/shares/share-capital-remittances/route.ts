@@ -62,18 +62,6 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get("startDate") || undefined;
     const endDate = searchParams.get("endDate") || undefined;
 
-    const shareCapitalAccount = await db.chartOfAccount.findFirst({
-      where: { accountCode: "304000" },
-      select: { id: true, accountCode: true, accountName: true },
-    });
-
-    if (!shareCapitalAccount) {
-      return NextResponse.json(
-        { success: false, error: "Share capital account not found" },
-        { status: 404 },
-      );
-    }
-
     const dateFilter = buildDateFilter(startDate, endDate);
 
     const shareTransactions = await db.shareTransaction.findMany({
@@ -194,9 +182,9 @@ export async function GET(request: NextRequest) {
       success: true,
       data: {
         account: {
-          id: shareCapitalAccount.id,
-          accountCode: shareCapitalAccount.accountCode,
-          accountName: shareCapitalAccount.accountName,
+          id: "share-capital",
+          accountCode: "304000",
+          accountName: "Share Capital",
         },
         data: remittances,
         summary: {

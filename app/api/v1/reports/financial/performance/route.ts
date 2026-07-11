@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
-import { calculateAccountBalance } from "@/lib/accounting-rules";
 import { db } from "@/prisma/db";
-import { hydrateAccountsWithJournalBalances } from "@/lib/services/chartOfAccounts";
+import { getDirectIncomeExpenseAccounts } from "@/lib/reports/direct-source";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -48,31 +47,18 @@ async function generatePerformance(request: NextRequest, method: 'GET' | 'POST')
       );
     }
 
-    // Get income and expense totals — hydrated live from journal entries
-    const [incomeAccounts, expenseAccounts] = await Promise.all([
-      db.chartOfAccount.findMany({
-        where: { ledgerType: "INCOME", isActive: true },
-        select: { id: true, debitBalance: true, creditBalance: true, ledgerType: true, balance: true },
-      }),
-      db.chartOfAccount.findMany({
-        where: { ledgerType: "EXPENDITURES", isActive: true },
-        select: { id: true, debitBalance: true, creditBalance: true, ledgerType: true, balance: true },
-      }),
-    ]);
+    // Get income and expense totals — direct source from budget categories + records
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
 
-    const [hydratedIncome, hydratedExpenses] = await Promise.all([
-      hydrateAccountsWithJournalBalances(incomeAccounts),
-      hydrateAccountsWithJournalBalances(expenseAccounts),
-    ]);
-
-    const totalIncome = hydratedIncome.reduce(
-      (sum: number, a: any) => sum + calculateAccountBalance("INCOME", a.debitBalance, a.creditBalance),
-      0
-    );
-    const totalExpenses = hydratedExpenses.reduce(
-      (sum: number, a: any) => sum + calculateAccountBalance("EXPENDITURES", a.debitBalance, a.creditBalance),
-      0
-    );
+    const directAccounts = await getDirectIncomeExpenseAccounts(start, end);
+    const totalIncome = directAccounts
+      .filter((a) => a.ledgerType === "INCOME")
+      .reduce((sum, a) => sum + a.balance, 0);
+    const totalExpenses = directAccounts
+      .filter((a) => a.ledgerType === "EXPENDITURES")
+      .reduce((sum, a) => sum + a.balance, 0);
 
     const netProfit = totalIncome - totalExpenses;
     const profitMargin = totalIncome > 0 ? (netProfit / totalIncome) * 100 : 0;

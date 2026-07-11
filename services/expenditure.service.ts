@@ -128,11 +128,17 @@ export class ExpenditureService {
           const expenseAccount = await tx.chartOfAccount.findFirst({
             where: { accountCode: catCode, isActive: true },
           });
+          if (!expenseAccount) {
+            console.warn(`[ExpenditureService] COA account not found for category code ${catCode} — journal entries skipped for expenditure ${updatedRecord.id}`);
+          }
           if (expenseAccount) {
             const assetCode = updatedRecord.paymentMethod === PaymentMethod.CASH ? CASH_AT_HAND_CODE : "102001";
             const assetAccount = await tx.chartOfAccount.findFirst({
               where: { accountCode: assetCode, isActive: true },
             });
+            if (!assetAccount) {
+              console.warn(`[ExpenditureService] COA asset account not found for code ${assetCode} — journal entries skipped for expenditure ${updatedRecord.id}`);
+            }
             if (assetAccount) {
               const entryNumber = `JE-EXP-${Date.now()}`;
               await tx.journalEntry.create({
@@ -173,6 +179,8 @@ export class ExpenditureService {
               });
             }
           }
+        } else {
+          console.warn(`[ExpenditureService] No category code found for expenditure ${updatedRecord.id} — journal entries skipped`);
         }
       }
       return updatedRecord;
