@@ -200,8 +200,26 @@ export async function GET(request: NextRequest) {
       isModeled: true as const,
     };
 
+    const vaultAgg = await db.vault.aggregate({
+      where: { isActive: true, ...(scopedBranchId ? { branchId: scopedBranchId } : {}) },
+      _sum: { balance: true },
+    });
+    const vaultBalance = {
+      amount: Number(vaultAgg._sum.balance || 0),
+      label: "Cash in Vault",
+    };
+
+    const floatAgg = await db.userFloat.aggregate({
+      where: { isActiveForDay: true },
+      _sum: { balance: true },
+    });
+    const floatBalance = {
+      amount: Number(floatAgg._sum.balance || 0),
+      label: "Teller Float",
+    };
+
     const totalAssets =
-      fixedAssetsTotal + currentAssetsTotal + loansNode.amount + cashAtHand.amount;
+      fixedAssetsTotal + currentAssetsTotal + loansNode.amount + cashAtHand.amount + vaultBalance.amount + floatBalance.amount;
 
     return NextResponse.json({
       ...result,
@@ -209,6 +227,8 @@ export async function GET(request: NextRequest) {
       currentAssets: { total: currentAssetsTotal, categories: currentAssetCategories },
       loans: loansNode,
       cashAtHand,
+      vault: vaultBalance,
+      float: floatBalance,
       totalAssets,
     });
   } catch (error) {

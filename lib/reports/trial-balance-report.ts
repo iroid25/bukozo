@@ -187,8 +187,8 @@ export async function buildTrialBalanceReport(input: {
   priorEnd.setHours(23, 59, 59, 999);
 
   const [openingAccounts, closingAccounts] = await Promise.all([
-    getDirectTrialBalanceAccounts(priorEnd, branchId || undefined),
-    getDirectTrialBalanceAccounts(requestedEnd, branchId || undefined),
+    getDirectTrialBalanceAccounts(priorEnd, requestedEnd, branchId || undefined),
+    getDirectTrialBalanceAccounts(requestedEnd, requestedEnd, branchId || undefined),
   ]);
 
   // Index opening accounts by code for quick lookup

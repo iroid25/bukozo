@@ -181,6 +181,7 @@ export async function POST(request: NextRequest) {
           description: description || `Mobile Money Withdrawal - ${mobileMoneyRef}. Fees: ${transferFee + serviceFee}`,
           processedByUserId: handlerUserId,
           channel: "Mobile Money",
+          fee: transferFee + serviceFee,
         },
       });
 
@@ -195,6 +196,7 @@ export async function POST(request: NextRequest) {
           handlerUserId,
           channel: "Mobile Money",
           mobileMoneyRef: mobileMoneyRef.trim(),
+          fee: transferFee + serviceFee,
         },
         include: {
           transaction: true,

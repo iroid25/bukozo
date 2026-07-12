@@ -2,7 +2,6 @@ import { format, parseISO } from "date-fns";
 import { TransactionStatus, UserRole } from "@prisma/client";
 
 import { db } from "@/prisma/db";
-import { calculateAccountBalance } from "@/lib/accounting-rules";
 import { buildTree, sortTreeByCodeOrName } from "@/lib/category-tree";
 import { getBranchFilterForService } from "@/lib/services/financial-reports";
 import { getDirectBalanceSheetAccounts } from "@/lib/reports/direct-source";

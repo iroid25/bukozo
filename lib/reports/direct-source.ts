@@ -25,9 +25,6 @@ const ASSET_ROOT = "100000";
 const FIXED_ASSETS_PARENT = "101000";
 const CURRENT_ASSETS_PARENT = "102000";
 const CASH_AT_HAND = "101100";
-const CASH_EQUIVALENTS = "102001";
-const CASH_AT_BANK = "102002";
-const MOBILE_MONEY_FLOAT = "102004";
 const LOAN_PORTFOLIO = "107000";
 
 const LIABILITY_ROOT = "200000";
@@ -80,64 +77,92 @@ function bf(branchId?: string | null) {
   return branchId ? { branchId } : {};
 }
 
-function accountBf(branchId?: string | null) {
-  return branchId ? { branch: { branchId } } : {};
-}
-
 // ============================================================================
 // 1. BALANCE SHEET — ASSETS
 // ============================================================================
 
 async function getDirectAssets(asOfDate: Date, branchId?: string): Promise<DirectAccount[]> {
-  const dateFilter = { lte: asOfDate };
+  // Match the Assets page computation exactly:
+  // Fixed Assets = FixedAsset.currentValue WHERE assetType=FIXED, status!=DISPOSED
+  // Current Assets = FixedAsset.currentValue WHERE assetType=CURRENT, status!=DISPOSED
+  // Loans = Loan.outstandingBalance WHERE outstandingBalance>0, status!=WRITTEN_OFF
+  // Cash at Hand = LoanRepayment.principalPaid (modeled)
+  // Vault = Vault.balance WHERE isActive=true
+  // Float = UserFloat.balance WHERE isActiveForDay=true
 
-  const [fixedAssets, loanAgg, vaultAgg, floatAgg] = await Promise.all([
-    db.fixedAsset.findMany({
-      where: { status: "ACTIVE", purchaseDate: dateFilter, ...bf(branchId) },
-      select: { category: true, currentValue: true, accumulatedDepreciation: true },
+  const [fixedAssetGroups, currentAssetGroups, loanAgg, repaymentAgg, vaultAgg, floatAgg] = await Promise.all([
+    db.fixedAsset.groupBy({
+      by: ["category"],
+      where: {
+        assetType: "FIXED",
+        status: { not: "DISPOSED" },
+        ...(branchId ? { branchId } : {}),
+      },
+      _sum: { currentValue: true },
+    }),
+    db.fixedAsset.groupBy({
+      by: ["category"],
+      where: {
+        assetType: "CURRENT",
+        status: { not: "DISPOSED" },
+        ...(branchId ? { branchId } : {}),
+      },
+      _sum: { currentValue: true },
     }),
     db.loan.aggregate({
-      where: { status: { in: ["DISBURSED", "OVERDUE"] }, disbursementDate: dateFilter, ...bf(branchId) },
+      where: {
+        outstandingBalance: { gt: 0 },
+        status: { not: "WRITTEN_OFF" },
+        ...(branchId ? { branchId } : {}),
+      },
       _sum: { outstandingBalance: true },
+    }),
+    db.loanRepayment.aggregate({
+      where: branchId ? { loan: { branchId } } : {},
+      _sum: { principalPaid: true },
     }),
     db.vault.aggregate({
       where: { isActive: true, ...bf(branchId) },
       _sum: { balance: true },
     }),
     db.userFloat.aggregate({
+      where: { isActiveForDay: true },
       _sum: { balance: true },
     }),
   ]);
 
-  const cashAtHand = Number(vaultAgg._sum.balance || 0) + Number(floatAgg._sum.balance || 0);
-
+  const fixedAssetsTotal = fixedAssetGroups.reduce(
+    (sum, row) => sum + Number(row._sum.currentValue || 0), 0,
+  );
+  const currentAssetsTotal = currentAssetGroups.reduce(
+    (sum, row) => sum + Number(row._sum.currentValue || 0), 0,
+  );
   const loanPortfolio = Number(loanAgg._sum.outstandingBalance || 0);
-
-  const fixedAssetByCategory = new Map<string, number>();
-  let totalAccumDepr = 0;
-  for (const asset of fixedAssets) {
-    const cat = (asset.category || "").toLowerCase();
-    let code = "101003";
-    if (cat.includes("land")) code = "101001";
-    else if (cat.includes("motor") || cat.includes("vehicle")) code = "101002";
-    fixedAssetByCategory.set(code, (fixedAssetByCategory.get(code) || 0) + Number(asset.currentValue || 0));
-    totalAccumDepr += Number(asset.accumulatedDepreciation || 0);
-  }
+  const cashAtHand = Number(repaymentAgg._sum.principalPaid || 0);
+  const vaultBalance = Number(vaultAgg._sum.balance || 0);
+  const floatBalance = Number(floatAgg._sum.balance || 0);
 
   const assets: DirectAccount[] = [
     group(ASSET_ROOT, "Assets", "ASSETS", null, 1),
     group(FIXED_ASSETS_PARENT, "Fixed Assets", "ASSETS", vid(ASSET_ROOT), 2),
-    leaf("101001", "Land", "ASSETS", vid(FIXED_ASSETS_PARENT), fixedAssetByCategory.get("101001") || 0, 3),
-    leaf("101002", "Motor Vehicle", "ASSETS", vid(FIXED_ASSETS_PARENT), fixedAssetByCategory.get("101002") || 0, 3),
-    leaf("101003", "Furniture and Fittings", "ASSETS", vid(FIXED_ASSETS_PARENT), fixedAssetByCategory.get("101003") || 0, 3),
-    group(CURRENT_ASSETS_PARENT, "Current Assets", "ASSETS", vid(ASSET_ROOT), 2),
-    leaf(CASH_AT_HAND, "Cash at Hand", "ASSETS", vid(CURRENT_ASSETS_PARENT), cashAtHand, 3),
-    leaf(CASH_EQUIVALENTS, "Cash Equivalents", "ASSETS", vid(CURRENT_ASSETS_PARENT), 0, 3),
-    leaf(CASH_AT_BANK, "Cash at Bank", "ASSETS", vid(CURRENT_ASSETS_PARENT), 0, 3),
-    leaf(MOBILE_MONEY_FLOAT, "Mobile Money Float", "ASSETS", vid(CURRENT_ASSETS_PARENT), 0, 3),
-    leaf(LOAN_PORTFOLIO, "Loans and Receivables", "ASSETS", vid(ASSET_ROOT), loanPortfolio, 2),
-    leaf("200700", "Accumulated Depreciation", "ASSETS", vid(ASSET_ROOT), -totalAccumDepr, 2),
   ];
+
+  for (const row of fixedAssetGroups) {
+    const code = `10100${assets.length}`;
+    assets.push(leaf(code, row.category || "Fixed Asset", "ASSETS", vid(FIXED_ASSETS_PARENT), Number(row._sum.currentValue || 0), 3));
+  }
+
+  assets.push(group(CURRENT_ASSETS_PARENT, "Current Assets", "ASSETS", vid(ASSET_ROOT), 2));
+
+  for (const row of currentAssetGroups) {
+    const code = `10200${assets.length}`;
+    assets.push(leaf(code, row.category || "Current Asset", "ASSETS", vid(CURRENT_ASSETS_PARENT), Number(row._sum.currentValue || 0), 3));
+  }
+
+  assets.push(leaf(LOAN_PORTFOLIO, "Loans and Receivables", "ASSETS", vid(ASSET_ROOT), loanPortfolio, 2));
+  assets.push(leaf(CASH_AT_HAND, "Cash at Hand", "ASSETS", vid(ASSET_ROOT), cashAtHand, 2));
+  assets.push(leaf("102005", "Cash in Vault", "ASSETS", vid(CURRENT_ASSETS_PARENT), vaultBalance, 3));
+  assets.push(leaf("102004", "Teller Float", "ASSETS", vid(CURRENT_ASSETS_PARENT), floatBalance, 3));
 
   return assets;
 }
@@ -147,24 +172,26 @@ async function getDirectAssets(asOfDate: Date, branchId?: string): Promise<Direc
 // ============================================================================
 
 async function getDirectLiabilities(asOfDate: Date, branchId?: string): Promise<DirectAccount[]> {
-  const [savingsAgg, insuranceAgg, savingsTypes, fixedDepositAgg] = await Promise.all([
+  // Match the Liabilities page (/api/v1/accounts/liabilities) exactly:
+  // Savings: Account.balance WHERE status=ACTIVE, accountType is savings-type
+  // Insurance: Account.balance WHERE accountNumber = "SACCO_LOAN_INSURANCE_POOL"
+  // Fixed Deposits: FixedDeposit.principalAmount WHERE status IN (ACTIVE, MATURED)
+
+  const insurancePoolAccount = await db.account.findFirst({
+    where: { accountNumber: "SACCO_LOAN_INSURANCE_POOL" },
+    select: { id: true, balance: true },
+  });
+  const totalInsurance = Number(insurancePoolAccount?.balance || 0);
+
+  const [savingsAgg, savingsTypes, fixedDepositAgg] = await Promise.all([
     db.account.groupBy({
       by: ["accountTypeId"],
       where: {
-        status: { not: "CLOSED" },
-        openedAt: { lte: asOfDate },
+        status: "ACTIVE",
         accountType: { isShareAccount: false, hasFixedPeriod: false },
         ...bf(branchId),
       },
       _sum: { balance: true },
-    }),
-    db.insuranceContribution.aggregate({
-      where: {
-        type: "CONTRIBUTION",
-        createdAt: { lte: asOfDate },
-        ...accountBf(branchId),
-      },
-      _sum: { amount: true },
     }),
     db.accountType.findMany({
       where: { isShareAccount: false, hasFixedPeriod: false },
@@ -185,7 +212,6 @@ async function getDirectLiabilities(asOfDate: Date, branchId?: string): Promise<
 
   const totalSavings = savingsAgg.reduce((sum, r) => sum + Number(r._sum.balance || 0), 0);
   const totalFixedDeposits = Number(fixedDepositAgg._sum.principalAmount || 0);
-  const totalInsurance = Number(insuranceAgg._sum.amount || 0);
 
   const liabs: DirectAccount[] = [
     group(LIABILITY_ROOT, "Liabilities", "LIABILITIES", null, 1),
@@ -221,18 +247,27 @@ async function getDirectLiabilities(asOfDate: Date, branchId?: string): Promise<
 // ============================================================================
 
 async function getDirectEquity(asOfDate: Date, branchId?: string): Promise<DirectAccount[]> {
+  // Match the Equity page (/api/v1/equity) exactly:
+  // Manual entries: include both branch-specific AND SACCO-wide (branchId=null) entries
+  // Share Capital: status = "ACTIVE" only
+  // Retained Earnings: getRetainedEarnings() — same shared function
+
+  const manualEntryWhere = branchId
+    ? { date: { lte: asOfDate }, OR: [{ branchId }, { branchId: null }] }
+    : { date: { lte: asOfDate } };
+
   const [reserveAgg, grantAgg, shareAgg] = await Promise.all([
     db.equityManualEntry.aggregate({
-      where: { type: "STATUTORY_RESERVE", date: { lte: asOfDate }, ...bf(branchId) },
+      where: { type: "STATUTORY_RESERVE", ...manualEntryWhere },
       _sum: { amount: true },
     }),
     db.equityManualEntry.aggregate({
-      where: { type: "GRANT_DONATION", date: { lte: asOfDate }, ...bf(branchId) },
+      where: { type: "GRANT_DONATION", ...manualEntryWhere },
       _sum: { amount: true },
     }),
     db.shareAccount.aggregate({
       where: {
-        status: { in: ["ACTIVE", "DORMANT", "ON_HOLD", "FROZEN"] },
+        status: "ACTIVE",
         openedDate: { lte: asOfDate },
         ...bf(branchId),
       },
@@ -616,7 +651,8 @@ const BS_CODE_NAMES: Record<string, string> = {
   "101100": "Cash at Hand",
   "102001": "Cash Equivalents",
   "102002": "Cash at Bank",
-  "102004": "Mobile Money Float",
+  "102004": "Teller Float",
+  "102005": "Cash in Vault",
   "107000": "Loans and Receivables",
   "200600": "Loan Insurance",
   "200700": "Accumulated Depreciation",
@@ -793,13 +829,10 @@ async function getSourceBSDrilldown(
   if (code.startsWith("2")) ledgerType = "LIABILITIES";
   if (code.startsWith("3")) ledgerType = "EQUITY";
 
-  // Fixed asset accounts (101xxx)
+  // Fixed asset accounts (101xxx) — match Assets page: status!=DISPOSED, no date filter
   if (code.startsWith("101") && code !== "101100") {
-    const categoryMap: Record<string, string> = { "101001": "land", "101002": "motor", "101003": "furniture" };
-    const catFilter = categoryMap[code];
-    const where: any = { status: "ACTIVE", purchaseDate: { gte: startDate, lte: endDate } };
+    const where: any = { status: { not: "DISPOSED" } };
     if (branchId) where.branchId = branchId;
-    if (catFilter) where.category = { contains: catFilter, mode: "insensitive" };
 
     const assets = await db.fixedAsset.findMany({ where, orderBy: { purchaseDate: "asc" }, select: {
       purchaseDate: true, currentValue: true, assetName: true, description: true, accumulatedDepreciation: true,
@@ -813,17 +846,17 @@ async function getSourceBSDrilldown(
     return { accountCode: code, accountName: name, ledgerType, entries, totals: { debit: totalDebit, credit: 0 } };
   }
 
-  // Cash at hand (101100)
+  // Cash at hand (101100) — match Assets page: LoanRepayment.principalPaid
   if (code === "101100") {
-    const vaultAgg = await db.vault.aggregate({ where: { ...(branchId ? { branchId } : {}) }, _sum: { balance: true } });
-    const floatAgg = await db.userFloat.aggregate({ where: {}, _sum: { balance: true } });
-    const balance = Number(vaultAgg._sum.balance || 0) + Number(floatAgg._sum.balance || 0);
-    return { accountCode: code, accountName: name, ledgerType, entries: [{ date: fmt(new Date()), reference: "Vault + Float", description: "Cash at Hand aggregate", debit: Math.max(balance, 0), credit: 0 }], totals: { debit: Math.max(balance, 0), credit: 0 } };
+    const repaymentWhere = branchId ? { loan: { branchId } } : {};
+    const repaymentAgg = await db.loanRepayment.aggregate({ where: repaymentWhere, _sum: { principalPaid: true } });
+    const balance = Number(repaymentAgg._sum.principalPaid || 0);
+    return { accountCode: code, accountName: name, ledgerType, entries: [{ date: fmt(new Date()), reference: "Loan Repayments", description: "Cash at Hand (modeled from loan repayments)", debit: balance, credit: 0 }], totals: { debit: balance, credit: 0 } };
   }
 
-  // Loans portfolio (107000)
+  // Loans portfolio (107000) — match Assets page: outstandingBalance>0, status!=WRITTEN_OFF
   if (code === "107000") {
-    const where: any = { status: { in: ["DISBURSED", "OVERDUE"] }, disbursementDate: { gte: startDate, lte: endDate } };
+    const where: any = { outstandingBalance: { gt: 0 }, status: { not: "WRITTEN_OFF" } };
     if (branchId) where.branchId = branchId;
     const loans = await db.loan.findMany({ where, orderBy: { disbursementDate: "asc" }, select: {
       disbursementDate: true, amountGranted: true, outstandingBalance: true, id: true, member: { select: { user: { select: { name: true } } } },
@@ -919,7 +952,7 @@ async function getSourceBSDrilldown(
     return { accountCode: code, accountName: name, ledgerType, entries, totals: { debit: 0, credit: totalCredit } };
   }
 
-  // Accumulated depreciation (200700, 202002)
+  // Accumulated depreciation (200700, 202002) — no longer used in balance sheet but kept for compatibility
   if (code === "200700" || code === "202002") {
     const where: any = { status: "ACTIVE" };
     if (branchId) where.branchId = branchId;

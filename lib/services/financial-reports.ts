@@ -1,7 +1,6 @@
 import { db } from "@/prisma/db";
 import { UserRole, TransactionStatus, CategoryKind, TransactionType } from "@prisma/client";
-import { calculateAccountBalance } from "@/lib/accounting-rules";
-import { getDirectBalanceSheetAccounts, getDirectTrialBalanceAccounts, getDirectOperationalBalances } from "@/lib/reports/direct-source";
+import { getDirectBalanceSheetAccounts, getDirectTrialBalanceAccounts } from "@/lib/reports/direct-source";
 
 const CASH_AT_HAND_CODE = "101100";
 
@@ -20,27 +19,6 @@ export async function getBranchFilterForService(user: any, requestedBranchId?: s
   // For restricted roles, always return their branch
   if (!user.branchId) return { branchId: "no-branch" };
   return { branchId: user.branchId };
-}
-
-export async function getCashAtHandPrincipalTotal(
-  asOfDate: Date,
-  branchId?: string,
-) {
-  const aggregate = await db.loanRepayment.aggregate({
-    where: {
-      repaymentDate: { lte: asOfDate },
-      ...(branchId
-        ? {
-            loan: { branchId },
-          }
-        : {}),
-    },
-    _sum: {
-      principalPaid: true,
-    },
-  });
-
-  return Number(aggregate._sum.principalPaid || 0);
 }
 
 export type BalanceSheetFilters = {
@@ -234,7 +212,8 @@ export async function getProfitAndLossStatementService(
     .forEach((record: any) => applyRecordToGroups(record, incomeByCategory));
   expenditureRecords.forEach((record: any) => applyRecordToGroups(record, expensesByCategory));
 
-  const totalIncome = incomeRecords.reduce((sum: number, r: any) => sum + r.amount, 0);
+  const syntheticLoanFeeTotal = syntheticLoanFeeRecords.reduce((sum: number, r: any) => sum + Number(r.amount || 0), 0);
+  const totalIncome = incomeRecords.reduce((sum: number, r: any) => sum + r.amount, 0) + syntheticLoanFeeTotal;
   const totalExpenses = expenditureRecords.reduce((sum: number, r: any) => sum + r.amount, 0);
   const netProfit = totalIncome - totalExpenses;
 
@@ -313,125 +292,6 @@ function makeStructuredItems(
   return Array.from(grouped.values()).filter((item) => Math.abs(item.amount) > 0.009);
 }
 
-export async function getOperationalBalances(
-  asOfDate: Date,
-  branchFilter: { branchId?: string },
-) {
-  const bf = branchFilter.branchId;
-
-  // Account is the master balance source for savings (TXN-001).
-  // SavingsAccount.balance was always 0 and is retired — Account aggregate covers it.
-  const settled = await Promise.allSettled([
-    db.vault.aggregate({
-      where: { isActive: true, ...(bf ? { branchId: bf } : {}) },
-      _sum: { balance: true },
-    }),
-    db.loan.aggregate({
-      where: {
-        status: { in: ["DISBURSED", "OVERDUE"] },
-        disbursementDate: { lte: asOfDate },
-        ...(bf ? { branchId: bf } : {}),
-      },
-      _sum: { outstandingBalance: true },
-    }),
-    db.account.aggregate({
-      where: {
-        status: { not: "CLOSED" },
-        openedAt: { lte: asOfDate },
-        accountType: { isShareAccount: false, hasFixedPeriod: false },
-        ...(bf ? { branchId: bf } : {}),
-      },
-      _sum: { balance: true },
-    }),
-    db.shareAccount.aggregate({
-      where: {
-        status: { in: ["ACTIVE", "DORMANT", "ON_HOLD", "FROZEN"] },
-        openedDate: { lte: asOfDate },
-        ...(bf ? { branchId: bf } : {}),
-      },
-      _sum: { totalValue: true },
-    }),
-    db.fixedDeposit.aggregate({
-      where: {
-        status: { in: ["ACTIVE", "MATURED"] },
-        startDate: { lte: asOfDate },
-        ...(bf ? { branchId: bf } : {}),
-      },
-      _sum: { principalAmount: true },
-    }),
-    db.fixedAsset.aggregate({
-      where: {
-        status: "ACTIVE",
-        purchaseDate: { lte: asOfDate },
-        ...(bf ? { branchId: bf } : {}),
-      },
-      _sum: { currentValue: true, accumulatedDepreciation: true },
-    }),
-    db.incomeRecord.aggregate({
-      where: {
-        status: TransactionStatus.COMPLETED,
-        recordDate: { lte: asOfDate },
-        ...(bf ? { branchId: bf } : {}),
-      },
-      _sum: { amount: true },
-    }),
-    db.expenditureRecord.aggregate({
-      where: {
-        status: TransactionStatus.COMPLETED,
-        recordDate: { lte: asOfDate },
-        ...(bf ? { branchId: bf } : {}),
-      },
-      _sum: { amount: true },
-    }),
-    db.insuranceContribution.aggregate({
-      where: {
-        type: "CONTRIBUTION",
-        createdAt: { lte: asOfDate },
-        ...(bf ? { account: { branchId: bf } } : {}),
-      },
-      _sum: { amount: true },
-    }),
-  ]);
-
-  const val = <T,>(idx: number, pick: (r: any) => T, fallback: T): T => {
-    const r = settled[idx];
-    return r.status === "fulfilled" ? (pick(r.value) ?? fallback) : fallback;
-  };
-
-  return {
-    cashInVault: val(0, (r) => r._sum.balance, 0),
-    loanPortfolio: val(1, (r) => r._sum.outstandingBalance, 0),
-    memberSavingsDeposits: val(2, (r) => r._sum.balance, 0),
-    shareCapital: val(3, (r) => r._sum.totalValue, 0),
-    fixedTermDeposits: val(4, (r) => r._sum.principalAmount, 0),
-    fixedAssetsNet: val(5, (r) => r._sum.currentValue, 0),
-    accumulatedDepreciation: val(5, (r) => r._sum.accumulatedDepreciation, 0),
-    incomeTotal: val(6, (r) => r._sum.amount, 0) + val(8, (r) => r._sum.amount, 0),
-    expenditureTotal: val(7, (r) => r._sum.amount, 0),
-  };
-}
-
-function injectOperationalItem(
-  items: StructuredBalanceSheetItem[],
-  label: string,
-  amount: number,
-): StructuredBalanceSheetItem[] {
-  if (Math.abs(amount) <= 0.009) return items;
-  const existingIdx = items.findIndex((i) => i.label === label);
-  if (existingIdx >= 0) {
-    if (Math.abs(amount) > Math.abs(items[existingIdx].amount)) {
-      return items.map((item, idx) =>
-        idx === existingIdx ? { ...item, amount } : item,
-      );
-    }
-    return items;
-  }
-  return [
-    ...items,
-    { label, amount, accounts: [{ code: "", name: "Operational Data", balance: amount }] },
-  ];
-}
-
 function resolveAssetSection(account: BalanceSheetMappedAccount) {
   const name = normalizeName(account.accountName);
   const code = account.accountCode;
@@ -476,7 +336,8 @@ function resolveAssetSection(account: BalanceSheetMappedAccount) {
   if (
     name.includes("cash") ||
     name.includes("vault") ||
-    name.includes("bank")
+    name.includes("bank") ||
+    name.includes("float")
   ) {
     return {
       section: "current" as const,
@@ -663,45 +524,6 @@ export async function getBalanceSheetService(
     (account) => resolveEquityLine(account),
   );
 
-  // Surplus / (Deficit) for the Period — computed from IncomeRecord + ExpenditureRecord
-  const [incomeAgg, expenditureAgg] = await Promise.all([
-    db.incomeRecord.aggregate({
-      where: {
-        status: "COMPLETED",
-        ...(branchFilter.branchId
-          ? { member: { user: { branchId: branchFilter.branchId } } }
-          : {}),
-      },
-      _sum: { amount: true },
-    }),
-    db.expenditureRecord.aggregate({
-      where: {
-        status: "COMPLETED",
-        ...(branchFilter.branchId
-          ? { member: { user: { branchId: branchFilter.branchId } } }
-          : {}),
-      },
-      _sum: { amount: true },
-    }),
-  ]);
-  const netProfitForPeriod = (incomeAgg._sum?.amount || 0) - (expenditureAgg._sum?.amount || 0);
-  const surplusLabel = netProfitForPeriod >= 0 ? "Surplus for the Period" : "Deficit for the Period";
-  const surplusItemIdx = equityItems.findIndex(
-    (i) => i.label === surplusLabel || i.label === "Surplus for the Period" || i.label === "Deficit for the Period",
-  );
-  if (Math.abs(netProfitForPeriod) > 0.009) {
-    const surplusItem = {
-      label: surplusLabel,
-      amount: netProfitForPeriod,
-      accounts: [{ code: "", name: "Net Income / (Loss) from P&L", balance: netProfitForPeriod }],
-    };
-    if (surplusItemIdx >= 0) {
-      equityItems[surplusItemIdx] = surplusItem;
-    } else {
-      equityItems.push(surplusItem);
-    }
-  }
-
   const totalCurrentAssets = currentAssetItems.reduce((sum, item) => sum + item.amount, 0);
   const totalNonCurrentAssets = nonCurrentAssetItems.reduce((sum, item) => sum + item.amount, 0);
   const totalCurrentLiabilities = currentLiabilityItems.reduce((sum, item) => sum + item.amount, 0);
@@ -752,7 +574,6 @@ export async function getBalanceSheetService(
     totalLiabilitiesAndEquity: totalLiabilities + totalEquity,
     difference,
     balanced,
-    surplusDeficitForPeriod: netProfitForPeriod,
   };
 
   const filteredStatement = {
