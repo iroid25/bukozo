@@ -147,22 +147,41 @@ async function getDirectAssets(asOfDate: Date, branchId?: string): Promise<Direc
     group(FIXED_ASSETS_PARENT, "Fixed Assets", "ASSETS", vid(ASSET_ROOT), 2),
   ];
 
+  const existingCodes = new Set<string>();
+  existingCodes.add(ASSET_ROOT);
+  existingCodes.add(FIXED_ASSETS_PARENT);
+  existingCodes.add(CURRENT_ASSETS_PARENT);
+
   for (const row of fixedAssetGroups) {
-    const code = `10100${assets.length}`;
+    let code = `10100${assets.length}`;
+    while (existingCodes.has(code)) code = `10100${parseInt(code.slice(5)) + 1}`;
+    existingCodes.add(code);
     assets.push(leaf(code, row.category || "Fixed Asset", "ASSETS", vid(FIXED_ASSETS_PARENT), Number(row._sum.currentValue || 0), 3));
   }
 
   assets.push(group(CURRENT_ASSETS_PARENT, "Current Assets", "ASSETS", vid(ASSET_ROOT), 2));
 
+  const VAULT_CODE = "102005";
+  const FLOAT_CODE = "102004";
+  const VAULT_NAME_lc = "cash in vault";
+  const FLOAT_NAME_lc = "teller float";
+
+  existingCodes.add(VAULT_CODE);
+  existingCodes.add(FLOAT_CODE);
+
   for (const row of currentAssetGroups) {
-    const code = `10200${assets.length}`;
+    const catName = (row.category || "").trim().toLowerCase();
+    if (catName === VAULT_NAME_lc || catName === FLOAT_NAME_lc) continue;
+    let code = `10200${assets.length}`;
+    while (existingCodes.has(code)) code = `10200${parseInt(code.slice(5)) + 1}`;
+    existingCodes.add(code);
     assets.push(leaf(code, row.category || "Current Asset", "ASSETS", vid(CURRENT_ASSETS_PARENT), Number(row._sum.currentValue || 0), 3));
   }
 
   assets.push(leaf(LOAN_PORTFOLIO, "Loans and Receivables", "ASSETS", vid(ASSET_ROOT), loanPortfolio, 2));
   assets.push(leaf(CASH_AT_HAND, "Cash at Hand", "ASSETS", vid(ASSET_ROOT), cashAtHand, 2));
-  assets.push(leaf("102005", "Cash in Vault", "ASSETS", vid(CURRENT_ASSETS_PARENT), vaultBalance, 3));
-  assets.push(leaf("102004", "Teller Float", "ASSETS", vid(CURRENT_ASSETS_PARENT), floatBalance, 3));
+  assets.push(leaf(VAULT_CODE, "Cash in Vault", "ASSETS", vid(CURRENT_ASSETS_PARENT), vaultBalance, 3));
+  assets.push(leaf(FLOAT_CODE, "Teller Float", "ASSETS", vid(CURRENT_ASSETS_PARENT), floatBalance, 3));
 
   return assets;
 }

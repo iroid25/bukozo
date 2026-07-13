@@ -5,6 +5,7 @@ import { ensureEquityStructure } from '@/lib/services/equity-structure';
 import { bumpAccountingSyncState } from '@/lib/services/accounting-sync';
 import { resolveBranchScope } from '@/lib/services/branch-scope';
 import { getRetainedEarnings } from '@/lib/accounting/getRetainedEarnings';
+import { getShareCapitalSummary } from '@/lib/services/share-capital-summary';
 
 /**
  * GET /api/v1/equity
@@ -54,21 +55,13 @@ export async function GET(request: NextRequest) {
     // agree on the same numbers by construction.
     // TODO: When period-close logic exists, this should read
     // ChartOfAccount.balance for account 303000 instead of computing live.
-    const [manualEntries, retained, shareAccountTypes] = await Promise.all([
+    const [manualEntries, retained, shareCapitalSummary] = await Promise.all([
       db.equityManualEntry.findMany({
         where: manualEntryWhere,
         orderBy: { date: 'desc' },
       }),
       getRetainedEarnings(),
-      db.accountType.findMany({
-        where: {
-          OR: [
-            { isShareAccount: true },
-            { shareAccounts: { some: { status: "ACTIVE" } } },
-          ],
-        },
-        orderBy: { name: "asc" },
-      }),
+      getShareCapitalSummary(branchId),
     ]);
 
     const toManualEntryNode = (entry: (typeof manualEntries)[number]) => ({
@@ -120,40 +113,8 @@ export async function GET(request: NextRequest) {
       isComputed: true as const,
     };
 
-    const shareAccountTypeIds = shareAccountTypes.map((accountType) => accountType.id);
-    const shareBalanceRows =
-      shareAccountTypeIds.length > 0
-        ? await db.shareAccount.groupBy({
-            by: ["accountTypeId"],
-            where: {
-              accountTypeId: { in: shareAccountTypeIds },
-              status: "ACTIVE",
-              ...(branchId ? { branchId } : {}),
-            },
-            _sum: {
-              totalValue: true,
-              numberOfShares: true,
-            },
-            _count: { _all: true },
-          })
-        : [];
-
-    const balanceMap = new Map(
-      shareBalanceRows.map((row) => [
-        row.accountTypeId,
-        {
-          amount: Number(row._sum.totalValue || 0),
-          shares: Number(row._sum.numberOfShares || 0),
-          count:
-            typeof row._count === "object" && "_all" in row._count
-              ? Number(row._count._all || 0)
-              : 0,
-        },
-      ]),
-    );
-
-    const shareCapitalItems = shareAccountTypes.map((accountType) => {
-      const aggregate = balanceMap.get(accountType.id) || {
+    const shareCapitalItems = shareCapitalSummary.accountTypes.map((accountType) => {
+      const aggregate = shareCapitalSummary.balanceMap.get(accountType.id) || {
         amount: 0,
         shares: 0,
         count: 0,
@@ -173,10 +134,7 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    const shareCapitalTotal = shareCapitalItems.reduce(
-      (sum, item) => sum + Number(item.amount || 0),
-      0,
-    );
+    const shareCapitalTotal = shareCapitalSummary.sourceTotal;
 
     return NextResponse.json({
       success: true,
@@ -187,6 +145,8 @@ export async function GET(request: NextRequest) {
         title: "Share Capital",
         items: shareCapitalItems,
         total: shareCapitalTotal,
+        transactions: shareCapitalSummary.transactionRows,
+        transactionTotal: shareCapitalSummary.transactionTotal,
       },
     });
   } catch (error: any) {

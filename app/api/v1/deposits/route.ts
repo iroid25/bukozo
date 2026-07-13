@@ -93,6 +93,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Share accounts must be funded through /api/v1/shares/purchase, which
+    // records the ShareAccount/ShareTransaction and the 304000 Share Capital
+    // GL entry. A plain deposit only touches the generic Account.balance and
+    // would silently miss Share Capital.
+    const targetAccount = await db.account.findUnique({
+      where: { id: data.accountId },
+      select: { accountType: { select: { isShareAccount: true } } },
+    });
+    if (targetAccount?.accountType?.isShareAccount) {
+      return NextResponse.json(
+        {
+          error:
+            "This is a share account. Use Share Purchase/Transfer to fund it, not a regular deposit.",
+        },
+        { status: 400 },
+      );
+    }
+
     // 2. Call TransactionService to process the deposit
     // The service handles transaction records, balance updates, and float logic
     const { TransactionService } =

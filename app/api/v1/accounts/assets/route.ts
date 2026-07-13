@@ -221,8 +221,36 @@ export async function GET(request: NextRequest) {
     const totalAssets =
       fixedAssetsTotal + currentAssetsTotal + loansNode.amount + cashAtHand.amount + vaultBalance.amount + floatBalance.amount;
 
+    const balanceByCode = new Map<string, number>([
+      ["100000", totalAssets],
+      ["101000", fixedAssetsTotal],
+      ["102000", currentAssetsTotal],
+      ["101100", cashAtHand.amount],
+      ["107000", loansNode.amount],
+      ["102004", floatBalance.amount],
+      ["102005", vaultBalance.amount],
+    ]);
+
+    const overrideSourceBalance = (account: any): any => {
+      const override = balanceByCode.get(account.accountCode);
+      const nextChildren = Array.isArray(account.children)
+        ? account.children.map(overrideSourceBalance)
+        : account.children;
+
+      return {
+        ...account,
+        balance: override ?? account.balance,
+        children: nextChildren,
+      };
+    };
+
+    const sourceAlignedData = Array.isArray(result.data)
+      ? result.data.map(overrideSourceBalance)
+      : result.data;
+
     return NextResponse.json({
       ...result,
+      data: sourceAlignedData,
       fixedAssets: { total: fixedAssetsTotal, categories: fixedAssetCategories },
       currentAssets: { total: currentAssetsTotal, categories: currentAssetCategories },
       loans: loansNode,

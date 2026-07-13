@@ -1,20 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/config/useAuth";
-import { db } from "@/prisma/db";
 import { resolveBranchScope } from "@/lib/services/branch-scope";
+import { getShareCapitalSummary } from "@/lib/services/share-capital-summary";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
     const user = await getAuthUser();
-
     if (!user) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
 
     const accountTypeId = request.nextUrl.searchParams.get("accountTypeId");
-
     if (!accountTypeId) {
       return NextResponse.json(
         { success: false, error: "accountTypeId is required" },
@@ -27,150 +25,39 @@ export async function GET(request: NextRequest) {
       request.nextUrl.searchParams.get("branchId"),
     );
 
-    const accountType = await db.accountType.findUnique({
-      where: { id: accountTypeId },
-      select: {
-        id: true,
-        name: true,
-        sharePrice: true,
-        isShareAccount: true,
-      },
-    });
+    const summary = await getShareCapitalSummary(branchId);
+    const accountType = summary.accountTypes.find((item) => item.id === accountTypeId);
 
-    if (!accountType || !accountType.isShareAccount) {
+    if (!accountType) {
       return NextResponse.json(
         { success: false, error: "Share account type not found" },
         { status: 404 },
       );
     }
 
-    const [accounts, transactions] = await Promise.all([
-      db.shareAccount.findMany({
-        where: {
-          accountTypeId,
-          status: "ACTIVE",
-          ...(branchId ? { branchId } : {}),
-        },
-        select: {
-          id: true,
-          accountNumber: true,
-          numberOfShares: true,
-          shareValue: true,
-          totalValue: true,
-          status: true,
-          branch: {
-            select: {
-              name: true,
-            },
-          },
-          member: {
-            select: {
-              memberNumber: true,
-              surname: true,
-              otherNames: true,
-              user: {
-                select: {
-                  name: true,
-                },
-              },
-            },
-          },
-        },
-        orderBy: [{ totalValue: "desc" }, { accountNumber: "asc" }],
-      }),
-      db.shareTransaction.findMany({
-        where: {
-          isReversed: false,
-          account: {
-            accountTypeId,
-            ...(branchId ? { branchId } : {}),
-          },
-        },
-        include: {
-          account: {
-            include: {
-              branch: {
-                select: {
-                  name: true,
-                },
-              },
-              member: {
-                select: {
-                  memberNumber: true,
-                  surname: true,
-                  otherNames: true,
-                  user: {
-                    select: {
-                      name: true,
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-        take: 100,
-        orderBy: {
-          transactionDate: "desc",
-        },
-      }),
-    ]);
-
-    const resolveMemberName = (member?: {
-      surname?: string | null;
-      otherNames?: string | null;
-      user?: { name?: string | null } | null;
-    } | null) =>
-      member?.user?.name?.trim() ||
-      [member?.surname, member?.otherNames].filter(Boolean).join(" ").trim() ||
-      "Unknown Member";
-
-    const sourceAccounts = accounts.map((account) => ({
-      accountId: account.id,
-      accountNumber: account.accountNumber,
-      ownerName: resolveMemberName(account.member),
-      ownerNumber: account.member?.memberNumber || "-",
-      branchName: account.branch?.name || "Unassigned Branch",
-      numberOfShares: Number(account.numberOfShares || 0),
-      shareValue: Number(account.shareValue || 0),
-      totalValue: Number(account.totalValue || 0),
-      status: account.status,
-    }));
-
-    const transactionRows = transactions.map((transaction) => ({
-      id: transaction.id,
-      accountId: transaction.accountId,
-      accountNumber: transaction.account.accountNumber,
-      ownerName: resolveMemberName(transaction.account.member),
-      ownerNumber: transaction.account.member?.memberNumber || "-",
-      branchName: transaction.account.branch?.name || "Unassigned Branch",
-      transactionType: transaction.transactionType,
-      date: transaction.transactionDate,
-      reference: transaction.reference || "-",
-      description: transaction.description || "-",
-      shares: Number(transaction.shares || 0),
-      shareValue: Number(transaction.shareValue || 0),
-      amount: Number(transaction.amount || 0),
-      sharesBefore: Number(transaction.sharesBefore || 0),
-      sharesAfter: Number(transaction.sharesAfter || 0),
-    }));
+    const sourceAccounts = summary.sourceAccounts.filter((item) => item.accountTypeId === accountTypeId);
+    const transactions = summary.transactionRows.filter((item) => {
+      const matchedAccountType = summary.sourceAccounts.find(
+        (source) => source.accountId === item.accountId,
+      );
+      return matchedAccountType?.accountTypeId === accountTypeId;
+    });
 
     return NextResponse.json({
       success: true,
       data: {
-        accountType,
+        accountType: {
+          id: accountType.id,
+          name: accountType.name,
+          sharePrice: accountType.sharePrice,
+          isShareAccount: accountType.isShareAccount,
+        },
         sourceCount: sourceAccounts.length,
-        sourceTotal: sourceAccounts.reduce(
-          (sum, source) => sum + Number(source.totalValue || 0),
-          0,
-        ),
-        transactionCount: transactionRows.length,
-        transactionTotal: transactionRows.reduce(
-          (sum, transaction) => sum + Number(transaction.amount || 0),
-          0,
-        ),
+        sourceTotal: sourceAccounts.reduce((sum, row) => sum + Number(row.totalValue || 0), 0),
+        transactionCount: transactions.length,
+        transactionTotal: transactions.reduce((sum, row) => sum + Number(row.amount || 0), 0),
         sourceAccounts,
-        transactions: transactionRows,
+        transactions,
       },
     });
   } catch (error) {

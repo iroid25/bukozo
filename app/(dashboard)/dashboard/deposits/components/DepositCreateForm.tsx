@@ -449,9 +449,16 @@ function DepositDialog({ onClose, userRole, userId }: Props) {
         hasSourceAccountSelected &&
         hasTransferSourceSelected &&
         hasUsableFloat;
-  const entityAccounts = actionMode === "SHARE_TRANSFER"
-    ? (selectedMember?.accounts ?? []).filter((acc: any) => !acc.accountType?.isShareAccount)
-    : selectedMember?.accounts ?? selectedInstitution?.accounts ?? [];
+  // Share accounts must always be funded through the dedicated Share
+  // Transfer flow (which posts to ShareAccount/ShareTransaction and the
+  // 304000 GL account) — never as a plain deposit/transfer target, which
+  // would only touch the generic Account.balance and silently miss Share
+  // Capital.
+  const entityAccounts = (
+    actionMode === "SHARE_TRANSFER"
+      ? (selectedMember?.accounts ?? [])
+      : (selectedMember?.accounts ?? selectedInstitution?.accounts ?? [])
+  ).filter((acc: any) => !acc.accountType?.isShareAccount);
   const entityName = selectedMember?.user?.name ?? selectedInstitution?.institutionName;
 
   const switchTab = (tab: "MEMBER" | "INSTITUTION") => {

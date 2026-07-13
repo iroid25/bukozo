@@ -105,6 +105,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Share accounts must be funded/moved through /api/v1/shares/purchase or
+    // /api/v1/shares/transfer, which record the ShareAccount/ShareTransaction
+    // and the 304000 Share Capital GL entry. A generic internal transfer only
+    // touches Account.balance and would silently miss Share Capital.
+    if (sourceAccount.accountType?.isShareAccount || targetAccount.accountType?.isShareAccount) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "This is a share account. Use Share Purchase/Transfer to move funds into or out of it, not a regular transfer.",
+        },
+        { status: 400 }
+      );
+    }
+
     // Check balance
     if (sourceAccount.balance < amount) {
       return NextResponse.json(

@@ -20,7 +20,7 @@ export class ShareAccountBalanceGenerator extends BaseReportGenerator {
     if (branchId) where.branchId = branchId;
     if (params.status) where.status = params.status;
 
-    const accounts = await db.account.findMany({
+    const accounts = await db.shareAccount.findMany({
       where,
       include: {
         accountType: {
@@ -55,7 +55,7 @@ export class ShareAccountBalanceGenerator extends BaseReportGenerator {
     const byAccountType = accounts.reduce((acc, account) => {
       const code = account.accountType.ledgerAccount?.accountCode || account.accountNumber.split(".")[0] || account.accountType.name;
       const name = account.accountType.ledgerAccount?.accountName || account.accountType.name;
-      const sharesCount = account.sharesCount || 0;
+      const sharesCount = account.numberOfShares || 0;
       
       if (!acc[code]) {
         acc[code] = { code, name, accountCount: 0, totalBlocked: 0, totalValue: 0, accounts: [] as any[] };
@@ -66,8 +66,8 @@ export class ShareAccountBalanceGenerator extends BaseReportGenerator {
         physicalPostalAddress: account.member?.user?.address || "",
         refNo: account.member?.memberNumber || "N/A",
         amountBlocked: 0,
-        balance: account.balance,
-        drCr: account.balance >= 0 ? "CR" : "DR",
+        balance: account.totalValue,
+        drCr: account.totalValue >= 0 ? "CR" : "DR",
         phone: account.member?.user?.phone || "",
         bankVerificationNo: account.member?.user?.nationalId || null,
       };
@@ -88,10 +88,10 @@ export class ShareAccountBalanceGenerator extends BaseReportGenerator {
 
     const summary = {
       totalAccounts: accounts.length,
-      totalShares: accounts.reduce((sum, acc) => sum + (acc.sharesCount || 0), 0),
-      totalValue: this.formatCurrency(accounts.reduce((sum, acc) => sum + acc.balance, 0)),
+      totalShares: accounts.reduce((sum, acc) => sum + (acc.numberOfShares || 0), 0),
+      totalValue: this.formatCurrency(accounts.reduce((sum, acc) => sum + acc.totalValue, 0)),
       averageShares: accounts.length > 0 
-        ? Math.round(accounts.reduce((sum, acc) => sum + (acc.sharesCount || 0), 0) / accounts.length)
+        ? Math.round(accounts.reduce((sum, acc) => sum + (acc.numberOfShares || 0), 0) / accounts.length)
         : 0,
     };
 
@@ -104,8 +104,8 @@ export class ShareAccountBalanceGenerator extends BaseReportGenerator {
         physicalPostalAddress: account.member?.user?.address || "",
         refNo: account.member?.memberNumber || "N/A",
         amountBlocked: 0,
-        balance: account.balance,
-        drCr: account.balance >= 0 ? "CR" : "DR",
+        balance: account.totalValue,
+        drCr: account.totalValue >= 0 ? "CR" : "DR",
         phone: account.member?.user?.phone || "",
         bankVerificationNo: account.member?.user?.nationalId || null,
         productCode: account.accountType.ledgerAccount?.accountCode || account.accountNumber.split(".")[0] || account.accountType.name,

@@ -126,6 +126,24 @@ interface ShareCapitalSourcesPayload {
   }>;
 }
 
+interface ShareCapitalTransactionNode {
+  id: string;
+  accountId: string;
+  accountNumber: string;
+  ownerName: string;
+  ownerNumber: string;
+  branchName: string;
+  transactionType: string;
+  date: string;
+  reference: string;
+  description: string;
+  shares: number;
+  shareValue: number;
+  amount: number;
+  sharesBefore: number;
+  sharesAfter: number;
+}
+
 const ROOT_NODE_ID = "EQUITY_ROOT";
 const SHARE_CAPITAL_BUCKET_ID = "SHARE_CAPITAL_BUCKET";
 const STATUTORY_RESERVES_BUCKET_ID = "STATUTORY_RESERVES_BUCKET";
@@ -162,6 +180,8 @@ export default function EquityPage() {
   );
   const [shareCapitalItems, setShareCapitalItems] = useState<ShareCapitalNode[]>([]);
   const [shareCapitalTotal, setShareCapitalTotal] = useState<number>(0);
+  const [shareCapitalTransactions, setShareCapitalTransactions] = useState<ShareCapitalTransactionNode[]>([]);
+  const [shareCapitalTransactionTotal, setShareCapitalTransactionTotal] = useState<number>(0);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -254,6 +274,10 @@ export default function EquityPage() {
         Array.isArray(data.shareCapital?.items) ? data.shareCapital.items : [],
       );
       setShareCapitalTotal(Number(data.shareCapital?.total || 0));
+      setShareCapitalTransactions(
+        Array.isArray(data.shareCapital?.transactions) ? data.shareCapital.transactions : [],
+      );
+      setShareCapitalTransactionTotal(Number(data.shareCapital?.transactionTotal || 0));
     } catch (err) {
       console.error("Error fetching equity accounts:", err);
       const message = err instanceof Error ? err.message : "Failed to fetch equity accounts";
@@ -263,6 +287,8 @@ export default function EquityPage() {
       setRetainedEarnings(EMPTY_RETAINED_EARNINGS);
       setShareCapitalItems([]);
       setShareCapitalTotal(0);
+      setShareCapitalTransactions([]);
+      setShareCapitalTransactionTotal(0);
       toast.error(message);
     } finally {
       setLoading(false);
@@ -703,6 +729,57 @@ export default function EquityPage() {
     );
   };
 
+  const renderShareCapitalTransactions = () => {
+    if (shareCapitalTransactions.length === 0) {
+      return (
+        <div className="rounded-xl border border-dashed border-emerald-200 bg-emerald-50/60 px-4 py-3 text-sm text-muted-foreground">
+          No share transactions found for 304000 Share Capital.
+        </div>
+      );
+    }
+
+    return (
+      <div className="overflow-hidden rounded-lg border bg-background shadow-sm">
+        <Table>
+          <TableHeader className="bg-muted/30">
+            <TableRow>
+              <TableHead>Date</TableHead>
+              <TableHead>Member</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Reference</TableHead>
+              <TableHead className="text-right">Shares</TableHead>
+              <TableHead className="text-right">Amount</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {shareCapitalTransactions.map((transaction) => (
+              <TableRow key={transaction.id} className="transition-colors hover:bg-muted/50">
+                <TableCell className="text-xs">
+                  {transaction.date ? new Date(transaction.date).toLocaleDateString("en-UG") : "-"}
+                </TableCell>
+                <TableCell className="text-sm font-medium">
+                  {transaction.ownerName}
+                </TableCell>
+                <TableCell className="text-xs text-muted-foreground">
+                  {transaction.transactionType.replaceAll("_", " ")}
+                </TableCell>
+                <TableCell className="font-mono text-xs text-primary">
+                  {transaction.reference}
+                </TableCell>
+                <TableCell className="text-right font-mono text-sm">
+                  {transaction.shares}
+                </TableCell>
+                <TableCell className="text-right font-mono text-sm font-semibold">
+                  {formatCurrency(transaction.amount)}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    );
+  };
+
   const renderShareCapitalBucket = (depth: number) => {
     const isExpanded = !!expandedNodes[SHARE_CAPITAL_BUCKET_ID];
 
@@ -746,6 +823,10 @@ export default function EquityPage() {
                   Real ledger — ShareAccount/ShareTransaction
                 </span>
                 <span>
+                  {shareCapitalTransactions.length} transaction
+                  {shareCapitalTransactions.length === 1 ? "" : "s"}
+                </span>
+                <span>
                   {shareCapitalItems.length} share type{shareCapitalItems.length === 1 ? "" : "s"}
                 </span>
               </div>
@@ -764,6 +845,28 @@ export default function EquityPage() {
 
         {isExpanded && (
           <div className="space-y-2" style={{ marginLeft: `${(depth + 1) * 24}px` }}>
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 px-4 py-3">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                    Share Transactions
+                  </p>
+                  <p className="text-sm font-medium text-foreground">
+                    {shareCapitalTransactions.length} transaction
+                    {shareCapitalTransactions.length === 1 ? "" : "s"} recorded
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                    Transaction Total
+                  </p>
+                  <p className="font-mono text-sm font-bold text-foreground">
+                    {formatCurrency(shareCapitalTransactionTotal)}
+                  </p>
+                </div>
+              </div>
+              {renderShareCapitalTransactions()}
+            </div>
             {shareCapitalItems.length === 0 ? (
               <div className="rounded-xl border border-dashed border-emerald-200 bg-emerald-50/60 px-4 py-3 text-sm text-muted-foreground">
                 No share account types found.
