@@ -309,7 +309,7 @@ export async function buildFinancialYearBalanceSheetReport(input: BuildInput): P
       where: {
         recordDate: { gte: fromDate, lte: toDate },
         status: TransactionStatus.COMPLETED,
-        ...(branchId ? { member: { user: { branchId } } } : {}),
+        ...(branchId ? { branchId } : {}),
       },
       _sum: { amount: true },
     }),

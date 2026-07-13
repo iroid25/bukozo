@@ -194,7 +194,7 @@ export async function buildIncomeExpenseReport(input: {
       where: {
         recordDate: { gte: startDate, lte: endDate },
         status: { in: [TransactionStatus.COMPLETED, TransactionStatus.APPROVED] },
-        ...(branchId ? { member: { user: { branchId } } } : {}),
+        ...(branchId ? { branchId } : {}),
       },
       _sum: { amount: true },
       _count: { id: true },
@@ -204,7 +204,7 @@ export async function buildIncomeExpenseReport(input: {
       where: {
         recordDate: { gte: compareStartDate, lte: compareEndDate },
         status: { in: [TransactionStatus.COMPLETED, TransactionStatus.APPROVED] },
-        ...(branchId ? { member: { user: { branchId } } } : {}),
+        ...(branchId ? { branchId } : {}),
       },
       _sum: { amount: true },
       _count: { id: true },
@@ -214,7 +214,7 @@ export async function buildIncomeExpenseReport(input: {
       where: {
         recordDate: { gte: startDate, lte: endDate },
         status: { in: [TransactionStatus.COMPLETED, TransactionStatus.APPROVED] },
-        ...(branchId ? { member: { user: { branchId } } } : {}),
+        ...(branchId ? { branchId } : {}),
       },
       _sum: { amount: true },
       _count: { id: true },
@@ -224,7 +224,7 @@ export async function buildIncomeExpenseReport(input: {
       where: {
         recordDate: { gte: compareStartDate, lte: compareEndDate },
         status: { in: [TransactionStatus.COMPLETED, TransactionStatus.APPROVED] },
-        ...(branchId ? { member: { user: { branchId } } } : {}),
+        ...(branchId ? { branchId } : {}),
       },
       _sum: { amount: true },
       _count: { id: true },
