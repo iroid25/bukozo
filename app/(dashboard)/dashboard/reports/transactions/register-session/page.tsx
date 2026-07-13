@@ -7,6 +7,21 @@ import { Column } from "@/components/ui/data-table/data-table";
 import { ArrowDownUp, TrendingDown, TrendingUp, Wallet } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
+const TRANSACTION_TYPES = [
+  { label: "Deposit", value: "DEPOSIT" },
+  { label: "Withdrawal", value: "WITHDRAWAL" },
+  { label: "Loan Disbursement", value: "LOAN_DISBURSEMENT" },
+  { label: "Loan Repayment", value: "LOAN_REPAYMENT" },
+  { label: "Fee", value: "FEE" },
+  { label: "Transfer", value: "TRANSFER" },
+  { label: "Shares Purchase", value: "SHARES_PURCHASE" },
+  { label: "Insurance Premium", value: "INSURANCE_PREMIUM" },
+  { label: "Float Allocation", value: "FLOAT_ALLOCATION" },
+  { label: "Float Purchase", value: "FLOAT_PURCHASE" },
+  { label: "Float Reconciliation", value: "FLOAT_RECONCILIATION" },
+  { label: "Loan Fee", value: "LOAN_FEE" },
+];
+
 // Shape returned by /api/v1/reports/transactions/register-session
 interface RegisterRow {
   transactionRef: string;
@@ -113,6 +128,9 @@ export default function RegisterSessionPage() {
       endpoint="/api/v1/reports/transactions/register-session"
       columns={columns}
       keyField="transactionRef"
+      searchFields={["transactionRef", "memberName", "accountNumber", "accountType", "description", "type"]}
+      typeField="type"
+      typeOptions={TRANSACTION_TYPES}
       summaryFormatter={(summary) => (
         <>
           <ReportSummaryCard

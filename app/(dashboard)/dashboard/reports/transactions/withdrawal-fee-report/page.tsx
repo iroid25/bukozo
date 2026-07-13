@@ -102,6 +102,7 @@ export default function WithdrawalFeeReportPage() {
       endpoint="/api/v1/reports/transactions/withdrawal-fees"
       columns={columns}
       keyField="id"
+      searchFields={["transactionRef", "memberName", "accountNumber", "accountType", "channel", "branch", "processedBy"]}
       summaryFormatter={(summary) => (
         <>
           <ReportSummaryCard

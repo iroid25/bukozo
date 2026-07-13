@@ -15,6 +15,11 @@ import {
   FEE_INCOME_CODE,
   WITHDRAWAL_FEE_CODE,
 } from "@/lib/services/income-structure";
+import {
+  createWithdrawalFeeJournalEntry,
+  createWithdrawalPrincipalJournalEntry,
+} from "@/lib/journal-entries-extended";
+import { CASH_AT_HAND_CODE } from "@/lib/services/asset-structure";
 
 // -----------------------------
 // Helpers
@@ -1228,6 +1233,7 @@ export async function verifyAndProcessWithdrawal(data: {
         accountId: verification.accountId,
         type: TransactionType.WITHDRAWAL,
         amount: verification.amount,
+        fee,
         status: TransactionStatus.COMPLETED,
         description: verification.description || "Withdrawal",
         processedByUserId: data.userId,
@@ -1251,6 +1257,7 @@ export async function verifyAndProcessWithdrawal(data: {
         transactionId: transaction.id,
         accountId: verification.accountId,
         amount: verification.amount,
+        fee,
         withdrawalDate: new Date(),
         handlerUserId: data.userId,
         channel: verification.channel,
@@ -1317,7 +1324,7 @@ export async function verifyAndProcessWithdrawal(data: {
         },
       });
 
-      // fee handling: income record + FEE transaction
+      // fee handling: income record + journal entries (matching Paths A/C)
       if (fee > 0) {
         const feeCategory = await getOrCreateWithdrawalFeeCategory(tx);
         const currentPeriod = await tx.financialPeriod.findFirst({
@@ -1350,24 +1357,39 @@ export async function verifyAndProcessWithdrawal(data: {
           data: incomeData,
         });
 
-        const feeTransactionRef = `FEE-${transactionRef}`;
-        const feeTxData: any = {
-          transactionRef: feeTransactionRef,
-          accountId: verification.accountId,
-          type: TransactionType.FEE,
-          amount: fee,
-          status: TransactionStatus.COMPLETED,
-          description: "Withdrawal fee",
-          processedByUserId: data.userId,
-          transactionDate: new Date(),
-          relatedTransactionId: transaction.id,
-        };
-        if (isInstitution) feeTxData.institutionId = verification.institutionId;
-        else feeTxData.memberId = verification.memberId;
+        // Fee journal entry (Dr Savings Liability, Cr Fee Income)
+        await createWithdrawalFeeJournalEntry(
+          {
+            amount: fee,
+            description: `Withdrawal fee - ${transactionRef}`,
+            reference: transactionRef,
+            transactionId: transaction.id,
+            userId: data.userId,
+            entryDate: new Date(),
+            branchId: verification.account.branchId,
+            feeAccountCode: WITHDRAWAL_FEE_CODE,
+            feeAccountName: "Withdrawal fee charged",
+          },
+          tx,
+        );
+      }
 
-        await tx.transaction.create({
-          data: feeTxData,
-        });
+      // Principal journal entry (Dr Savings Liability, Cr Cash/Bank)
+      {
+        const cashCode = verification.channel?.toLowerCase() === "bank" ? "102002" : CASH_AT_HAND_CODE;
+        await createWithdrawalPrincipalJournalEntry(
+          {
+            amount: verification.amount,
+            description: `Withdrawal - ${transactionRef}`,
+            reference: transactionRef,
+            transactionId: transaction.id,
+            userId: data.userId,
+            entryDate: new Date(),
+            branchId: verification.account.branchId,
+            cashAccountCode: cashCode,
+          },
+          tx,
+        );
       }
 
       return {

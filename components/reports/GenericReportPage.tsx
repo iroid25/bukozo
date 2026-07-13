@@ -33,6 +33,9 @@ interface GenericReportPageProps<T> {
   method?: "GET" | "POST";
   extraParams?: Record<string, any>;
   refreshIntervalMs?: number;
+  searchFields?: string[];
+  typeField?: keyof T;
+  typeOptions?: { label: string; value: string }[];
 }
 
 export function GenericReportPage<T>({
@@ -46,6 +49,9 @@ export function GenericReportPage<T>({
   method = "GET",
   extraParams = {},
   refreshIntervalMs = 15000,
+  searchFields = [],
+  typeField,
+  typeOptions = [],
 }: GenericReportPageProps<T>) {
   const { data: session } = useSession();
   const liveRefreshVersion = useReportLiveRefresh({
@@ -58,6 +64,7 @@ export function GenericReportPage<T>({
   const [generatedAt, setGeneratedAt] = useState<string>("");
   const [branches, setBranches] = useState<Array<{ id: string; name: string }>>([]);
   const [branchId, setBranchId] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
   const [dateRange, setDateRange] = useState<DateRange | undefined>(
     defaultDateRange || {
       from: addDays(new Date(), -30),
@@ -207,10 +214,12 @@ export function GenericReportPage<T>({
   }, [isAdmin, userBranchId]);
 
   const handleExport = () => {
-    // Basic CSV export logic could go here, or trigger api export
     toast.info("Exporting data...");
-    // TODO: Implement actual export
   };
+
+  const filteredData = typeField && typeFilter !== "all"
+    ? data.filter((item) => String(item[typeField]) === typeFilter)
+    : data;
 
   return (
     <ReportPageLayout
@@ -244,6 +253,24 @@ export function GenericReportPage<T>({
               <Input value={branches.find((branch) => branch.id === userBranchId)?.name || "Assigned Branch"} disabled />
             )}
           </div>
+          {typeOptions.length > 0 && (
+            <div className="min-w-[180px]">
+              <Label className="mb-2 block">Type</Label>
+              <Select value={typeFilter} onValueChange={setTypeFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All Types" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  {typeOptions.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <DatePickerWithRange
             date={dateRange}
             onDateChange={setDateRange}
@@ -263,14 +290,14 @@ export function GenericReportPage<T>({
     >
       <DataTable
         title="Report Data"
-        data={data}
+        data={filteredData}
         columns={columns}
         keyField={keyField}
         isLoading={loading}
         onRefresh={fetchData}
         filters={{
-            searchFields: [], // Can be passed as prop if needed
-            enableDateFilter: false, // We handle date filtering externally
+            searchFields: searchFields,
+            enableDateFilter: false,
         }}
         emptyState={
              <div className="text-center py-8 text-muted-foreground">
