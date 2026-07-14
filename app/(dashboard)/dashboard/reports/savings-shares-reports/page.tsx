@@ -212,6 +212,7 @@ export default function BUTSACCOReportsPage() {
           name: "Accounts on Hold/Closed Status",
           description: "Share accounts that are on hold or closed",
           requiresDates: false,
+          href: "/dashboard/reports/shares/on-hold-closed",
         },
         {
           id: "shares-zero-balance",
@@ -225,7 +226,7 @@ export default function BUTSACCOReportsPage() {
           name: "Top Shareholders",
           description: "List of members with highest shareholding.",
           requiresDates: false,
-          href: "/dashboard/reports/savings-shares-reports/shares",
+          href: "/dashboard/reports/shares/top-bottom-shareholders",
         },
         {
           id: "shares-transactions",

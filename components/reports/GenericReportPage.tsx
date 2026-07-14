@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import DataTable, { Column } from "@/components/ui/data-table/data-table";
@@ -221,6 +221,52 @@ export function GenericReportPage<T>({
     ? data.filter((item) => String(item[typeField]) === typeFilter)
     : data;
 
+  const filteredSummary = useMemo(() => {
+    if (!summary) return null;
+    if (!typeField || typeFilter === "all") return summary;
+    if (filteredData.length === data.length) return summary;
+
+    const newSummary: Record<string, any> = { ...summary };
+    const rows = filteredData as any[];
+
+    newSummary.count = rows.length;
+    newSummary.totalRecords = rows.length;
+    newSummary.row_count = rows.length;
+
+    const dataNumericKeys = rows.length > 0
+      ? Object.keys(rows[0]).filter((k) => typeof rows[0][k] === "number")
+      : [];
+
+    for (const sKey of Object.keys(summary)) {
+      if (typeof summary[sKey] !== "number") continue;
+      if (sKey === "count" || sKey === "totalRecords" || sKey === "row_count") continue;
+
+      const lower = sKey.toLowerCase();
+      const isCount = lower.includes("count") || lower.includes("unique");
+      if (isCount) {
+        continue;
+      }
+
+      const matchedDataKey = dataNumericKeys.find((dKey) => {
+        const dLower = dKey.toLowerCase();
+        return lower.includes(dLower) || dLower.includes(lower.replace("total", "").replace("amount", ""));
+      });
+
+      if (matchedDataKey) {
+        newSummary[sKey] = rows.reduce((sum: number, row: any) => sum + (Number(row[matchedDataKey]) || 0), 0);
+      } else if (lower.includes("total") || lower.includes("amount") || lower.includes("debit") || lower.includes("credit") || lower.includes("balance")) {
+        const fallbackKey = dataNumericKeys.find((dKey) =>
+          lower.includes(dKey.toLowerCase()) || dKey.toLowerCase().includes(lower.replace("total", ""))
+        );
+        if (fallbackKey) {
+          newSummary[sKey] = rows.reduce((sum: number, row: any) => sum + (Number(row[fallbackKey]) || 0), 0);
+        }
+      }
+    }
+
+    return newSummary;
+  }, [summary, typeFilter, typeField, filteredData, data.length]);
+
   return (
     <ReportPageLayout
       title={title}
@@ -286,7 +332,7 @@ export function GenericReportPage<T>({
           Export
         </Button>
       }
-      summary={summary && summaryFormatter ? summaryFormatter(summary) : null}
+      summary={filteredSummary && summaryFormatter ? summaryFormatter(filteredSummary) : null}
     >
       <DataTable
         title="Report Data"

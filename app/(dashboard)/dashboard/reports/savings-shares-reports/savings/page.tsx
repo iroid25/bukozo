@@ -156,7 +156,7 @@ const DEFAULT_FROM_DATE = (() => {
   const month = today.getMonth();
   return new Date(year, month, 1).toISOString().slice(0, 10);
 })();
-const PRODUCT_OPTIONS = [
+const FALLBACK_PRODUCT_OPTIONS = [
   { value: "all", label: "All Products" },
   { value: "201001", label: "201001 - Fixed Deposit Savings" },
   { value: "201002", label: "201002 - Junior Savings A/C" },
@@ -228,6 +228,28 @@ export default function SavingsTransactionsReportPage() {
   const [memberLoading, setMemberLoading] = useState(false);
   const [memberOpen, setMemberOpen] = useState(false);
   const [showTellerSummary, setShowTellerSummary] = useState(true);
+  const [productOptions, setProductOptions] = useState(FALLBACK_PRODUCT_OPTIONS);
+
+  useEffect(() => {
+    fetch("/api/v1/account-types?linkedOnly=true")
+      .then((r) => r.json())
+      .then((result) => {
+        const types = (result.data || []).filter(
+          (t: any) => t.isShareAccount === false && t.ledgerAccount
+        );
+        if (types.length > 0) {
+          const options = [
+            { value: "all", label: "All Products" },
+            ...types.map((t: any) => ({
+              value: t.ledgerAccount.accountCode,
+              label: `${t.ledgerAccount.accountCode} - ${t.name}`,
+            })),
+          ];
+          setProductOptions(options);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const [filters, setFilters] = useState({
     branchId: "all",
@@ -244,7 +266,7 @@ export default function SavingsTransactionsReportPage() {
   const isAdmin = String((session?.user as any)?.role || "").toUpperCase() === "ADMIN";
 
   const tellerOptions = useMemo(() => {
-    const base = new Set(["all", "Meresi", "Kule A", "Masika"]);
+    const base = new Set(["all"]);
     report?.tellerSummary.forEach((row) => base.add(row.tellerName));
     return Array.from(base);
   }, [report?.tellerSummary]);
@@ -544,7 +566,7 @@ export default function SavingsTransactionsReportPage() {
                     <SelectValue placeholder="Select product" />
                   </SelectTrigger>
                   <SelectContent>
-                    {PRODUCT_OPTIONS.map((option) => (
+                    {productOptions.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
                         {option.label}
                       </SelectItem>

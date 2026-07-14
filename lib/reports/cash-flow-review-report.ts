@@ -169,7 +169,10 @@ export async function buildCashFlowReviewReport(input: BuildInput, kind: CashFlo
   const directP2ByCode = new Map(directP2.filter((a) => !a.isGroup).map((a) => [a.accountCode, a]));
 
   // Use direct source accounts as the tree skeleton — they already have parentId, isGroup, ledgerType
-  const directAccounts = kind === "balance-sheet" ? directP2 : directP2;
+  // For profit-loss, merge P1 + P2 so accounts active only in P1 still appear
+  const directAccounts = kind === "balance-sheet"
+    ? directP2
+    : [...directP2, ...directP1.filter((a) => !a.isGroup && !directP2ByCode.has(a.accountCode))];
 
   const mapped = directAccounts
     .filter((a) => a.ledgerType && ledgerTypes.includes(a.ledgerType as AccountLedgerType))

@@ -253,6 +253,10 @@ async function resolveAccount(filters: StatementFilters, branchId: string | null
   const search = filters.search?.trim();
   const accountNumber = filters.accountNumber?.trim();
 
+  if (!accountNumber && !search) {
+    return null;
+  }
+
   return db.account.findFirst({
     where: {
       ...where,

@@ -334,37 +334,7 @@ async function findShareAccount(filters: ShareStatementFilters, branchId: string
     if (found) return found;
   }
 
-  return db.shareAccount.findFirst({
-    where,
-    include: {
-      member: {
-        include: {
-          user: {
-            select: {
-              name: true,
-              phone: true,
-              email: true,
-              address: true,
-              nationalId: true,
-            },
-          },
-        },
-      },
-      accountType: {
-        include: {
-          ledgerAccount: {
-            select: {
-              accountCode: true,
-              accountName: true,
-            },
-          },
-        },
-      },
-      branch: { select: { id: true, name: true } },
-      transactions: { include: { teller: { select: { name: true, firstName: true, lastName: true } } } },
-    },
-    orderBy: { accountNumber: "asc" },
-  });
+  return null;
 }
 
 function txDirection(tx: ShareTransactionRecord) {

@@ -20,7 +20,7 @@ type ReportState = {
   data: SavingsListingReport | null;
 };
 
-const PRODUCT_OPTIONS = [
+const FALLBACK_PRODUCT_OPTIONS = [
   { value: "all", label: "All Products" },
   { value: "201001", label: "201001 - Fixed Deposit Savings" },
   { value: "201002", label: "201002 - Junior Savings A/C" },
@@ -111,6 +111,29 @@ export default function SavingsListingPage() {
     enabled: true,
     intervalMs: 20000,
   });
+
+  const [productOptions, setProductOptions] = useState(FALLBACK_PRODUCT_OPTIONS);
+
+  useEffect(() => {
+    fetch("/api/v1/account-types?linkedOnly=true")
+      .then((r) => r.json())
+      .then((result) => {
+        const types = (result.data || []).filter(
+          (t: any) => t.isShareAccount === false && t.ledgerAccount
+        );
+        if (types.length > 0) {
+          const options = [
+            { value: "all", label: "All Products" },
+            ...types.map((t: any) => ({
+              value: t.ledgerAccount.accountCode,
+              label: `${t.ledgerAccount.accountCode} - ${t.name}`,
+            })),
+          ];
+          setProductOptions(options);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     filtersRef.current = filters;
@@ -277,7 +300,7 @@ export default function SavingsListingPage() {
             <SelectValue placeholder="All Products" />
           </SelectTrigger>
           <SelectContent>
-            {PRODUCT_OPTIONS.map((option) => (
+            {productOptions.map((option) => (
               <SelectItem key={option.value} value={option.value}>
                 {option.label}
               </SelectItem>
