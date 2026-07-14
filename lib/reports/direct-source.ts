@@ -315,7 +315,7 @@ async function getDirectEquity(asOfDate: Date, branchId?: string): Promise<Direc
 
 async function getDirectIncome(startDate: Date, endDate: Date, branchId?: string): Promise<DirectAccount[]> {
   const categories = await db.budgetCategory.findMany({
-    where: { kind: "INCOME", isActive: true },
+    where: { kind: "INCOME", isActive: true, children: { none: {} } },
     select: { id: true, name: true, code: true },
   });
 
@@ -368,7 +368,7 @@ async function getDirectIncome(startDate: Date, endDate: Date, branchId?: string
 
 async function getDirectExpenditure(startDate: Date, endDate: Date, branchId?: string): Promise<DirectAccount[]> {
   const categories = await db.budgetCategory.findMany({
-    where: { kind: "EXPENSE", isActive: true },
+    where: { kind: "EXPENSE", isActive: true, children: { none: {} } },
     select: { id: true, name: true, code: true },
   });
 

@@ -137,7 +137,7 @@ export async function listAccountsForIncomeExpense(user: any) {
 
   // Read from BudgetCategory instead of COA — BudgetCategory now has matching COA codes
   const categories = await db.budgetCategory.findMany({
-    where: { isActive: true, kind: { in: ["INCOME", "EXPENSE"] } },
+    where: { isActive: true, kind: { in: ["INCOME", "EXPENSE"] }, children: { none: {} } },
     select: { id: true, name: true, code: true, kind: true },
     orderBy: { name: "asc" },
   });
@@ -182,7 +182,7 @@ export async function buildIncomeExpenseReport(input: {
 
   // Read BudgetCategory for account structure
   const categories = await db.budgetCategory.findMany({
-    where: { isActive: true, kind: { in: ["INCOME", "EXPENSE"] } },
+    where: { isActive: true, kind: { in: ["INCOME", "EXPENSE"] }, children: { none: {} } },
     select: { id: true, name: true, code: true, kind: true },
     orderBy: [{ kind: "asc" }, { name: "asc" }],
   });

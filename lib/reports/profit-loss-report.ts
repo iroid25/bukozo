@@ -218,7 +218,7 @@ export async function buildFinancialYearProfitLossReport(input: FYProfitLossRepo
 
   // Read BudgetCategory for account structure (instead of COA)
   const categories = await db.budgetCategory.findMany({
-    where: { isActive: true, kind: { in: ["INCOME", "EXPENSE"] } },
+    where: { isActive: true, kind: { in: ["INCOME", "EXPENSE"] }, children: { none: {} } },
     select: { id: true, name: true, code: true, kind: true },
     orderBy: [{ kind: "asc" }, { name: "asc" }],
   });

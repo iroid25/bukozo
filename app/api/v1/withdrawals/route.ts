@@ -538,6 +538,10 @@ export async function POST(request: NextRequest) {
               },
             }));
 
+          const feeBudgetCategory = await tx.budgetCategory.findFirst({
+            where: { code: WITHDRAWAL_FEE_CODE, kind: "INCOME", isActive: true },
+          });
+
           if (feeIncomeAccount) {
             journalEntries.push({
               entryNumber,
@@ -567,6 +571,7 @@ export async function POST(request: NextRequest) {
                 accountId: accountId,
                 status: TransactionStatus.COMPLETED,
                 recordDate: new Date(),
+                budgetCategoryId: feeBudgetCategory?.id,
               },
             });
           }
