@@ -60,6 +60,25 @@ export async function getShareCapitalSummary(branchId?: string | null) {
         })
       : [];
 
+  // Institution share accounts: query Account model (ShareAccount requires memberId)
+  const institutionShareRows =
+    accountTypeIds.length > 0
+      ? await db.account.groupBy({
+          by: ["accountTypeId"],
+          where: {
+            accountTypeId: { in: accountTypeIds },
+            status: "ACTIVE",
+            institutionId: { not: null },
+            ...(branchId ? { branchId } : {}),
+          },
+          _sum: {
+            balance: true,
+            sharesCount: true,
+          },
+          _count: { _all: true },
+        })
+      : [];
+
   const balanceMap = new Map(
     shareBalanceRows.map((row) => [
       row.accountTypeId,
@@ -73,6 +92,15 @@ export async function getShareCapitalSummary(branchId?: string | null) {
       },
     ]),
   );
+
+  // Merge institution share accounts into balanceMap
+  for (const row of institutionShareRows) {
+    const existing = balanceMap.get(row.accountTypeId) || { amount: 0, shares: 0, count: 0 };
+    existing.amount += Number(row._sum.balance || 0);
+    existing.shares += Number(row._sum.sharesCount || 0);
+    existing.count += typeof row._count === "object" && "_all" in row._count ? Number(row._count._all || 0) : 0;
+    balanceMap.set(row.accountTypeId, existing);
+  }
 
   const resolveMemberName = (member?: {
     surname?: string | null;
@@ -185,18 +213,61 @@ export async function getShareCapitalSummary(branchId?: string | null) {
     orderBy: [{ totalValue: "desc" }, { accountNumber: "asc" }],
   });
 
-  const sourceAccounts: ShareCapitalSourceRow[] = shareAccounts.map((account) => ({
-    accountId: account.id,
-    accountTypeId: account.accountTypeId,
-    accountNumber: account.accountNumber,
-    ownerName: resolveMemberName(account.member),
-    ownerNumber: account.member?.memberNumber || "-",
-    branchName: account.branch?.name || "Unassigned Branch",
-    numberOfShares: Number(account.numberOfShares || 0),
-    shareValue: Number(account.shareValue || 0),
-    totalValue: Number(account.totalValue || 0),
-    status: account.status,
-  }));
+  // Institution share accounts (from Account model, since ShareAccount requires memberId)
+  const institutionShareAccounts = await db.account.findMany({
+    where: {
+      status: "ACTIVE",
+      institutionId: { not: null },
+      ...(branchId ? { branchId } : {}),
+      accountTypeId: { in: accountTypeIds },
+    },
+    select: {
+      id: true,
+      accountNumber: true,
+      accountTypeId: true,
+      sharesCount: true,
+      balance: true,
+      status: true,
+      branch: { select: { name: true } },
+      institution: {
+        select: {
+          institutionName: true,
+          institutionNumber: true,
+        },
+      },
+      accountType: {
+        select: { sharePrice: true },
+      },
+    },
+    orderBy: [{ balance: "desc" }, { accountNumber: "asc" }],
+  });
+
+  const sourceAccounts: ShareCapitalSourceRow[] = [
+    ...shareAccounts.map((account) => ({
+      accountId: account.id,
+      accountTypeId: account.accountTypeId,
+      accountNumber: account.accountNumber,
+      ownerName: resolveMemberName(account.member),
+      ownerNumber: account.member?.memberNumber || "-",
+      branchName: account.branch?.name || "Unassigned Branch",
+      numberOfShares: Number(account.numberOfShares || 0),
+      shareValue: Number(account.shareValue || 0),
+      totalValue: Number(account.totalValue || 0),
+      status: account.status,
+    })),
+    ...institutionShareAccounts.map((account) => ({
+      accountId: account.id,
+      accountTypeId: account.accountTypeId,
+      accountNumber: account.accountNumber,
+      ownerName: account.institution?.institutionName || "Unknown Institution",
+      ownerNumber: account.institution?.institutionNumber || "-",
+      branchName: account.branch?.name || "Unassigned Branch",
+      numberOfShares: Number(account.sharesCount || 0),
+      shareValue: Number(account.accountType?.sharePrice || 0),
+      totalValue: Number(account.balance || 0),
+      status: account.status,
+    })),
+  ];
 
   const transactionRows: ShareCapitalTransactionRow[] = [
     ...shareTransactions.map((tx) => ({

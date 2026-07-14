@@ -274,7 +274,7 @@ async function getDirectEquity(asOfDate: Date, branchId?: string): Promise<Direc
     ? { date: { lte: asOfDate }, OR: [{ branchId }, { branchId: null }] }
     : { date: { lte: asOfDate } };
 
-  const [reserveAgg, grantAgg, shareAgg] = await Promise.all([
+  const [reserveAgg, grantAgg, shareAgg, instShareAgg] = await Promise.all([
     db.equityManualEntry.aggregate({
       where: { type: "STATUTORY_RESERVE", ...manualEntryWhere },
       _sum: { amount: true },
@@ -291,6 +291,17 @@ async function getDirectEquity(asOfDate: Date, branchId?: string): Promise<Direc
       },
       _sum: { totalValue: true },
     }),
+    // Institution share accounts (from Account model, since ShareAccount requires memberId)
+    db.account.aggregate({
+      where: {
+        status: "ACTIVE",
+        openedAt: { lte: asOfDate },
+        institutionId: { not: null },
+        accountType: { isShareAccount: true },
+        ...bf(branchId),
+      },
+      _sum: { balance: true },
+    }),
   ]);
 
   const { getRetainedEarnings } = await import("@/lib/accounting/getRetainedEarnings");
@@ -298,7 +309,7 @@ async function getDirectEquity(asOfDate: Date, branchId?: string): Promise<Direc
 
   const reserves = Number(reserveAgg._sum?.amount || 0);
   const grants = Number(grantAgg._sum?.amount || 0);
-  const shares = Number(shareAgg._sum?.totalValue || 0);
+  const shares = Number(shareAgg._sum?.totalValue || 0) + Number(instShareAgg._sum?.balance || 0);
 
   return [
     group(EQUITY_ROOT, "Equity", "EQUITY", null, 1),
@@ -548,6 +559,17 @@ export async function getDirectOperationalBalances(
       },
       _sum: { totalValue: true },
     }),
+    // Institution share accounts (from Account model)
+    db.account.aggregate({
+      where: {
+        status: { in: ["ACTIVE", "DORMANT"] },
+        openedAt: { lte: asOfDate },
+        institutionId: { not: null },
+        accountType: { isShareAccount: true },
+        ...(bf_ ? { branchId: bf_ } : {}),
+      },
+      _sum: { balance: true },
+    }),
     db.fixedDeposit.aggregate({
       where: {
         status: { in: ["ACTIVE", "MATURED"] },
@@ -599,12 +621,12 @@ export async function getDirectOperationalBalances(
     cashInVault: val(0, (r) => r._sum.balance, 0),
     loanPortfolio: val(1, (r) => r._sum.outstandingBalance, 0),
     memberSavingsDeposits: val(2, (r) => r._sum.balance, 0),
-    shareCapital: val(3, (r) => r._sum.totalValue, 0),
-    fixedTermDeposits: val(4, (r) => r._sum.principalAmount, 0),
-    fixedAssetsNet: val(5, (r) => r._sum.currentValue, 0),
-    accumulatedDepreciation: val(5, (r) => r._sum.accumulatedDepreciation, 0),
-    incomeTotal: val(6, (r) => r._sum.amount, 0) + val(8, (r) => r._sum.amount, 0),
-    expenditureTotal: val(7, (r) => r._sum.amount, 0),
+    shareCapital: val(3, (r) => r._sum.totalValue, 0) + val(4, (r) => r._sum.balance, 0),
+    fixedTermDeposits: val(5, (r) => r._sum.principalAmount, 0),
+    fixedAssetsNet: val(6, (r) => r._sum.currentValue, 0),
+    accumulatedDepreciation: val(6, (r) => r._sum.accumulatedDepreciation, 0),
+    incomeTotal: val(7, (r) => r._sum.amount, 0) + val(9, (r) => r._sum.amount, 0),
+    expenditureTotal: val(8, (r) => r._sum.amount, 0),
   };
 }
 
@@ -949,9 +971,20 @@ async function getSourceBSDrilldown(
     const shares = await db.shareAccount.findMany({ where, orderBy: { openedDate: "asc" }, select: {
       openedDate: true, totalValue: true, id: true, member: { select: { user: { select: { name: true } } } },
     }});
-    const entries: DrilldownEntry[] = shares.map((s) => ({
-      date: fmt(s.openedDate), reference: s.id, description: `Share Capital — ${s.member?.user?.name || "Member"}`, debit: 0, credit: Number(s.totalValue || 0),
-    }));
+    // Institution share accounts (from Account model)
+    const instWhere: any = { status: { in: ["ACTIVE", "DORMANT"] }, openedAt: { gte: startDate, lte: endDate }, institutionId: { not: null }, accountType: { isShareAccount: true } };
+    if (branchId) instWhere.branchId = branchId;
+    const instShares = await db.account.findMany({ where: instWhere, orderBy: { openedAt: "asc" }, select: {
+      openedAt: true, balance: true, id: true, institution: { select: { institutionName: true } },
+    }});
+    const entries: DrilldownEntry[] = [
+      ...shares.map((s) => ({
+        date: fmt(s.openedDate), reference: s.id, description: `Share Capital — ${s.member?.user?.name || "Member"}`, debit: 0, credit: Number(s.totalValue || 0),
+      })),
+      ...instShares.map((s) => ({
+        date: fmt(s.openedAt), reference: s.id, description: `Share Capital — ${s.institution?.institutionName || "Institution"}`, debit: 0, credit: Number(s.balance || 0),
+      })),
+    ].sort((a, b) => a.date.localeCompare(b.date));
     const totalCredit = entries.reduce((s, e) => s + e.credit, 0);
     return { accountCode: code, accountName: name, ledgerType, entries, totals: { debit: 0, credit: totalCredit } };
   }

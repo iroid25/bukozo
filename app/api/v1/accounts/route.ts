@@ -157,13 +157,13 @@ export async function POST(request: NextRequest) {
 
     // Float pre-check: teller/agent must have an active float session to receive a cash deposit
     // No balance minimum needed — receiving a deposit INCREASES the float (teller gets cash), not decreases it
-    if (data.memberId && initialDeposit > 0 && userIsFloatHolder) {
+    if ((data.memberId || data.institutionId) && initialDeposit > 0 && userIsFloatHolder) {
       const creatorFloat = await db.userFloat.findUnique({
         where: { userId: user.id },
         select: { id: true, balance: true, isActiveForDay: true },
       });
       if (!creatorFloat) {
-        return NextResponse.json({ error: "You do not have an active float. Start your float session before creating member accounts with deposits." }, { status: 400 });
+        return NextResponse.json({ error: "You do not have an active float. Start your float session before creating accounts with deposits." }, { status: 400 });
       }
       if (!creatorFloat.isActiveForDay) {
         return NextResponse.json({ error: "Your float session is not active for today. Start your float session before proceeding." }, { status: 400 });
@@ -365,6 +365,21 @@ export async function POST(request: NextRequest) {
           }
         }
 
+        // Institution share account: GL entry only (ShareAccount requires memberId)
+        if (accountType.isShareAccount && data.institutionId && initialDeposit > 0) {
+          const [shareCapAcct, cashAcct] = await Promise.all([
+            tx.chartOfAccount.findUnique({ where: { accountCode: "304000" } }),
+            tx.chartOfAccount.findFirst({ where: { accountCode: CASH_AT_HAND_CODE, isActive: true } }),
+          ]);
+          if (shareCapAcct && cashAcct) {
+            const glRef = `SHR-GL-OPEN-INST-${Date.now()}`;
+            await tx.journalEntry.create({ data: { entryNumber: glRef, accountId: cashAcct.id, debitAmount: initialDeposit, creditAmount: 0, entryDate: new Date(), branchId: finalBranchId, description: `Share purchase - ${accountNumber}`, reference: glRef, createdByUserId: user.id } });
+            await tx.journalEntry.create({ data: { entryNumber: glRef, accountId: shareCapAcct.id, debitAmount: 0, creditAmount: initialDeposit, entryDate: new Date(), branchId: finalBranchId, description: `Share purchase - ${accountNumber}`, reference: glRef, createdByUserId: user.id } });
+            await tx.chartOfAccount.update({ where: { id: cashAcct.id }, data: buildAccountBalanceUpdate(cashAcct, { debitAmount: initialDeposit }) });
+            await tx.chartOfAccount.update({ where: { id: shareCapAcct.id }, data: buildAccountBalanceUpdate(shareCapAcct, { creditAmount: initialDeposit }) });
+          }
+        }
+
         // Fixed deposit: debit source account
         if (sourceAccount && initialDeposit > 0) {
           await tx.account.update({ where: { id: sourceAccount.id }, data: { balance: { decrement: initialDeposit } } });
@@ -429,9 +444,9 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Float credit for member cash opening deposit — teller RECEIVES cash, float goes UP
+      // Float credit for cash opening deposit — teller RECEIVES cash, float goes UP
       // Skipped for ADMIN/BRANCHMANAGER/ACCOUNTANT/LOANOFFICER who do not hold a float
-      if (data.memberId && initialDeposit > 0 && userIsFloatHolder) {
+      if ((data.memberId || data.institutionId) && initialDeposit > 0 && userIsFloatHolder) {
         const creatorFloat = await tx.userFloat.findUnique({ where: { userId: user.id } });
         if (!creatorFloat) throw new Error("You do not have an active float.");
         if (!creatorFloat.isActiveForDay) throw new Error("Your float session is not active for today.");

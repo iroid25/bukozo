@@ -101,6 +101,7 @@ function getMemberName(record: any) {
   return (
     record.member?.user?.name?.trim() ||
     [record.member?.surname, record.member?.otherNames].filter(Boolean).join(" ").trim() ||
+    record.institution?.institutionName?.trim() ||
     record.accountNumber
   );
 }
@@ -176,7 +177,7 @@ function dormancyTone(days: number, thresholds: DormancyThresholds) {
 }
 
 async function fetchShareAccounts(branchId: string | null, reportDate: Date) {
-  return db.shareAccount.findMany({
+  const memberAccounts = await db.shareAccount.findMany({
     where: {
       openedDate: { lte: reportDate },
       ...(branchId ? { branchId } : {}),
@@ -212,6 +213,67 @@ async function fetchShareAccounts(branchId: string | null, reportDate: Date) {
     },
     orderBy: [{ accountNumber: "asc" }],
   });
+
+  // Institution share accounts (from Account model, since ShareAccount requires memberId)
+  const institutionAccounts = await db.account.findMany({
+    where: {
+      openedAt: { lte: reportDate },
+      institutionId: { not: null },
+      accountType: { isShareAccount: true },
+      ...(branchId ? { branchId } : {}),
+    },
+    include: {
+      institution: {
+        select: {
+          institutionName: true,
+          institutionNumber: true,
+          user: { select: { name: true, phone: true, nationalId: true } },
+        },
+      },
+      accountType: {
+        include: {
+          ledgerAccount: {
+            select: {
+              accountCode: true,
+              accountName: true,
+            },
+          },
+        },
+      },
+      branch: {
+        select: {
+          name: true,
+          location: true,
+        },
+      },
+    },
+    orderBy: [{ accountNumber: "asc" }],
+  });
+
+  // Normalize institution accounts to match ShareAccount shape for downstream code
+  const normalizedInstitution = institutionAccounts.map((a) => ({
+    id: a.id,
+    accountNumber: a.accountNumber,
+    memberId: "",
+    accountTypeId: a.accountTypeId,
+    branchId: a.branchId,
+    numberOfShares: a.sharesCount || 0,
+    shareValue: a.accountType?.sharePrice || 0,
+    totalValue: a.balance,
+    status: a.status,
+    openedDate: a.openedAt,
+    closedDate: a.closedAt,
+    lastTransactionDate: a.closedAt,
+    createdAt: a.openedAt,
+    updatedAt: a.openedAt,
+    batchNumber: null,
+    member: null,
+    institution: a.institution,
+    accountType: a.accountType,
+    branch: a.branch,
+  }));
+
+  return [...memberAccounts, ...normalizedInstitution] as any[];
 }
 
 async function resolveLastTransactionDates(accountIds: string[], reportDate: Date) {
@@ -251,14 +313,14 @@ function mapAccountRows(
       accountId: account.id,
       accountNumber: account.accountNumber,
       memberName: getMemberName(account),
-      bvnTin: account.member?.user?.nationalId || account.member?.nin || null,
-      refNo: asNumericRef(account.member?.memberNumber),
+      bvnTin: account.member?.user?.nationalId || account.member?.nin || account.institution?.user?.nationalId || null,
+      refNo: asNumericRef(account.member?.memberNumber || account.institution?.institutionNumber),
       lastTrxDate: safeLastTrx,
       daysWithoutActivity,
       dateOpened: new Date(account.openedDate),
       currentBalance: Number(account.totalValue || 0),
       status: normalizeStatus(account.status),
-      phone: normalizePhone(account.member?.user?.phone),
+      phone: normalizePhone(account.member?.user?.phone || account.institution?.user?.phone),
       batchNumber: account.batchNumber == null ? null : Number(account.batchNumber),
       productCode,
       productName: getProductName(account, productCode),
