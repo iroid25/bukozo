@@ -524,6 +524,47 @@ export async function getBalanceSheetService(
     (account) => resolveEquityLine(account),
   );
 
+  // Inject Surplus / (Deficit) for the Period into equity
+  const currentYear = new Date().getFullYear();
+  const yearStart = new Date(currentYear, 0, 1);
+  const yearEnd = new Date(currentYear, 11, 31, 23, 59, 59, 999);
+  const [incomeAgg, expenditureAgg, insuranceAgg] = await Promise.all([
+    db.incomeRecord.aggregate({
+      where: {
+        recordDate: { gte: yearStart, lte: yearEnd },
+        status: { in: [TransactionStatus.COMPLETED, TransactionStatus.APPROVED] },
+        ...(branchFilter.branchId ? { branchId: branchFilter.branchId } : {}),
+      },
+      _sum: { amount: true },
+    }),
+    db.expenditureRecord.aggregate({
+      where: {
+        recordDate: { gte: yearStart, lte: yearEnd },
+        status: TransactionStatus.COMPLETED,
+        ...(branchFilter.branchId ? { branchId: branchFilter.branchId } : {}),
+      },
+      _sum: { amount: true },
+    }),
+    db.insuranceContribution.aggregate({
+      where: {
+        type: "CONTRIBUTION",
+        createdAt: { gte: yearStart, lte: yearEnd },
+        ...(branchFilter.branchId ? { account: { branchId: branchFilter.branchId } } : {}),
+      },
+      _sum: { amount: true },
+    }),
+  ]);
+  const totalIncome = (incomeAgg._sum?.amount || 0) + (insuranceAgg._sum?.amount || 0);
+  const netProfitForPeriod = totalIncome - (expenditureAgg._sum?.amount || 0);
+  if (Math.abs(netProfitForPeriod) > 0.009) {
+    const surplusLabel = netProfitForPeriod >= 0 ? "Surplus for the Period" : "Deficit for the Period";
+    equityItems.push({
+      label: surplusLabel,
+      amount: netProfitForPeriod,
+      accounts: [{ code: "", name: surplusLabel, balance: netProfitForPeriod }],
+    });
+  }
+
   const totalCurrentAssets = currentAssetItems.reduce((sum, item) => sum + item.amount, 0);
   const totalNonCurrentAssets = nonCurrentAssetItems.reduce((sum, item) => sum + item.amount, 0);
   const totalCurrentLiabilities = currentLiabilityItems.reduce((sum, item) => sum + item.amount, 0);

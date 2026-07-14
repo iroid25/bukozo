@@ -65,8 +65,10 @@ export type FinancialYearBalanceSheetReport = {
   sections: FinancialYearBalanceSheetSection[];
   grandTotal: {
     totalAccounts: number;
-    totalPeriodNet: number;
-    totalYtdBalance: number;
+    totalAssets: number;
+    totalLiabilities: number;
+    totalEquity: number;
+    totalLiabilitiesAndEquity: number;
     difference: number;
     balanced: boolean;
   };
@@ -356,9 +358,11 @@ export async function buildFinancialYearBalanceSheetReport(input: BuildInput): P
   }
 
   const totalAccounts = mapped.length;
-  const totalPeriodNet = sections.reduce((sum, section) => sum + section.totalPeriodNet, 0);
-  const totalYtdBalance = sections.reduce((sum, section) => sum + section.totalYtdBalance, 0);
-  const difference = sections[0].totalYtdBalance - sections[1].totalYtdBalance - sections[2].totalYtdBalance;
+  const totalAssets = sections[0].totalYtdBalance;
+  const totalLiabilities = sections[1].totalYtdBalance;
+  const totalEquity = sections[2].totalYtdBalance;
+  const totalLiabilitiesAndEquity = totalLiabilities + totalEquity;
+  const difference = totalAssets - totalLiabilitiesAndEquity;
   const balanced = Math.abs(difference) < 0.01;
 
   const branchName = branchId
@@ -385,8 +389,10 @@ export async function buildFinancialYearBalanceSheetReport(input: BuildInput): P
     sections,
     grandTotal: {
       totalAccounts,
-      totalPeriodNet,
-      totalYtdBalance,
+      totalAssets,
+      totalLiabilities,
+      totalEquity,
+      totalLiabilitiesAndEquity,
       difference,
       balanced,
     },

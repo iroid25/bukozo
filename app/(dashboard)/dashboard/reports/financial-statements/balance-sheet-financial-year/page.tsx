@@ -71,8 +71,10 @@ type BalanceSheetReport = {
   sections: BalanceSheetSection[];
   grandTotal: {
     totalAccounts: number;
-    totalPeriodNet: number;
-    totalYtdBalance: number;
+    totalAssets: number;
+    totalLiabilities: number;
+    totalEquity: number;
+    totalLiabilitiesAndEquity: number;
     difference: number;
     balanced: boolean;
   };
@@ -380,7 +382,10 @@ export default function BalanceSheetFinancialYearPage() {
       rows.push([]);
     });
 
-    rows.push(["Grand Total", report.grandTotal.totalPeriodNet, report.grandTotal.totalYtdBalance]);
+    rows.push(["Total Assets", "", report.grandTotal.totalAssets]);
+    rows.push(["Total Liabilities + Equity", "", report.grandTotal.totalLiabilitiesAndEquity]);
+    rows.push(["Balance (Assets - L&E)", "", report.grandTotal.difference]);
+    rows.push(["Balanced", report.grandTotal.balanced ? "YES" : "NO", ""]);
 
     const sheet = XLSX.utils.aoa_to_sheet(rows);
     const workbook = XLSX.utils.book_new();
@@ -480,9 +485,19 @@ export default function BalanceSheetFinancialYearPage() {
                 )
                 .join("")}
               <tr style="font-weight:800;border-top:2px solid #111827">
-                <td style="padding:8px 10px">Grand Total</td>
-                <td style="padding:8px 10px;text-align:right">${currency(report.grandTotal.totalPeriodNet)}</td>
-                <td style="padding:8px 10px;text-align:right">${currency(report.grandTotal.totalYtdBalance)}</td>
+                <td style="padding:8px 10px">Total Assets</td>
+                <td style="padding:8px 10px;text-align:right"></td>
+                <td style="padding:8px 10px;text-align:right">${currency(report.grandTotal.totalAssets)}</td>
+              </tr>
+              <tr style="font-weight:800">
+                <td style="padding:8px 10px">Total Liabilities + Equity</td>
+                <td style="padding:8px 10px;text-align:right"></td>
+                <td style="padding:8px 10px;text-align:right">${currency(report.grandTotal.totalLiabilitiesAndEquity)}</td>
+              </tr>
+              <tr style="font-weight:700;background:${report.grandTotal.balanced ? '#f0fdf4' : '#fef2f2'}">
+                <td style="padding:8px 10px">Balance (${report.grandTotal.balanced ? 'BALANCED' : 'UNBALANCED'})</td>
+                <td style="padding:8px 10px;text-align:right"></td>
+                <td style="padding:8px 10px;text-align:right;color:${report.grandTotal.balanced ? '#16a34a' : '#dc2626'}">${currency(report.grandTotal.difference)}</td>
               </tr>
             </tbody>
           </table>
@@ -497,9 +512,9 @@ export default function BalanceSheetFinancialYearPage() {
   const summaryCards = report
     ? [
         { title: "Total Accounts", value: report.grandTotal.totalAccounts.toLocaleString() },
-        { title: "Assets", value: currency(report.balances.assets) },
-        { title: "Liabilities", value: currency(report.balances.liabilities) },
-        { title: "Equity", value: currency(report.balances.equity) },
+        { title: "Total Assets", value: currency(report.grandTotal.totalAssets) },
+        { title: "Total Liabilities + Equity", value: currency(report.grandTotal.totalLiabilitiesAndEquity) },
+        { title: "Balance", value: report.grandTotal.balanced ? "BALANCED" : currency(report.grandTotal.difference) },
       ]
     : [];
 

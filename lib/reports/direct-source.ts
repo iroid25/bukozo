@@ -178,8 +178,8 @@ async function getDirectAssets(asOfDate: Date, branchId?: string): Promise<Direc
     assets.push(leaf(code, row.category || "Current Asset", "ASSETS", vid(CURRENT_ASSETS_PARENT), Number(row._sum.currentValue || 0), 3));
   }
 
-  assets.push(leaf(LOAN_PORTFOLIO, "Loans and Receivables", "ASSETS", vid(ASSET_ROOT), loanPortfolio, 2));
-  assets.push(leaf(CASH_AT_HAND, "Cash at Hand", "ASSETS", vid(ASSET_ROOT), cashAtHand, 2));
+  assets.push(leaf(LOAN_PORTFOLIO, "Loans and Receivables", "ASSETS", vid(CURRENT_ASSETS_PARENT), loanPortfolio, 3));
+  assets.push(leaf(CASH_AT_HAND, "Cash at Hand", "ASSETS", vid(CURRENT_ASSETS_PARENT), cashAtHand, 3));
   assets.push(leaf(VAULT_CODE, "Cash in Vault", "ASSETS", vid(CURRENT_ASSETS_PARENT), vaultBalance, 3));
   assets.push(leaf(FLOAT_CODE, "Teller Float", "ASSETS", vid(CURRENT_ASSETS_PARENT), floatBalance, 3));
 
@@ -219,7 +219,6 @@ async function getDirectLiabilities(asOfDate: Date, branchId?: string): Promise<
     db.fixedDeposit.aggregate({
       where: {
         status: { in: ["ACTIVE", "MATURED"] },
-        startDate: { lte: asOfDate },
         ...bf(branchId),
       },
       _sum: { principalAmount: true },

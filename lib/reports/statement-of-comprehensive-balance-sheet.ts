@@ -1,5 +1,6 @@
 import { format, startOfMonth, endOfMonth, subMonths, parseISO } from "date-fns";
 import { db } from "@/prisma/db";
+import { TransactionStatus } from "@prisma/client";
 import { getBranchFilterForService } from "@/lib/services/financial-reports";
 import { getDirectBalanceSheetAccounts, getSourceDrilldown } from "@/lib/reports/direct-source";
 
@@ -288,6 +289,66 @@ export async function buildComprehensiveBalanceSheetReport(input: {
   };
 
   const sections = [buildSection("ASSET"), buildSection("LIABILITY"), buildSection("EQUITY")];
+
+  // Inject Surplus / (Deficit) for the Period into equity section
+  const [incomeAgg, expenditureAgg, insuranceAgg] = await Promise.all([
+    db.incomeRecord.aggregate({
+      where: {
+        recordDate: { gte: current.start, lte: current.end },
+        status: { in: [TransactionStatus.COMPLETED, TransactionStatus.APPROVED] as TransactionStatus[] },
+        ...(effectiveBranchId ? { branchId: effectiveBranchId } : {}),
+      },
+      _sum: { amount: true },
+    }),
+    db.expenditureRecord.aggregate({
+      where: {
+        recordDate: { gte: current.start, lte: current.end },
+        status: TransactionStatus.COMPLETED,
+        ...(effectiveBranchId ? { branchId: effectiveBranchId } : {}),
+      },
+      _sum: { amount: true },
+    }),
+    db.insuranceContribution.aggregate({
+      where: {
+        type: "CONTRIBUTION",
+        createdAt: { gte: current.start, lte: current.end },
+        ...(effectiveBranchId ? { account: { branchId: effectiveBranchId } } : {}),
+      },
+      _sum: { amount: true },
+    }),
+  ]);
+  const totalIncome = (incomeAgg._sum?.amount || 0) + (insuranceAgg._sum?.amount || 0);
+  const netProfitForPeriod = totalIncome - (expenditureAgg._sum?.amount || 0);
+  if (Math.abs(netProfitForPeriod) > 0.009) {
+    const surplusLabel = netProfitForPeriod >= 0 ? "Surplus for the Period" : "Deficit for the Period";
+    const equitySection = sections.find((s) => s.section === "EQUITY");
+    if (equitySection) {
+      // Find or create the equity summary group
+      let summaryGroup = equitySection.groups.find((g) => g.code === "9999");
+      if (!summaryGroup) {
+        summaryGroup = {
+          code: "9999",
+          name: "Summary",
+          accounts: [],
+          group_total: { compare_balance: 0, movement: 0, closing_balance: 0 },
+        };
+        equitySection.groups.push(summaryGroup);
+      }
+      summaryGroup.accounts.push({
+        code: "",
+        name: surplusLabel,
+        compare_balance: 0,
+        movement: netProfitForPeriod,
+        closing_balance: netProfitForPeriod,
+        journal_count: 0,
+      });
+      summaryGroup.group_total.closing_balance += netProfitForPeriod;
+      summaryGroup.group_total.movement += netProfitForPeriod;
+      equitySection.section_total += netProfitForPeriod;
+      equitySection.section_total_movement += netProfitForPeriod;
+    }
+  }
+
   const totalAssets = sections.find((item) => item.section === "ASSET")?.section_total || 0;
   const totalLiabilities = sections.find((item) => item.section === "LIABILITY")?.section_total || 0;
   const totalEquity = sections.find((item) => item.section === "EQUITY")?.section_total || 0;
