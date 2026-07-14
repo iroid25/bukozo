@@ -20,6 +20,7 @@ export class TopBottomShareholdersGenerator extends BaseReportGenerator {
       where,
       include: {
         member: { include: { user: { select: { name: true, phone: true } } } },
+        institution: { select: { institutionName: true } },
         accountType: { select: { name: true } },
       },
       orderBy: { sharesCount: 'desc' },
@@ -33,6 +34,7 @@ export class TopBottomShareholdersGenerator extends BaseReportGenerator {
       },
       include: {
         member: { include: { user: { select: { name: true, phone: true } } } },
+        institution: { select: { institutionName: true } },
         accountType: { select: { name: true } },
       },
       orderBy: { sharesCount: 'asc' },
@@ -42,7 +44,7 @@ export class TopBottomShareholdersGenerator extends BaseReportGenerator {
     const topData = topShareholders.map((acc, i) => ({
       rank: i + 1,
       accountNumber: acc.accountNumber,
-      memberName: acc.member?.user?.name || 'N/A',
+      memberName: acc.member?.user?.name || acc.institution?.institutionName || 'N/A',
       memberPhone: acc.member?.user?.phone || 'N/A',
       numberOfShares: acc.sharesCount || 0,
       totalValue: this.formatCurrency(acc.balance),
@@ -51,7 +53,7 @@ export class TopBottomShareholdersGenerator extends BaseReportGenerator {
     const bottomData = bottomShareholders.map((acc, i) => ({
       rank: i + 1,
       accountNumber: acc.accountNumber,
-      memberName: acc.member?.user?.name || 'N/A',
+      memberName: acc.member?.user?.name || acc.institution?.institutionName || 'N/A',
       memberPhone: acc.member?.user?.phone || 'N/A',
       numberOfShares: acc.sharesCount || 0,
       totalValue: this.formatCurrency(acc.balance),

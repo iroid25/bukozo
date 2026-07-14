@@ -64,6 +64,11 @@ export class ShareBatchTotalsGenerator extends BaseReportGenerator {
                 },
               },
             },
+            institution: {
+              select: {
+                institutionName: true,
+              },
+            },
             accountType: {
               select: {
                 name: true,
@@ -120,7 +125,7 @@ export class ShareBatchTotalsGenerator extends BaseReportGenerator {
         averageTransaction: this.formatCurrency(totalAmount / txns.length),
         members: txns.map((transaction) => ({
           accountNumber: transaction.account.accountNumber,
-          memberName: transaction.account.member?.user?.name || 'N/A',
+          memberName: transaction.account.member?.user?.name || transaction.account.institution?.institutionName || 'N/A',
           phone: transaction.account.member?.user?.phone || '',
           bankVerificationNo: transaction.account.member?.user?.nationalId || null,
           refNo: transaction.account.member?.memberNumber || 'N/A',

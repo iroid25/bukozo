@@ -34,6 +34,11 @@ export class ShareAccountListingGenerator extends BaseReportGenerator {
             },
           },
         },
+        institution: {
+          select: {
+            institutionName: true,
+          },
+        },
         accountType: {
           select: { name: true, sharePrice: true },
         },
@@ -50,7 +55,7 @@ export class ShareAccountListingGenerator extends BaseReportGenerator {
       
       return {
         accountNumber: account.accountNumber,
-        memberName: account.member?.user?.name || 'N/A',
+        memberName: account.member?.user?.name || account.institution?.institutionName || 'N/A',
         memberPhone: account.member?.user?.phone || 'N/A',
         accountType: account.accountType.name,
         branch: account.branch?.name || 'N/A',

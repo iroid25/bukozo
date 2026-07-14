@@ -16,6 +16,7 @@ export class ShareConcentrationGenerator extends BaseReportGenerator {
       },
       include: {
         member: { include: { user: { select: { name: true } } } },
+        institution: { select: { institutionName: true } },
         accountType: { select: { sharePrice: true } },
       },
       orderBy: { sharesCount: 'desc' },
@@ -31,7 +32,7 @@ export class ShareConcentrationGenerator extends BaseReportGenerator {
       return {
         rank: index + 1,
         accountNumber: account.accountNumber,
-        memberName: account.member?.user?.name || 'N/A',
+        memberName: account.member?.user?.name || account.institution?.institutionName || 'N/A',
         numberOfShares: sharesCount,
         shareValue: this.formatCurrency(sharePrice),
         totalValue: this.formatCurrency(account.balance),

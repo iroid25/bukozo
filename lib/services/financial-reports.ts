@@ -57,6 +57,7 @@ export async function getProfitAndLossStatementService(
         kind: {
           in: [CategoryKind.INCOME, CategoryKind.EXPENSE],
         },
+        children: { none: {} },
       },
       orderBy: [{ kind: "asc" }, { parentId: "asc" }, { name: "asc" }],
     }),
@@ -101,22 +102,6 @@ export async function getProfitAndLossStatementService(
 
   const categoriesById = new Map(activeCategories.map((category) => [category.id, category]));
 
-  const buildCategoryPath = (categoryId?: string | null) => {
-    const path: any[] = [];
-    const seen = new Set<string>();
-    let currentId = categoryId || undefined;
-
-    while (currentId && !seen.has(currentId)) {
-      seen.add(currentId);
-      const category = categoriesById.get(currentId);
-      if (!category) break;
-      path.unshift(category);
-      currentId = category.parentId || undefined;
-    }
-
-    return path;
-  };
-
   const seedGroups = (kind: CategoryKind) => {
     const grouped = new Map<string, any>();
 
@@ -151,33 +136,24 @@ export async function getProfitAndLossStatementService(
     const recordCategory = record.budgetCategoryId ? categoriesById.get(record.budgetCategoryId) : record.budgetCategory;
     if (!recordCategory) return;
 
-    const categoryPath = buildCategoryPath(recordCategory.id);
     const itemName = recordCategory.name;
 
-    categoryPath.forEach((category) => {
-      if (category.kind !== recordCategory.kind) return;
+    if (!targetMap.has(recordCategory.id)) {
+      targetMap.set(recordCategory.id, {
+        name: recordCategory.name,
+        code: recordCategory.code,
+        amount: 0,
+        items: [],
+      });
+    }
 
-      if (!targetMap.has(category.id)) {
-        targetMap.set(category.id, {
-          name: category.name,
-          code: category.code,
-          amount: 0,
-          items: [],
-        });
-      }
-
-      const categoryGroup = targetMap.get(category.id);
-      categoryGroup.amount += Number(record.amount || 0);
-      // Only push the line item to the leaf (the actual record category),
-      // not to ancestor groups — otherwise one record appears once per ancestor.
-      if (category.id === recordCategory.id) {
-        categoryGroup.items.push({
-          itemName,
-          amount: Number(record.amount || 0),
-          date: record.recordDate,
-          description: record.description,
-        });
-      }
+    const categoryGroup = targetMap.get(recordCategory.id);
+    categoryGroup.amount += Number(record.amount || 0);
+    categoryGroup.items.push({
+      itemName,
+      amount: Number(record.amount || 0),
+      date: record.recordDate,
+      description: record.description,
     });
   };
 

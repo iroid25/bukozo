@@ -41,7 +41,7 @@ const reportConfig: Record<string, { title: string; endpoint: string; columns?: 
         endpoint: "/api/v1/reports/savings/account-balance",
         columns: [
             { header: "Account No.", accessorKey: "accountNumber" },
-            { header: "Member", accessorKey: "memberName" },
+            { header: "Member/Institution", accessorKey: "memberName" },
             { header: "Current Balance", accessorKey: "balance" },
             { header: "Available", accessorKey: "availableBalance" },
             { header: "Hold Amount", accessorKey: "minBalance" },

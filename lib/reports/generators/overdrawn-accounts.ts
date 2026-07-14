@@ -48,6 +48,11 @@ export class OverdrawnAccountsGenerator extends BaseReportGenerator {
             },
           },
         },
+        institution: {
+          select: {
+            institutionName: true,
+          },
+        },
         accountType: {
           select: {
             name: true,
@@ -70,7 +75,7 @@ export class OverdrawnAccountsGenerator extends BaseReportGenerator {
       
       return {
         accountNumber: account.accountNumber,
-        memberName: account.member?.user?.name || 'N/A',
+        memberName: account.member?.user?.name || account.institution?.institutionName || 'N/A',
         memberPhone: account.member?.user?.phone || 'N/A',
         memberEmail: account.member?.user?.email || 'N/A',
         accountType: account.accountType.name,

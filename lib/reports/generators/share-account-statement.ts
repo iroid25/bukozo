@@ -37,6 +37,11 @@ export class ShareAccountStatementGenerator extends BaseReportGenerator {
             },
           },
         },
+        institution: {
+          select: {
+            institutionName: true,
+          },
+        },
         accountType: {
           select: {
             name: true,
@@ -119,7 +124,7 @@ export class ShareAccountStatementGenerator extends BaseReportGenerator {
     const accountInfo = {
       accountNumber: account.accountNumber,
       accountType: account.accountType.name,
-      memberName: account.member?.user?.name || 'N/A',
+      memberName: account.member?.user?.name || account.institution?.institutionName || 'N/A',
       memberPhone: account.member?.user?.phone || 'N/A',
       memberEmail: account.member?.user?.email || 'N/A',
       memberAddress: account.member?.user?.address || 'N/A',

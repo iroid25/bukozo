@@ -64,6 +64,11 @@ export class SavingsAccountBalanceGenerator extends BaseReportGenerator {
             },
           },
         },
+        institution: {
+          select: {
+            institutionName: true,
+          },
+        },
       },
     });
 
@@ -90,7 +95,7 @@ export class SavingsAccountBalanceGenerator extends BaseReportGenerator {
       acc[typeName].totalHoldAmount += holdAmount;
       acc[typeName].accounts.push({
         accountNumber: account.accountNumber,
-        memberName: account.member?.user?.name || "N/A",
+        memberName: account.member?.user?.name || account.institution?.institutionName || "N/A",
         balance: this.formatCurrency(account.balance),
         availableBalance: this.formatCurrency(availableBalance),
         minBalance: this.formatCurrency(holdAmount),

@@ -69,7 +69,7 @@ export class InterestPaidReportGenerator extends BaseReportGenerator {
       if (!acc[accountNumber]) {
         acc[accountNumber] = {
           accountNumber,
-          memberName: txn.account.member.user.name,
+          memberName: txn.account.member?.user?.name || 'N/A',
           accountType: txn.account.accountType.name,
           interestRate: txn.account.accountType.interestRate,
           branch: txn.account.branch?.name || 'N/A',

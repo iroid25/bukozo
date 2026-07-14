@@ -61,6 +61,11 @@ export class SavingsTransactionsGenerator extends BaseReportGenerator {
                 },
               },
             },
+            institution: {
+              select: {
+                institutionName: true,
+              },
+            },
             accountType: {
               select: {
                 name: true,
@@ -88,7 +93,7 @@ export class SavingsTransactionsGenerator extends BaseReportGenerator {
       return {
         transactionDate: this.formatDate(txn.transactionDate),
         accountNumber: txn.account.accountNumber,
-        memberName: txn.account.member?.user?.name || 'N/A',
+        memberName: txn.account.member?.user?.name || txn.account.institution?.institutionName || 'N/A',
         accountType: txn.account.accountType.name,
         transactionType: txn.type,
         amount: this.formatCurrency(txn.amount),
