@@ -6,6 +6,9 @@ export const LOAN_INTEREST_PAID_CODE = "401001";
 export const LOAN_PROCESSING_FEES_CODE = "401002";
 export const INVESTMENT_INTEREST_CODE = "401004";
 export const LOAN_PENALTY_PAID_CODE = "401005";
+export const LOAN_APPLICATION_FEE_CODE = "401007";
+export const LOAN_STATIONERY_FEE_CODE = "401008";
+export const LOAN_COMMITMENT_FEE_CODE = "401009";
 export const LEGACY_PENALTY_INCOME_CODE = "401300";
 export const SALES_INCOME_CODE = "402000";
 export const COMMISSION_INCOME_CODE = "403000";
@@ -60,6 +63,24 @@ const incomeNodes: IncomeSeedNode[] = [
     code: "401003",
     parentCode: LOAN_RELATED_INCOME_CODE,
     description: "Interest income earned from member savings accounts",
+  },
+  {
+    name: "Loan Application Fee",
+    code: LOAN_APPLICATION_FEE_CODE,
+    parentCode: LOAN_RELATED_INCOME_CODE,
+    description: "Fee charged on loan application",
+  },
+  {
+    name: "Loan Stationery Fee",
+    code: LOAN_STATIONERY_FEE_CODE,
+    parentCode: LOAN_RELATED_INCOME_CODE,
+    description: "Fee charged for loan stationery/documentation",
+  },
+  {
+    name: "Loan Commitment Fee",
+    code: LOAN_COMMITMENT_FEE_CODE,
+    parentCode: LOAN_RELATED_INCOME_CODE,
+    description: "Fee charged for loan commitment",
   },
   {
     name: "Interest from Investment",

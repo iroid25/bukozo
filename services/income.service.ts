@@ -11,13 +11,16 @@ import {
 import { buildAccountBalanceUpdate } from "@/lib/accounting-rules";
 import { CASH_AT_HAND_CODE } from "@/lib/services/asset-structure";
 
-const LOAN_RELATED_INCOME_CODES = ["401001", "401002", "401005"] as const;
+const LOAN_RELATED_INCOME_CODES = ["401001", "401002", "401005", "401007", "401008", "401009"] as const;
 const LOAN_INCOME_NAME_TO_CODE: Record<string, string> = {
   "loan related income": "401000",
   "interest paid": "401001",
   "loan processing fees": "401002",
   "interest from savings": "401003",
   "loan penalty paid": "401005",
+  "loan application fee": "401007",
+  "loan stationery fee": "401008",
+  "loan commitment fee": "401009",
 };
 
 export class IncomeService {

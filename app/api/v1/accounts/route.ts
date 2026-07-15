@@ -365,8 +365,37 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Institution share account: GL entry only (ShareAccount requires memberId)
+        // Institution share account: GL entry + Transaction audit (ShareAccount requires memberId)
         if (accountType.isShareAccount && data.institutionId && initialDeposit > 0) {
+          const txnRecord = await tx.transaction.create({
+            data: {
+              transactionRef: `DEP-SHARE-INST-${Date.now()}`,
+              type: TransactionType.DEPOSIT,
+              amount: initialDeposit,
+              status: TransactionStatus.COMPLETED,
+              description: "Institution Share Purchase",
+              transactionDate: new Date(),
+              accountId: targetAccount.id,
+              institutionId: data.institutionId,
+              processedByUserId: user.id,
+              branchId: finalBranchId,
+              channel: "CASH",
+            },
+          });
+          await tx.deposit.create({
+            data: {
+              transactionId: txnRecord.id,
+              accountId: targetAccount.id,
+              amount: initialDeposit,
+              depositDate: new Date(),
+              handlerUserId: user.id,
+              channel: "CASH",
+              depositorName: null,
+              institutionId: data.institutionId,
+              depositType: "DIRECT",
+            },
+          });
+
           const [shareCapAcct, cashAcct] = await Promise.all([
             tx.chartOfAccount.findUnique({ where: { accountCode: "304000" } }),
             tx.chartOfAccount.findFirst({ where: { accountCode: CASH_AT_HAND_CODE, isActive: true } }),

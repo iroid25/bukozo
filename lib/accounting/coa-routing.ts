@@ -66,7 +66,7 @@ export const COA_SOURCE_RULES: CoaSourceRule[] = [
   {
     source: "app/api/v1/loans/products",
     targetCategory: "INCOME",
-    targetAccounts: ["401001", "401002", "401005", "107000"],
+    targetAccounts: ["401001", "401002", "401005", "401007", "401008", "401009", "107000"],
     allowInCoa: true,
     notes: "Loan product setup only uses standardized COA links.",
   },

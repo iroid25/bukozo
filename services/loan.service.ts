@@ -630,6 +630,9 @@ export class LoanService {
             insurance: 0,
             shareCapital: 0,
             loanRecovery: 0,
+            applicationFee: 0,
+            stationeryFee: 0,
+            commitmentFee: 0,
           };
           let recoveryInterest = 0;
           let recoveryPrincipal = 0;
@@ -698,6 +701,23 @@ export class LoanService {
             totalDeductions += deductions.loanRecovery;
           }
 
+          if (app.applyLoanApplicationFee) {
+            const appFeePercent = app.loanApplicationFeePercentage || 1;
+            deductions.applicationFee = Math.round((grossAmount * appFeePercent) / 100);
+            totalDeductions += deductions.applicationFee;
+          }
+
+          if (app.applyLoanStationeryFee) {
+            deductions.stationeryFee = app.loanStationeryFeeAmount || 10000;
+            totalDeductions += deductions.stationeryFee;
+          }
+
+          if (app.applyLoanCommitmentFee) {
+            const commitFeePercent = app.loanCommitmentFeePercentage || 0.5;
+            deductions.commitmentFee = Math.round((grossAmount * commitFeePercent) / 100);
+            totalDeductions += deductions.commitmentFee;
+          }
+
           const netDisbursement = grossAmount - totalDeductions;
           if (netDisbursement < 0)
             throw new Error("Deductions exceed loan amount.");
@@ -746,6 +766,63 @@ export class LoanService {
             });
           }
 
+          // Application Fee
+          if (deductions.applicationFee > 0) {
+            await tx.transaction.create({
+              data: {
+                transactionRef: `APPFEE-${Date.now()}`,
+                memberId: app.memberId,
+                accountId: account.id,
+                type: "LOAN_FEE",
+                amount: deductions.applicationFee,
+                status: "COMPLETED",
+                description: `Loan application fee deduction`,
+                processedByUserId: officerId,
+                channel: "SYSTEM",
+                branchId: loan.branchId || undefined,
+                loanId: loan.id,
+              },
+            });
+          }
+
+          // Stationery Fee
+          if (deductions.stationeryFee > 0) {
+            await tx.transaction.create({
+              data: {
+                transactionRef: `STAFEE-${Date.now()}`,
+                memberId: app.memberId,
+                accountId: account.id,
+                type: "LOAN_FEE",
+                amount: deductions.stationeryFee,
+                status: "COMPLETED",
+                description: `Loan stationery fee deduction`,
+                processedByUserId: officerId,
+                channel: "SYSTEM",
+                branchId: loan.branchId || undefined,
+                loanId: loan.id,
+              },
+            });
+          }
+
+          // Commitment Fee
+          if (deductions.commitmentFee > 0) {
+            await tx.transaction.create({
+              data: {
+                transactionRef: `COMFEE-${Date.now()}`,
+                memberId: app.memberId,
+                accountId: account.id,
+                type: "LOAN_FEE",
+                amount: deductions.commitmentFee,
+                status: "COMPLETED",
+                description: `Loan commitment fee deduction`,
+                processedByUserId: officerId,
+                channel: "SYSTEM",
+                branchId: loan.branchId || undefined,
+                loanId: loan.id,
+              },
+            });
+          }
+
           // Insurance Premium → Centralized Loan Insurance Pool
           if (deductions.insurance > 0) {
             await recordLoanInsuranceCollection({
@@ -757,7 +834,8 @@ export class LoanService {
               loanApplicationId: applicationId,
               description: `Insurance from loan disbursement - ${app.member.user.name} - Loan ${loan.id.slice(0, 8)}`,
               reference: `INS-POOL-${loan.id.slice(0, 8)}`,
-              createJournalEntry: false,
+              createJournalEntry: true,
+              debitAccountCode: CASH_AT_HAND_CODE,
               operationalTransaction: {
                 transactionRef: `INS-${Date.now()}`,
                 memberId: app.memberId,
@@ -1269,6 +1347,174 @@ export class LoanService {
 
           }
 
+          // Application Fee IncomeRecord + GL
+          if (deductions.applicationFee > 0) {
+            const loanParentCategory = await tx.budgetCategory.upsert({
+              where: { code: "401000" },
+              update: { name: "Loan related income" },
+              create: {
+                name: "Loan related income",
+                code: "401000",
+                kind: "INCOME",
+                description: "Loan related income including fees, interest and penalties",
+                isActive: true,
+              },
+            });
+
+            const appFeeCategory = await tx.budgetCategory.upsert({
+              where: { code: "401007" },
+              update: { parentId: loanParentCategory.id, name: "Loan Application Fee" },
+              create: {
+                name: "Loan Application Fee",
+                code: "401007",
+                kind: "INCOME",
+                description: "Fee charged on loan application",
+                isActive: true,
+                parentId: loanParentCategory.id,
+              },
+            });
+
+            await tx.incomeRecord.create({
+              data: {
+                budgetCategoryId: appFeeCategory.id,
+                amount: deductions.applicationFee,
+                date: new Date(),
+                recordDate: new Date(),
+                description: `Loan Application Fee - ${app.member.user.name} - ${updatedLoan.id.slice(0, 8)}`,
+                receivedByUserId: officerId,
+                branchId: loan.branchId || undefined,
+                memberId: app.memberId,
+                depositorName: app.member.user.name,
+                status: "COMPLETED",
+                paymentMethod: "BANK",
+                referenceNumber: `APPFEE-${updatedLoan.id.slice(0, 8)}`,
+                notes: `Automated entry from loan disbursement deduction.`,
+              },
+            });
+
+            const appFeeGl = await tx.chartOfAccount.findFirst({ where: { accountCode: "401007", isActive: true } });
+            const appFeeCashGl = await tx.chartOfAccount.findFirst({ where: { accountCode: CASH_AT_HAND_CODE, isActive: true } });
+            if (appFeeGl && appFeeCashGl) {
+              const jeNum = `JE-APPFEE-${Date.now()}`;
+              await tx.journalEntry.create({ data: { entryNumber: jeNum, accountId: appFeeCashGl.id, debitAmount: deductions.applicationFee, creditAmount: 0, description: `Application fee - ${updatedLoan.id.slice(0, 8)}`, entryDate: new Date(), reference: `APPFEE-${updatedLoan.id.slice(0, 8)}`, branchId: loan.branchId || undefined, createdByUserId: officerId } });
+              await tx.journalEntry.create({ data: { entryNumber: jeNum, accountId: appFeeGl.id, debitAmount: 0, creditAmount: deductions.applicationFee, description: `Application fee - ${updatedLoan.id.slice(0, 8)}`, entryDate: new Date(), reference: `APPFEE-${updatedLoan.id.slice(0, 8)}`, branchId: loan.branchId || undefined, createdByUserId: officerId } });
+              await tx.chartOfAccount.update({ where: { id: appFeeCashGl.id }, data: buildAccountBalanceUpdate(appFeeCashGl, { debitAmount: deductions.applicationFee }) });
+              await tx.chartOfAccount.update({ where: { id: appFeeGl.id }, data: buildAccountBalanceUpdate(appFeeGl, { creditAmount: deductions.applicationFee }) });
+            }
+          }
+
+          // Stationery Fee IncomeRecord + GL
+          if (deductions.stationeryFee > 0) {
+            const loanParentCategory = await tx.budgetCategory.upsert({
+              where: { code: "401000" },
+              update: { name: "Loan related income" },
+              create: {
+                name: "Loan related income",
+                code: "401000",
+                kind: "INCOME",
+                description: "Loan related income including fees, interest and penalties",
+                isActive: true,
+              },
+            });
+
+            const stafCategory = await tx.budgetCategory.upsert({
+              where: { code: "401008" },
+              update: { parentId: loanParentCategory.id, name: "Loan Stationery Fee" },
+              create: {
+                name: "Loan Stationery Fee",
+                code: "401008",
+                kind: "INCOME",
+                description: "Fee charged for loan stationery/documentation",
+                isActive: true,
+                parentId: loanParentCategory.id,
+              },
+            });
+
+            await tx.incomeRecord.create({
+              data: {
+                budgetCategoryId: stafCategory.id,
+                amount: deductions.stationeryFee,
+                date: new Date(),
+                recordDate: new Date(),
+                description: `Loan Stationery Fee - ${app.member.user.name} - ${updatedLoan.id.slice(0, 8)}`,
+                receivedByUserId: officerId,
+                branchId: loan.branchId || undefined,
+                memberId: app.memberId,
+                depositorName: app.member.user.name,
+                status: "COMPLETED",
+                paymentMethod: "BANK",
+                referenceNumber: `STAFEE-${updatedLoan.id.slice(0, 8)}`,
+                notes: `Automated entry from loan disbursement deduction.`,
+              },
+            });
+
+            const staFeeGl = await tx.chartOfAccount.findFirst({ where: { accountCode: "401008", isActive: true } });
+            const staFeeCashGl = await tx.chartOfAccount.findFirst({ where: { accountCode: CASH_AT_HAND_CODE, isActive: true } });
+            if (staFeeGl && staFeeCashGl) {
+              const jeNum = `JE-STAFEE-${Date.now()}`;
+              await tx.journalEntry.create({ data: { entryNumber: jeNum, accountId: staFeeCashGl.id, debitAmount: deductions.stationeryFee, creditAmount: 0, description: `Stationery fee - ${updatedLoan.id.slice(0, 8)}`, entryDate: new Date(), reference: `STAFEE-${updatedLoan.id.slice(0, 8)}`, branchId: loan.branchId || undefined, createdByUserId: officerId } });
+              await tx.journalEntry.create({ data: { entryNumber: jeNum, accountId: staFeeGl.id, debitAmount: 0, creditAmount: deductions.stationeryFee, description: `Stationery fee - ${updatedLoan.id.slice(0, 8)}`, entryDate: new Date(), reference: `STAFEE-${updatedLoan.id.slice(0, 8)}`, branchId: loan.branchId || undefined, createdByUserId: officerId } });
+              await tx.chartOfAccount.update({ where: { id: staFeeCashGl.id }, data: buildAccountBalanceUpdate(staFeeCashGl, { debitAmount: deductions.stationeryFee }) });
+              await tx.chartOfAccount.update({ where: { id: staFeeGl.id }, data: buildAccountBalanceUpdate(staFeeGl, { creditAmount: deductions.stationeryFee }) });
+            }
+          }
+
+          // Commitment Fee IncomeRecord + GL
+          if (deductions.commitmentFee > 0) {
+            const loanParentCategory = await tx.budgetCategory.upsert({
+              where: { code: "401000" },
+              update: { name: "Loan related income" },
+              create: {
+                name: "Loan related income",
+                code: "401000",
+                kind: "INCOME",
+                description: "Loan related income including fees, interest and penalties",
+                isActive: true,
+              },
+            });
+
+            const comFeeCategory = await tx.budgetCategory.upsert({
+              where: { code: "401009" },
+              update: { parentId: loanParentCategory.id, name: "Loan Commitment Fee" },
+              create: {
+                name: "Loan Commitment Fee",
+                code: "401009",
+                kind: "INCOME",
+                description: "Fee charged for loan commitment",
+                isActive: true,
+                parentId: loanParentCategory.id,
+              },
+            });
+
+            await tx.incomeRecord.create({
+              data: {
+                budgetCategoryId: comFeeCategory.id,
+                amount: deductions.commitmentFee,
+                date: new Date(),
+                recordDate: new Date(),
+                description: `Loan Commitment Fee - ${app.member.user.name} - ${updatedLoan.id.slice(0, 8)}`,
+                receivedByUserId: officerId,
+                branchId: loan.branchId || undefined,
+                memberId: app.memberId,
+                depositorName: app.member.user.name,
+                status: "COMPLETED",
+                paymentMethod: "BANK",
+                referenceNumber: `COMFEE-${updatedLoan.id.slice(0, 8)}`,
+                notes: `Automated entry from loan disbursement deduction.`,
+              },
+            });
+
+            const comFeeGl = await tx.chartOfAccount.findFirst({ where: { accountCode: "401009", isActive: true } });
+            const comFeeCashGl = await tx.chartOfAccount.findFirst({ where: { accountCode: CASH_AT_HAND_CODE, isActive: true } });
+            if (comFeeGl && comFeeCashGl) {
+              const jeNum = `JE-COMFEE-${Date.now()}`;
+              await tx.journalEntry.create({ data: { entryNumber: jeNum, accountId: comFeeCashGl.id, debitAmount: deductions.commitmentFee, creditAmount: 0, description: `Commitment fee - ${updatedLoan.id.slice(0, 8)}`, entryDate: new Date(), reference: `COMFEE-${updatedLoan.id.slice(0, 8)}`, branchId: loan.branchId || undefined, createdByUserId: officerId } });
+              await tx.journalEntry.create({ data: { entryNumber: jeNum, accountId: comFeeGl.id, debitAmount: 0, creditAmount: deductions.commitmentFee, description: `Commitment fee - ${updatedLoan.id.slice(0, 8)}`, entryDate: new Date(), reference: `COMFEE-${updatedLoan.id.slice(0, 8)}`, branchId: loan.branchId || undefined, createdByUserId: officerId } });
+              await tx.chartOfAccount.update({ where: { id: comFeeCashGl.id }, data: buildAccountBalanceUpdate(comFeeCashGl, { debitAmount: deductions.commitmentFee }) });
+              await tx.chartOfAccount.update({ where: { id: comFeeGl.id }, data: buildAccountBalanceUpdate(comFeeGl, { creditAmount: deductions.commitmentFee }) });
+            }
+          }
+
           await tx.notification.create({
             data: {
               userId: app.member.user.id,
@@ -1423,6 +1669,9 @@ export class LoanService {
             insurance: 0,
             shares: 0,
             loanRecovery: 0,
+            applicationFee: 0,
+            stationeryFee: 0,
+            commitmentFee: 0,
           };
 
           if (app.applyLoanProcessingFee) {
@@ -1482,6 +1731,23 @@ export class LoanService {
             totalDeductions += deductions.loanRecovery;
           }
 
+          if (app.applyLoanApplicationFee) {
+            const appFeePercent = app.loanApplicationFeePercentage || 1;
+            deductions.applicationFee = Math.round((amountGranted * appFeePercent) / 100);
+            totalDeductions += deductions.applicationFee;
+          }
+
+          if (app.applyLoanStationeryFee) {
+            deductions.stationeryFee = app.loanStationeryFeeAmount || 10000;
+            totalDeductions += deductions.stationeryFee;
+          }
+
+          if (app.applyLoanCommitmentFee) {
+            const commitFeePercent = app.loanCommitmentFeePercentage || 0.5;
+            deductions.commitmentFee = Math.round((amountGranted * commitFeePercent) / 100);
+            totalDeductions += deductions.commitmentFee;
+          }
+
           const netDisbursement = amountGranted - totalDeductions;
           if (netDisbursement < 0)
             throw new Error("Deductions exceed loan amount.");
@@ -1518,6 +1784,60 @@ export class LoanService {
             });
           }
 
+          // Application Fee
+          if (deductions.applicationFee > 0) {
+            await tx.transaction.create({
+              data: {
+                transactionRef: `APPFEE-INST-${Date.now()}`,
+                institutionId: app.institutionId,
+                accountId: account.id,
+                type: "LOAN_FEE",
+                amount: deductions.applicationFee,
+                status: "COMPLETED",
+                description: `Institution loan application fee deduction`,
+                processedByUserId: officerId,
+                channel: "SYSTEM",
+                branchId: account.branchId || undefined,
+              },
+            });
+          }
+
+          // Stationery Fee
+          if (deductions.stationeryFee > 0) {
+            await tx.transaction.create({
+              data: {
+                transactionRef: `STAFEE-INST-${Date.now()}`,
+                institutionId: app.institutionId,
+                accountId: account.id,
+                type: "LOAN_FEE",
+                amount: deductions.stationeryFee,
+                status: "COMPLETED",
+                description: `Institution loan stationery fee deduction`,
+                processedByUserId: officerId,
+                channel: "SYSTEM",
+                branchId: account.branchId || undefined,
+              },
+            });
+          }
+
+          // Commitment Fee
+          if (deductions.commitmentFee > 0) {
+            await tx.transaction.create({
+              data: {
+                transactionRef: `COMFEE-INST-${Date.now()}`,
+                institutionId: app.institutionId,
+                accountId: account.id,
+                type: "LOAN_FEE",
+                amount: deductions.commitmentFee,
+                status: "COMPLETED",
+                description: `Institution loan commitment fee deduction`,
+                processedByUserId: officerId,
+                channel: "SYSTEM",
+                branchId: account.branchId || undefined,
+              },
+            });
+          }
+
           if (deductions.insurance > 0) {
             await recordLoanInsuranceCollection({
               tx,
@@ -1526,7 +1846,8 @@ export class LoanService {
               branchId: account.branchId || null,
               description: `Insurance from institution loan disbursement - ${app.institution.institutionName} - Loan ${loan.id.slice(0, 8)}`,
               reference: `INS-INST-${loan.id.slice(0, 8)}`,
-              createJournalEntry: false,
+              createJournalEntry: true,
+              debitAccountCode: CASH_AT_HAND_CODE,
               operationalTransaction: {
                 transactionRef: `INS-INST-${Date.now()}`,
                 institutionId: app.institutionId,
@@ -1553,6 +1874,22 @@ export class LoanService {
               await tx.account.update({
                 where: { id: shareAccount.id },
                 data: { balance: { increment: deductions.shares } },
+              });
+
+              await tx.transaction.create({
+                data: {
+                  transactionRef: `LN-SHARE-INST-${loan.id.slice(0, 8)}-${Date.now()}`,
+                  type: TransactionType.SHARES_PURCHASE,
+                  amount: deductions.shares,
+                  status: TransactionStatus.COMPLETED,
+                  description: `Share capital deduction from institution loan - ${app.institution.institutionName}`,
+                  transactionDate: disbursementDate,
+                  accountId: shareAccount.id,
+                  institutionId: app.institutionId,
+                  processedByUserId: officerId,
+                  branchId: account.branchId || undefined,
+                  channel: "LOAN_DISBURSEMENT",
+                },
               });
             }
           }
@@ -1910,6 +2247,171 @@ export class LoanService {
               }
             }
 
+          }
+
+          // Application Fee IncomeRecord + GL
+          if (deductions.applicationFee > 0) {
+            const loanParentCategory = await tx.budgetCategory.upsert({
+              where: { code: "401000" },
+              update: { name: "Loan related income" },
+              create: {
+                name: "Loan related income",
+                code: "401000",
+                kind: "INCOME",
+                description: "Loan related income including fees, interest and penalties",
+                isActive: true,
+              },
+            });
+
+            const appFeeCategory = await tx.budgetCategory.upsert({
+              where: { code: "401007" },
+              update: { parentId: loanParentCategory.id, name: "Loan Application Fee" },
+              create: {
+                name: "Loan Application Fee",
+                code: "401007",
+                kind: "INCOME",
+                description: "Fee charged on loan application",
+                isActive: true,
+                parentId: loanParentCategory.id,
+              },
+            });
+
+            await tx.incomeRecord.create({
+              data: {
+                budgetCategoryId: appFeeCategory.id,
+                amount: deductions.applicationFee,
+                date: new Date(),
+                recordDate: new Date(),
+                description: `Loan Application Fee - ${app.institution.institutionName} - ${updatedLoan.id.slice(0, 8)}`,
+                receivedByUserId: officerId,
+                branchId: account.branchId || undefined,
+                depositorName: app.institution.institutionName,
+                status: "COMPLETED",
+                paymentMethod: "BANK",
+                referenceNumber: `INST-APPFEE-${updatedLoan.id.slice(0, 8)}`,
+                notes: `Automated entry from institution loan disbursement deduction.`,
+              },
+            });
+
+            const appFeeGl = await tx.chartOfAccount.findFirst({ where: { accountCode: "401007", isActive: true } });
+            const appFeeCashGl = await tx.chartOfAccount.findFirst({ where: { accountCode: CASH_AT_HAND_CODE, isActive: true } });
+            if (appFeeGl && appFeeCashGl) {
+              const jeNum = `JE-IAPPFEE-${Date.now()}`;
+              await tx.journalEntry.create({ data: { entryNumber: jeNum, accountId: appFeeCashGl.id, debitAmount: deductions.applicationFee, creditAmount: 0, description: `Inst application fee - ${updatedLoan.id.slice(0, 8)}`, entryDate: new Date(), reference: `INST-APPFEE-${updatedLoan.id.slice(0, 8)}`, branchId: account.branchId || undefined, createdByUserId: officerId } });
+              await tx.journalEntry.create({ data: { entryNumber: jeNum, accountId: appFeeGl.id, debitAmount: 0, creditAmount: deductions.applicationFee, description: `Inst application fee - ${updatedLoan.id.slice(0, 8)}`, entryDate: new Date(), reference: `INST-APPFEE-${updatedLoan.id.slice(0, 8)}`, branchId: account.branchId || undefined, createdByUserId: officerId } });
+              await tx.chartOfAccount.update({ where: { id: appFeeCashGl.id }, data: buildAccountBalanceUpdate(appFeeCashGl, { debitAmount: deductions.applicationFee }) });
+              await tx.chartOfAccount.update({ where: { id: appFeeGl.id }, data: buildAccountBalanceUpdate(appFeeGl, { creditAmount: deductions.applicationFee }) });
+            }
+          }
+
+          // Stationery Fee IncomeRecord + GL
+          if (deductions.stationeryFee > 0) {
+            const loanParentCategory = await tx.budgetCategory.upsert({
+              where: { code: "401000" },
+              update: { name: "Loan related income" },
+              create: {
+                name: "Loan related income",
+                code: "401000",
+                kind: "INCOME",
+                description: "Loan related income including fees, interest and penalties",
+                isActive: true,
+              },
+            });
+
+            const stafCategory = await tx.budgetCategory.upsert({
+              where: { code: "401008" },
+              update: { parentId: loanParentCategory.id, name: "Loan Stationery Fee" },
+              create: {
+                name: "Loan Stationery Fee",
+                code: "401008",
+                kind: "INCOME",
+                description: "Fee charged for loan stationery/documentation",
+                isActive: true,
+                parentId: loanParentCategory.id,
+              },
+            });
+
+            await tx.incomeRecord.create({
+              data: {
+                budgetCategoryId: stafCategory.id,
+                amount: deductions.stationeryFee,
+                date: new Date(),
+                recordDate: new Date(),
+                description: `Loan Stationery Fee - ${app.institution.institutionName} - ${updatedLoan.id.slice(0, 8)}`,
+                receivedByUserId: officerId,
+                branchId: account.branchId || undefined,
+                depositorName: app.institution.institutionName,
+                status: "COMPLETED",
+                paymentMethod: "BANK",
+                referenceNumber: `INST-STAFEE-${updatedLoan.id.slice(0, 8)}`,
+                notes: `Automated entry from institution loan disbursement deduction.`,
+              },
+            });
+
+            const staFeeGl = await tx.chartOfAccount.findFirst({ where: { accountCode: "401008", isActive: true } });
+            const staFeeCashGl = await tx.chartOfAccount.findFirst({ where: { accountCode: CASH_AT_HAND_CODE, isActive: true } });
+            if (staFeeGl && staFeeCashGl) {
+              const jeNum = `JE-ISTAFEE-${Date.now()}`;
+              await tx.journalEntry.create({ data: { entryNumber: jeNum, accountId: staFeeCashGl.id, debitAmount: deductions.stationeryFee, creditAmount: 0, description: `Inst stationery fee - ${updatedLoan.id.slice(0, 8)}`, entryDate: new Date(), reference: `INST-STAFEE-${updatedLoan.id.slice(0, 8)}`, branchId: account.branchId || undefined, createdByUserId: officerId } });
+              await tx.journalEntry.create({ data: { entryNumber: jeNum, accountId: staFeeGl.id, debitAmount: 0, creditAmount: deductions.stationeryFee, description: `Inst stationery fee - ${updatedLoan.id.slice(0, 8)}`, entryDate: new Date(), reference: `INST-STAFEE-${updatedLoan.id.slice(0, 8)}`, branchId: account.branchId || undefined, createdByUserId: officerId } });
+              await tx.chartOfAccount.update({ where: { id: staFeeCashGl.id }, data: buildAccountBalanceUpdate(staFeeCashGl, { debitAmount: deductions.stationeryFee }) });
+              await tx.chartOfAccount.update({ where: { id: staFeeGl.id }, data: buildAccountBalanceUpdate(staFeeGl, { creditAmount: deductions.stationeryFee }) });
+            }
+          }
+
+          // Commitment Fee IncomeRecord + GL
+          if (deductions.commitmentFee > 0) {
+            const loanParentCategory = await tx.budgetCategory.upsert({
+              where: { code: "401000" },
+              update: { name: "Loan related income" },
+              create: {
+                name: "Loan related income",
+                code: "401000",
+                kind: "INCOME",
+                description: "Loan related income including fees, interest and penalties",
+                isActive: true,
+              },
+            });
+
+            const comFeeCategory = await tx.budgetCategory.upsert({
+              where: { code: "401009" },
+              update: { parentId: loanParentCategory.id, name: "Loan Commitment Fee" },
+              create: {
+                name: "Loan Commitment Fee",
+                code: "401009",
+                kind: "INCOME",
+                description: "Fee charged for loan commitment",
+                isActive: true,
+                parentId: loanParentCategory.id,
+              },
+            });
+
+            await tx.incomeRecord.create({
+              data: {
+                budgetCategoryId: comFeeCategory.id,
+                amount: deductions.commitmentFee,
+                date: new Date(),
+                recordDate: new Date(),
+                description: `Loan Commitment Fee - ${app.institution.institutionName} - ${updatedLoan.id.slice(0, 8)}`,
+                receivedByUserId: officerId,
+                branchId: account.branchId || undefined,
+                depositorName: app.institution.institutionName,
+                status: "COMPLETED",
+                paymentMethod: "BANK",
+                referenceNumber: `INST-COMFEE-${updatedLoan.id.slice(0, 8)}`,
+                notes: `Automated entry from institution loan disbursement deduction.`,
+              },
+            });
+
+            const comFeeGl = await tx.chartOfAccount.findFirst({ where: { accountCode: "401009", isActive: true } });
+            const comFeeCashGl = await tx.chartOfAccount.findFirst({ where: { accountCode: CASH_AT_HAND_CODE, isActive: true } });
+            if (comFeeGl && comFeeCashGl) {
+              const jeNum = `JE-ICOMFEE-${Date.now()}`;
+              await tx.journalEntry.create({ data: { entryNumber: jeNum, accountId: comFeeCashGl.id, debitAmount: deductions.commitmentFee, creditAmount: 0, description: `Inst commitment fee - ${updatedLoan.id.slice(0, 8)}`, entryDate: new Date(), reference: `INST-COMFEE-${updatedLoan.id.slice(0, 8)}`, branchId: account.branchId || undefined, createdByUserId: officerId } });
+              await tx.journalEntry.create({ data: { entryNumber: jeNum, accountId: comFeeGl.id, debitAmount: 0, creditAmount: deductions.commitmentFee, description: `Inst commitment fee - ${updatedLoan.id.slice(0, 8)}`, entryDate: new Date(), reference: `INST-COMFEE-${updatedLoan.id.slice(0, 8)}`, branchId: account.branchId || undefined, createdByUserId: officerId } });
+              await tx.chartOfAccount.update({ where: { id: comFeeCashGl.id }, data: buildAccountBalanceUpdate(comFeeCashGl, { debitAmount: deductions.commitmentFee }) });
+              await tx.chartOfAccount.update({ where: { id: comFeeGl.id }, data: buildAccountBalanceUpdate(comFeeGl, { creditAmount: deductions.commitmentFee }) });
+            }
           }
 
           if (app.institution.user?.email) {

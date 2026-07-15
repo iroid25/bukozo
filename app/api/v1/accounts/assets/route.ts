@@ -8,8 +8,6 @@ import { db } from "@/prisma/db";
 
 export const dynamic = "force-dynamic";
 
-// Shared NodeRef convention (see app/api/v1/accounts/liabilities/route.ts and
-// app/api/v1/equity/route.ts for the sibling implementations of this pattern).
 type AssetNodeSource =
   | "FIXED_ASSET_CATEGORY"
   | "CURRENT_ASSET_CATEGORY"
@@ -46,17 +44,15 @@ function buildCategoryNode(
 //
 // Response shape:
 // {
-//   data, pagination            // legacy ChartOfAccount rows (ledgerType=ASSETS).
-//                                // Kept ONLY for backward compatibility: the
+//   data, pagination            // @deprecated legacy COA rows — only used by
 //                                // AssetCreateForm / CurrentAssetTransferForm /
-//                                // AssetDisposalForm "classification" pickers
-//                                // still call this same endpoint to choose a
-//                                // COA leaf for new asset postings, and must
-//                                // keep working unchanged.
-//   fixedAssets: { total, categories: AssetCategoryNode[] }   // real FixedAsset(assetType=FIXED) groupBy
-//   currentAssets: { total, categories: AssetCategoryNode[] } // real FixedAsset(assetType=CURRENT) groupBy
-//   loans: AssetCategoryNode    // Loan.outstandingBalance bucket
-//   cashAtHand: { amount, count, label, isModeled: true }     // modeled from LoanRepayment.principalPaid
+//                                // AssetDisposalForm classification pickers.
+//                                // New code should use `classifications` below.
+//   fixedAssets: { total, categories: AssetCategoryNode[] }
+//   currentAssets: { total, categories: AssetCategoryNode[] }
+//   loans: AssetCategoryNode
+//   cashAtHand: { amount, count, label, isModeled: true }
+//   classifications: { fixed: string[], current: string[] }   // unique FixedAsset.category values
 //   totalAssets: number
 // }
 export async function GET(request: NextRequest) {
@@ -82,15 +78,13 @@ export async function GET(request: NextRequest) {
     const user = session.user as { role: string; branchId?: string | null };
     const scopedBranchId = resolveBranchScope(user, branchId);
 
-    // COA structure-seeding must keep running unchanged: other code (journal
-    // posting, reports, the classification pickers below) depends on these
-    // ChartOfAccount rows existing.
     await ensureAssetStructure();
 
+    // @deprecated — legacy COA query kept for backward-compatible classification pickers
     const result = await getChartOfAccounts({
       page,
       limit,
-      ledgerType: "ASSETS", // Force Assets
+      ledgerType: "ASSETS",
       parentId: parentId === "null" ? null : parentId,
       level,
       search,
@@ -122,10 +116,6 @@ export async function GET(request: NextRequest) {
       _count: { _all: true },
     });
 
-    // NOTE: category is free text on FixedAsset. We group strictly by whatever
-    // value actually exists in the data (no filtering to the canonical seed
-    // names "Land"/"Motor Vehicle"/"Furniture and fittings") so any ad-hoc
-    // category a user typed still shows up rather than being silently dropped.
     const fixedAssetCategories: AssetCategoryNode[] = fixedAssetGroups
       .map((row) =>
         buildCategoryNode(
@@ -157,9 +147,6 @@ export async function GET(request: NextRequest) {
       0,
     );
 
-    // Loans bucket: Loan.outstandingBalance for loans that still carry a real
-    // balance. outstandingBalance > 0 is the practical "still an asset" filter;
-    // WRITTEN_OFF loans are excluded even if a stale balance lingers on them.
     const loanAgg = await db.loan.aggregate({
       _sum: { outstandingBalance: true },
       _count: { _all: true },
@@ -180,9 +167,6 @@ export async function GET(request: NextRequest) {
       count: Number(loanAgg._count._all || 0),
     };
 
-    // Cash at hand: historically (and still) modeled from loan-repayment
-    // principal collected, NOT literal till cash. Mirrors the same
-    // branch-scoped query used by app/api/v1/loans/repayments/statistics.
     const repaymentWhere = scopedBranchId
       ? { loan: { branchId: scopedBranchId } }
       : {};
@@ -248,6 +232,10 @@ export async function GET(request: NextRequest) {
       ? result.data.map(overrideSourceBalance)
       : result.data;
 
+    // Unique classification categories from real FixedAsset data
+    const fixedCategories = fixedAssetGroups.map((r) => r.category).sort();
+    const currentCategories = currentAssetGroups.map((r) => r.category).sort();
+
     return NextResponse.json({
       ...result,
       data: sourceAlignedData,
@@ -257,6 +245,7 @@ export async function GET(request: NextRequest) {
       cashAtHand,
       vault: vaultBalance,
       float: floatBalance,
+      classifications: { fixed: fixedCategories, current: currentCategories },
       totalAssets,
     });
   } catch (error) {

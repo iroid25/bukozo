@@ -124,6 +124,7 @@ function getMemberName(record: any) {
   return (
     record.member?.user?.name?.trim() ||
     [record.member?.surname, record.member?.otherNames].filter(Boolean).join(" ").trim() ||
+    record.institution?.institutionName?.trim() ||
     record.accountNumber
   );
 }
@@ -163,7 +164,8 @@ function buildTotal(bands: ReturnType<typeof buildBandRows>) {
 }
 
 async function fetchShareAccounts(branchId: string | null, reportDate: Date) {
-  return db.shareAccount.findMany({
+  // Member share accounts from ShareAccount model
+  const memberAccounts = await db.shareAccount.findMany({
     where: {
       status: "ACTIVE",
       openedDate: { lte: reportDate },
@@ -200,13 +202,57 @@ async function fetchShareAccounts(branchId: string | null, reportDate: Date) {
     },
     orderBy: [{ accountNumber: "asc" }],
   });
+
+  // Institution share accounts from Account model (ShareAccount requires memberId)
+  const institutionAccounts = await db.account.findMany({
+    where: {
+      accountType: { isShareAccount: true },
+      institutionId: { not: null },
+      status: "ACTIVE",
+      ...(branchId ? { branchId } : {}),
+    },
+    include: {
+      institution: {
+        select: {
+          institutionName: true,
+        },
+      },
+      accountType: {
+        include: {
+          ledgerAccount: {
+            select: {
+              accountCode: true,
+              accountName: true,
+            },
+          },
+        },
+      },
+      branch: {
+        select: {
+          name: true,
+          location: true,
+        },
+      },
+    },
+    orderBy: [{ accountNumber: "asc" }],
+  });
+
+  // Normalize institution accounts to match ShareAccount shape
+  const normalizedInstitution = institutionAccounts.map((acc) => ({
+    ...acc,
+    totalValue: acc.balance,
+    openedDate: acc.openedAt,
+    member: null,
+  }));
+
+  return [...memberAccounts, ...normalizedInstitution];
 }
 
 function mapShareRecords(accounts: any[], reportDate: Date, excludeNonFinancial: boolean) {
   return accounts
     .map((account) => {
       const productCode = getProductCode(account);
-      const balance = normalizeBalance(Number(account.totalValue ?? 0));
+      const balance = normalizeBalance(Number(account.totalValue ?? account.balance ?? 0));
       return {
         accountNumber: account.accountNumber,
         memberName: getMemberName(account),
@@ -217,7 +263,7 @@ function mapShareRecords(accounts: any[], reportDate: Date, excludeNonFinancial:
         branchName: account.branch?.name || "All Branches",
       } as ShareRecord;
     })
-    .filter((record) => PRODUCT_ORDER.includes(record.productCode as (typeof PRODUCT_ORDER)[number]))
+    .filter((record) => !record.productCode || PRODUCT_ORDER.includes(record.productCode as (typeof PRODUCT_ORDER)[number]))
     .filter((record) => (!excludeNonFinancial ? true : record.balance > 0));
 }
 
@@ -242,7 +288,7 @@ export async function getShareConcentrationReport(params: {
 
   const accounts = await fetchShareAccounts(branchId, reportDate);
   const shareRecords = mapShareRecords(accounts, reportDate, excludeNonFinancial);
-  const branchMeta = await resolveBranchLabel(branchId, accounts);
+  const branchMeta = await resolveBranchLabel(branchId, accounts as any[]);
 
   const loanDeductionTransactions = await db.shareTransaction.findMany({
     where: {

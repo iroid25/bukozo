@@ -15,6 +15,13 @@ export interface RelworxResponse {
   status?: string;
 }
 
+export interface RelworxWalletBalanceResponse {
+  success: boolean;
+  message?: string;
+  balance?: number;
+  currency?: string;
+}
+
 export interface RelworxStatusResponse {
   success: boolean;
   status: 'success' | 'failed' | 'pending' | 'processing';
@@ -143,5 +150,32 @@ export class RelworxService {
 
   public static async checkTransactionStatus(internalReference: string): Promise<RelworxStatusResponse> {
     return this.getTransactionStatus(internalReference);
+  }
+
+  /**
+   * Check Relworx wallet float balance
+   * Used before disbursements (withdrawals) to avoid attempting a payout the wallet can't cover.
+   */
+  public static async checkWalletBalance(currency = "UGX"): Promise<RelworxWalletBalanceResponse> {
+    try {
+      const response = await axios.get<RelworxWalletBalanceResponse>(
+        `${this.BASE_URL}/mobile-money/check-wallet-balance`,
+        {
+          params: {
+            account_no: this.ACCOUNT_NO,
+            currency,
+          },
+          headers: this.getHeaders(),
+        }
+      );
+
+      return response.data;
+    } catch (error: any) {
+      console.error('Relworx CheckWalletBalance Error:', error.response?.data || error.message);
+      return {
+        success: false,
+        message: error.response?.data?.message || error.message,
+      };
+    }
   }
 }

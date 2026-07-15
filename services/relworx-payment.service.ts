@@ -62,8 +62,11 @@ export class RelworxPaymentService {
   }
 
   private static buildReference(prefix: string, entityId: string): string {
-    const raw = `${prefix}-${entityId}-${Date.now()}-${this.randomSuffix()}`;
-    return raw.length <= 36 ? raw : raw.slice(0, 36);
+    // Keep this well under Relworx's 36-char cap WITHOUT truncating — a naive
+    // slice(0, 36) on a long cuid entityId chops off the timestamp/random suffix
+    // entirely, making every retry produce the same (colliding) string.
+    const shortId = entityId.slice(-8);
+    return `${prefix}-${shortId}-${Date.now().toString(36)}-${this.randomSuffix()}`;
   }
 
   private static async generateUniqueReference(
@@ -872,6 +875,37 @@ export class RelworxPaymentService {
       type: TransactionType.WITHDRAWAL,
       processedByUserId: member.userId,
     });
+
+    // Float check BEFORE calling send-payment — never attempt disbursement blind.
+    try {
+      const walletBalance = await RelworxService.checkWalletBalance(this.CURRENCY);
+      if (!walletBalance.success) {
+        throw new Error(walletBalance.message || "Could not verify mobile money float");
+      }
+      if (Number(walletBalance.balance ?? 0) < amount) {
+        throw new Error(
+          "SACCO mobile money float is insufficient for this withdrawal. Contact an administrator to top up.",
+        );
+      }
+    } catch (error: any) {
+      await db.transaction.update({
+        where: { id: transaction.id },
+        data: {
+          status: TransactionStatus.FAILED,
+          notes: error instanceof Error ? error.message : "Float check failed before withdrawal",
+        },
+      });
+
+      console.error("Relworx withdrawal float check failed", {
+        memberId,
+        reference,
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      throw new Error(
+        error instanceof Error ? error.message : "Could not verify mobile money float right now. Try again shortly.",
+      );
+    }
 
     try {
       const relworxResponse = await RelworxService.sendPayment({

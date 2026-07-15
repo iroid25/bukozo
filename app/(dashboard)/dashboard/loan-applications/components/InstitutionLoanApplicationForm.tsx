@@ -143,6 +143,13 @@ interface FormData {
   loanInsurancePercentage?: number;
   applyShareDeduction: boolean;
   shareAmount?: number;
+  // new fee toggles
+  applyApplicationFee: boolean;
+  applicationFeePercentage?: number;
+  applyStationeryFee: boolean;
+  stationeryFeeAmount?: number;
+  applyCommitmentFee: boolean;
+  commitmentFeePercentage?: number;
 }
 
 // ========================
@@ -230,6 +237,12 @@ export default function InstitutionLoanApplicationForm({
       loanInsurancePercentage: 1,
       applyShareDeduction: false,
       shareAmount: 0,
+      applyApplicationFee: false,
+      applicationFeePercentage: 1,
+      applyStationeryFee: false,
+      stationeryFeeAmount: 10000,
+      applyCommitmentFee: false,
+      commitmentFeePercentage: 0.5,
     },
   });
 
@@ -357,7 +370,19 @@ export default function InstitutionLoanApplicationForm({
     if (watched.applyShareDeduction) {
       shares = Number(watched.shareAmount) || 0;
     }
-    const totalDeductions = processingFee + insurance + shares;
+    let applicationFee = 0;
+    if (watched.applyApplicationFee) {
+      applicationFee = (principal * (Number(watched.applicationFeePercentage) || 0)) / 100;
+    }
+    let stationeryFee = 0;
+    if (watched.applyStationeryFee) {
+      stationeryFee = Number(watched.stationeryFeeAmount) || 0;
+    }
+    let commitmentFee = 0;
+    if (watched.applyCommitmentFee) {
+      commitmentFee = (principal * (Number(watched.commitmentFeePercentage) || 0)) / 100;
+    }
+    const totalDeductions = processingFee + insurance + shares + applicationFee + stationeryFee + commitmentFee;
     const netDisbursement = principal - totalDeductions;
 
     return {
@@ -370,6 +395,9 @@ export default function InstitutionLoanApplicationForm({
       processingFee,
       insurance,
       shares,
+      applicationFee,
+      stationeryFee,
+      commitmentFee,
       totalDeductions,
       netDisbursement,
     };
@@ -466,6 +494,12 @@ export default function InstitutionLoanApplicationForm({
         loanInsurancePercentage: data.applyLoanInsurance ? Number(data.loanInsurancePercentage) : undefined,
         applyShareDeduction: data.applyShareDeduction,
         shareAmount: data.applyShareDeduction ? Number(data.shareAmount) : undefined,
+        applyApplicationFee: data.applyApplicationFee,
+        loanApplicationFeePercentage: data.applyApplicationFee ? Number(data.applicationFeePercentage) : undefined,
+        applyStationeryFee: data.applyStationeryFee,
+        loanStationeryFeeAmount: data.applyStationeryFee ? Number(data.stationeryFeeAmount) : undefined,
+        applyCommitmentFee: data.applyCommitmentFee,
+        loanCommitmentFeePercentage: data.applyCommitmentFee ? Number(data.commitmentFeePercentage) : undefined,
       };
 
       const apiRes = await fetch("/api/v1/loans/applications/institution-submit", {
@@ -843,7 +877,7 @@ export default function InstitutionLoanApplicationForm({
                 </div>
 
                 {calc.totalDeductions > 0 && (
-                  <div className="mt-4 pt-4 border-t border-gray-200 grid grid-cols-2 md:grid-cols-4 gap-4 text-xs font-medium text-gray-500">
+                  <div className="mt-4 pt-4 border-t border-gray-200 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 text-xs font-medium text-gray-500">
                     {calc.processingFee > 0 && (
                       <div>
                         <span>Processing Fee:</span>
@@ -862,7 +896,25 @@ export default function InstitutionLoanApplicationForm({
                         <p className="text-red-500">-{fmt(calc.shares)}</p>
                       </div>
                     )}
-                    <div className="col-span-full md:col-span-1 md:ml-auto">
+                    {calc.applicationFee > 0 && (
+                      <div>
+                        <span>Application Fee:</span>
+                        <p className="text-red-500">-{fmt(calc.applicationFee)}</p>
+                      </div>
+                    )}
+                    {calc.stationeryFee > 0 && (
+                      <div>
+                        <span>Stationery Fee:</span>
+                        <p className="text-red-500">-{fmt(calc.stationeryFee)}</p>
+                      </div>
+                    )}
+                    {calc.commitmentFee > 0 && (
+                      <div>
+                        <span>Commitment Fee:</span>
+                        <p className="text-red-500">-{fmt(calc.commitmentFee)}</p>
+                      </div>
+                    )}
+                    <div className="col-span-full lg:col-span-1 lg:ml-auto">
                        <span className="text-blue-700 font-bold">Net Disbursement:</span>
                        <p className="text-lg font-bold text-blue-800">{fmt(calc.netDisbursement)}</p>
                     </div>
@@ -879,7 +931,7 @@ export default function InstitutionLoanApplicationForm({
               <h3 className="text-lg font-semibold">C. Loan Deductions (Optional)</h3>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {/* Processing Fee */}
               <div className="p-4 rounded-lg border bg-white space-y-3">
                 <div className="flex items-center space-x-2">
@@ -944,6 +996,71 @@ export default function InstitutionLoanApplicationForm({
                     <Input
                       type="number"
                       {...register("shareAmount")}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Application Fee */}
+              <div className="p-4 rounded-lg border bg-white space-y-3">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="applyApplicationFee"
+                    checked={watched.applyApplicationFee}
+                    onCheckedChange={(v) => setValue("applyApplicationFee", v === true)}
+                  />
+                  <Label htmlFor="applyApplicationFee">Apply Application Fee</Label>
+                </div>
+                {watched.applyApplicationFee && (
+                  <div className="space-y-1">
+                    <Label className="text-xs">Fee Percentage (%)</Label>
+                    <Input
+                      type="number"
+                      step="0.1"
+                      {...register("applicationFeePercentage")}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Stationery Fee */}
+              <div className="p-4 rounded-lg border bg-white space-y-3">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="applyStationeryFee"
+                    checked={watched.applyStationeryFee}
+                    onCheckedChange={(v) => setValue("applyStationeryFee", v === true)}
+                  />
+                  <Label htmlFor="applyStationeryFee">Apply Stationery Fee</Label>
+                </div>
+                {watched.applyStationeryFee && (
+                  <div className="space-y-1">
+                    <Label className="text-xs">Stationery Fee (UGX)</Label>
+                    <Input
+                      type="number"
+                      {...register("stationeryFeeAmount")}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Commitment Fee */}
+              <div className="p-4 rounded-lg border bg-white space-y-3">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="applyCommitmentFee"
+                    checked={watched.applyCommitmentFee}
+                    onCheckedChange={(v) => setValue("applyCommitmentFee", v === true)}
+                  />
+                  <Label htmlFor="applyCommitmentFee">Apply Commitment Fee</Label>
+                </div>
+                {watched.applyCommitmentFee && (
+                  <div className="space-y-1">
+                    <Label className="text-xs">Fee Percentage (%)</Label>
+                    <Input
+                      type="number"
+                      step="0.1"
+                      {...register("commitmentFeePercentage")}
                     />
                   </div>
                 )}

@@ -525,6 +525,15 @@ export class TransactionService {
             throw new Error("Phone number (MSISDN) is required for mobile money withdrawal.");
           }
 
+          // Float check BEFORE calling send-payment — never attempt disbursement blind.
+          const walletBalance = await RelworxService.checkWalletBalance("UGX");
+          if (!walletBalance.success) {
+            throw new Error(walletBalance.message || "Could not verify mobile money float right now. Try again shortly.");
+          }
+          if (Number(walletBalance.balance ?? 0) < data.amount) {
+            throw new Error("SACCO mobile money float is insufficient for this withdrawal. Contact an administrator to top up.");
+          }
+
           const relworxResponse = await RelworxService.sendPayment({
             msisdn,
             amount: data.amount,

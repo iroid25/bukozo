@@ -334,6 +334,69 @@ async function findShareAccount(filters: ShareStatementFilters, branchId: string
     if (found) return found;
   }
 
+  // Fallback: search institution share accounts from Account model
+  if (accountNumber) {
+    const instAccount = await db.account.findFirst({
+      where: {
+        accountType: { isShareAccount: true },
+        institutionId: { not: null },
+        accountNumber,
+        ...(branchId ? { branchId } : {}),
+      },
+      include: {
+        institution: {
+          include: {
+            user: { select: { name: true, phone: true, email: true, address: true, nationalId: true } },
+          },
+        },
+        accountType: { include: { ledgerAccount: { select: { accountCode: true, accountName: true } } } },
+        branch: { select: { id: true, name: true } },
+      },
+    });
+    if (instAccount) {
+      return {
+        ...instAccount,
+        totalValue: instAccount.balance,
+        sharesCount: instAccount.sharesCount || 0,
+        member: null,
+        transactions: [],
+      } as any;
+    }
+  }
+
+  if (search) {
+    const instFound = await db.account.findFirst({
+      where: {
+        accountType: { isShareAccount: true },
+        institutionId: { not: null },
+        ...(branchId ? { branchId } : {}),
+        OR: [
+          { accountNumber: { contains: search, mode: "insensitive" } },
+          { institution: { institutionName: { contains: search, mode: "insensitive" } } },
+        ],
+      },
+      include: {
+        institution: {
+          include: {
+            user: { select: { name: true, phone: true, email: true, address: true, nationalId: true } },
+          },
+        },
+        accountType: { include: { ledgerAccount: { select: { accountCode: true, accountName: true } } } },
+        branch: { select: { id: true, name: true } },
+      },
+      orderBy: { accountNumber: "asc" },
+    });
+    if (instFound) {
+      return {
+        ...instFound,
+        totalValue: instFound.balance,
+        sharesCount: instFound.sharesCount || 0,
+        member: null,
+        transactions: [],
+      } as any;
+    }
+  }
+
   return null;
 }
 
@@ -388,14 +451,14 @@ export async function buildShareAccountStatementReport(filters: ShareStatementFi
     throw new Error("Share account not found");
   }
 
-  const allTransactions = account.transactions
-    .filter((txn) => !txn.isReversed && txn.transactionDate <= dateTo)
-    .sort((a, b) => a.transactionDate.getTime() - b.transactionDate.getTime() || a.createdAt.getTime() - b.createdAt.getTime());
+  const allTransactions = (account.transactions as any[])
+    .filter((txn: any) => !txn.isReversed && txn.transactionDate <= dateTo)
+    .sort((a: any, b: any) => a.transactionDate.getTime() - b.transactionDate.getTime() || a.createdAt.getTime() - b.createdAt.getTime());
 
-  const previousTransactions = allTransactions.filter((txn) => txn.transactionDate < dateFrom);
-  const periodTransactions = allTransactions.filter((txn) => txn.transactionDate >= dateFrom && txn.transactionDate <= dateTo);
+  const previousTransactions = allTransactions.filter((txn: any) => txn.transactionDate < dateFrom);
+  const periodTransactions = allTransactions.filter((txn: any) => txn.transactionDate >= dateFrom && txn.transactionDate <= dateTo);
 
-  let openingBalance = previousTransactions.reduce((sum, txn) => {
+  let openingBalance = previousTransactions.reduce((sum: number, txn: any) => {
     const amount = money(txn.amount);
     return txDirection(txn) === "credit" ? sum + amount : sum - amount;
   }, 0);
@@ -405,7 +468,7 @@ export async function buildShareAccountStatementReport(filters: ShareStatementFi
   ];
 
   const openingType = balanceType(openingBalance);
-  const nextOfKin = account.member.nokName
+  const nextOfKin = account.member?.nokName
     ? [
         {
           name: account.member.nokName,
@@ -462,8 +525,8 @@ export async function buildShareAccountStatementReport(filters: ShareStatementFi
     growth.push({ date: formatIsoDate(txn.transactionDate), balance: runningBalance });
   }
 
-  const totalDebits = periodTransactions.filter((txn) => txDirection(txn) === "debit").reduce((sum, txn) => sum + money(txn.amount), 0);
-  const totalCredits = periodTransactions.filter((txn) => txDirection(txn) === "credit").reduce((sum, txn) => sum + money(txn.amount), 0);
+  const totalDebits = periodTransactions.filter((txn: any) => txDirection(txn) === "debit").reduce((sum: number, txn: any) => sum + money(txn.amount), 0);
+  const totalCredits = periodTransactions.filter((txn: any) => txDirection(txn) === "credit").reduce((sum: number, txn: any) => sum + money(txn.amount), 0);
   const closingBalance = runningBalance;
   const amountBlocked = 0;
   const unclearedBalance = 0;
@@ -485,14 +548,14 @@ export async function buildShareAccountStatementReport(filters: ShareStatementFi
       to: formatDate(dateTo),
     },
     member: {
-      accountTitle: account.member.user.name,
+      accountTitle: account.member?.user?.name || account.institution?.institutionName || "N/A",
       accountNumber: account.accountNumber,
       product: productName,
-      nubanCode: account.member.savingsAccountNumber || account.accountNumber,
+      nubanCode: account.member?.savingsAccountNumber || account.accountNumber,
       passbookCount: 1,
-      phone: account.member.user.phone || "",
-      idCardType: account.member.typeOfId || (account.member.user.nationalId ? "EC" : "N/A"),
-      address: account.member.postalAddress || account.member.village || account.member.user.address || "",
+      phone: account.member?.user?.phone || account.institution?.institutionPhone || "",
+      idCardType: account.member?.typeOfId || (account.member?.user?.nationalId ? "EC" : "N/A"),
+      address: account.member?.postalAddress || account.member?.village || account.member?.user?.address || "",
       status: account.status,
       nextOfKin,
       branchName: account.branch?.name || null,
@@ -584,7 +647,33 @@ export async function searchShareAccounts(filters: ShareStatementFilters) {
     take: 25,
   });
 
-  return accounts.map((account) => ({
+  // Also search institution share accounts
+  const instAndClauses: any[] = [
+    { accountType: { isShareAccount: true } },
+    { institutionId: { not: null } },
+  ];
+  if (branchId) instAndClauses.push({ branchId });
+  if (search) {
+    instAndClauses.push({
+      OR: [
+        { accountNumber: { contains: search, mode: "insensitive" } },
+        { institution: { institutionName: { contains: search, mode: "insensitive" } } },
+      ],
+    });
+  }
+
+  const instAccounts = await db.account.findMany({
+    where: { AND: instAndClauses },
+    include: {
+      institution: { select: { institutionName: true, institutionPhone: true } },
+      accountType: { include: { ledgerAccount: { select: { accountCode: true, accountName: true } } } },
+      branch: { select: { name: true } },
+    },
+    orderBy: { accountNumber: "asc" },
+    take: 25,
+  });
+
+  const memberResults = accounts.map((account) => ({
     accountNumber: account.accountNumber,
     accountTitle: account.member.user.name,
     product: account.accountType.ledgerAccount?.accountName || account.accountType.name || "ORDINARY MEMBERS",
@@ -594,6 +683,19 @@ export async function searchShareAccounts(filters: ShareStatementFilters) {
     status: account.status,
     branchName: account.branch?.name || null,
   }));
+
+  const instResults = instAccounts.map((account) => ({
+    accountNumber: account.accountNumber,
+    accountTitle: account.institution?.institutionName || "N/A",
+    product: account.accountType.ledgerAccount?.accountName || account.accountType.name || "SHARES",
+    nubanCode: account.accountNumber,
+    phone: account.institution?.institutionPhone || "",
+    address: "",
+    status: account.status,
+    branchName: account.branch?.name || null,
+  }));
+
+  return [...memberResults, ...instResults].slice(0, 25);
 }
 
 export async function buildShareAccountStatementWorkbook(report: ShareStatementReport) {

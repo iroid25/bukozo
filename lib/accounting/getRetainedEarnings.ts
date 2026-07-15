@@ -10,7 +10,7 @@ import { db } from "@/prisma/db";
  * and check for IncomeRecord coverage.  Any remaining gap is queried
  * directly from the source table (InsuranceContribution for insurance income).
  */
-const LOAN_INCOME_CODES = ["401001", "401002", "401005"] as const;
+const LOAN_INCOME_CODES = ["401001", "401002", "401005", "401007", "401008", "401009"] as const;
 
 /**
  * Shared retained-earnings computation — the single source of truth for the
