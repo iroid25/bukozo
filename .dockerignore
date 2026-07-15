@@ -1,0 +1,96 @@
+# dependencies
+node_modules
+fingerprint-bridge/node_modules
+.pnpm-store
+
+# next.js build output (rebuilt inside the image)
+.next
+out
+
+# git
+.git
+.gitignore
+
+# editors
+.vscode
+.idea
+
+# env files - never bake secrets into the image
+.env
+.env.local
+.env.development
+.env.development.local
+.env.test.local
+.env.production.local
+.env.pesapal.tmp
+
+# docker artifacts
+Dockerfile
+Dockerfile.*
+docker-compose*.yml
+.dockerignore
+
+# logs
+*.log
+logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+build-error.log
+build.log
+build_output*.log
+clean_build*.log
+early_log.txt
+full_log.txt
+push_output.txt
+status.txt
+tmp_status.txt
+
+# tests / coverage
+coverage
+
+# docs / readmes (not needed at runtime)
+README.md
+REPORTS_README.md
+RESERVE_DASHBOARD_GUIDE.md
+ROLE_MIGRATION_INSTRUCTIONS.md
+apidocumentation.md
+prisma.md
+notes.md
+decembadjustmenet.md
+instructions.md
+agent.md
+docs
+
+# misc scratch / temp / one-off files not needed in the image
+.DS_Store
+*.pem
+*.tmp
+tmp
+scratch
+progress
+*.tsbuildinfo
+next-env.d.ts
+typescript_errors.txt
+tsc-output.txt
+tsc_output.txt
+tsc_full_2.txt
+ts_errors.txt
+test_output.txt
+test-full-output.txt
+test-output.txt
+category_check_results.json
+chart_data.json
+parsed_accounts.json
+tmp-*.json
+tmp-*.js
+CHART OF ACCOUNTS.xls
+Loan reschedule form.docx
+
+# vercel (not used for Docker deploys)
+.vercel
+vercel.json
+
+# CI
+.github

@@ -1,0 +1,60 @@
+networks:
+  app-network:
+    name: app-network
+    driver: bridge
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+      args:
+        # NEXT_PUBLIC_* values are inlined into the client bundle at build
+        # time, so they must be passed as build args, not just env_file.
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
+        NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+        NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME}
+        NEXT_PUBLIC_CURRENCY: ${NEXT_PUBLIC_CURRENCY}
+        NEXT_PUBLIC_COUNTRY_CODE: ${NEXT_PUBLIC_COUNTRY_CODE}
+    # Plain `docker compose build` / `make build` builds and tags this
+    # locally as bukonze-nextjs:latest — works with zero configuration.
+    # For the GHCR-based CI/CD flow (see .github/workflows/deploy.yml), set
+    # IMAGE_NAME=ghcr.io/<owner>/<repo>:latest in .env.production instead;
+    # `docker compose pull` will then fetch that image from GHCR.
+    image: ${IMAGE_NAME:-bukonze-nextjs:latest}
+    container_name: nextjs-frontend
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    env_file:
+      - .env.production
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3002/api/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # One-off migration runner. Not started by `docker compose up`.
+  # Run explicitly: docker compose run --rm migrate
+  # or:             docker compose run --rm migrate migrate status
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: migrator
+    image: bukonze-nextjs-migrator:latest
+    profiles: ["tools"]
+    env_file:
+      - .env.production
+    networks:
+      - app-network

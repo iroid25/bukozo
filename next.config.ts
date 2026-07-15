@@ -46,6 +46,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Enables the .next/standalone output used by the production Dockerfile
+  // (self-contained server.js + traced node_modules, no full node_modules copy needed).
+  output: "standalone",
   images: {
     remotePatterns: [
       {
@@ -54,7 +57,7 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  
+
   webpack: (config) => {
     // Ignore canvas module completely (pdfjs-dist can work without it in browser)
     config.resolve.alias = {
