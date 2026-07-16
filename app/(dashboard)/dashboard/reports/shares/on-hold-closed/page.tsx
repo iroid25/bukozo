@@ -59,7 +59,7 @@ export default function OnHoldClosedPage() {
         body.branchId = userBranchId;
       }
 
-      const res = await fetch("/api/v1/reports/savings/on-hold-closed", {
+      const res = await fetch("/api/v1/reports/shares/on-hold-closed", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -90,7 +90,7 @@ export default function OnHoldClosedPage() {
   return (
     <ReportPageLayout
       title="Accounts On Hold / Closed"
-      description="Savings accounts that are on hold, suspended, or closed"
+      description="Share accounts that are on hold, suspended, or closed"
     >
       <div className="mb-6 flex items-center gap-4">
         <Button onClick={fetchReport} disabled={loading}>

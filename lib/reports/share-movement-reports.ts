@@ -116,7 +116,7 @@ async function resolveBranchScope(user: AuthUserLike, requestedBranchId?: string
 }
 
 async function fetchShareAccounts(branchId: string | null) {
-  return db.shareAccount.findMany({
+  const memberAccounts = await db.shareAccount.findMany({
     where: {
       ...(branchId ? { branchId } : {}),
     },
@@ -151,6 +151,48 @@ async function fetchShareAccounts(branchId: string | null) {
     },
     orderBy: [{ accountNumber: "asc" }],
   });
+
+    const institutionAccounts = await db.account.findMany({
+      where: {
+        accountType: { isShareAccount: true },
+        institutionId: { not: null },
+        ...(branchId ? { branchId } : {}),
+      },
+      include: {
+        institution: {
+          select: {
+            institutionName: true,
+            institutionPhone: true,
+          },
+        },
+      accountType: {
+        include: {
+          ledgerAccount: {
+            select: {
+              accountCode: true,
+              accountName: true,
+            },
+          },
+        },
+      },
+      branch: {
+        select: {
+          name: true,
+          location: true,
+        },
+      },
+    },
+    orderBy: [{ accountNumber: "asc" }],
+  });
+
+  const normalizedInstitution = institutionAccounts.map((acc) => ({
+    ...acc,
+    totalValue: acc.balance,
+    openedDate: acc.openedAt,
+    member: null,
+  }));
+
+  return [...memberAccounts, ...normalizedInstitution];
 }
 
 function getProductCode(account: any) {
@@ -170,15 +212,18 @@ function getMemberName(account: any) {
   return (
     account.member?.user?.name?.trim() ||
     [account.member?.surname, account.member?.otherNames].filter(Boolean).join(" ").trim() ||
+    account.institution?.institutionName?.trim() ||
     account.accountNumber
   );
 }
 
 function getAreaCode(account: any) {
+  if (account.institution) return "";
   return normalizeText(account.member?.subCounty) || normalizeText(account.member?.district) || normalizeText(account.member?.parish) || "";
 }
 
 function getBvnTin(account: any) {
+  if (account.institution) return "N/A";
   return normalizeText(account.member?.user?.nationalId) || normalizeText(account.member?.nin) || "UNKNOWN";
 }
 
@@ -378,62 +423,61 @@ function buildTransactionRows(params: Record<string, any>) {
   }).then(async (transactions) => {
     let rows = mapShareTransactionRows(transactions);
 
-    if (rows.length === 0) {
-      const genericTransactions = await db.transaction.findMany({
-        where: {
-          type: "SHARES_PURCHASE",
-          status: "COMPLETED",
-          transactionDate: {
-            gte: fromDate,
-            lte: toDate,
-          },
-          ...(params.branchId && params.branchId !== "all"
-            ? { branchId: params.branchId }
-            : {}),
+    const genericTransactions = await db.transaction.findMany({
+      where: {
+        type: "SHARES_PURCHASE",
+        status: "COMPLETED",
+        transactionDate: {
+          gte: fromDate,
+          lte: toDate,
         },
-        include: {
-          account: {
-            include: {
-              member: {
-                include: {
-                  user: {
-                    select: {
-                      name: true,
-                      phone: true,
-                      nationalId: true,
-                    },
+        ...(params.branchId && params.branchId !== "all"
+          ? { branchId: params.branchId }
+          : {}),
+      },
+      include: {
+        account: {
+          include: {
+            member: {
+              include: {
+                user: {
+                  select: {
+                    name: true,
+                    phone: true,
+                    nationalId: true,
                   },
                 },
               },
-              accountType: {
-                include: {
-                  ledgerAccount: {
-                    select: {
-                      accountCode: true,
-                      accountName: true,
-                    },
+            },
+            accountType: {
+              include: {
+                ledgerAccount: {
+                  select: {
+                    accountCode: true,
+                    accountName: true,
                   },
                 },
               },
-              branch: {
-                select: {
-                  name: true,
-                  location: true,
-                },
+            },
+            branch: {
+              select: {
+                name: true,
+                location: true,
               },
             },
           },
-          processedByUser: {
-            select: {
-              name: true,
-            },
+        },
+        processedByUser: {
+          select: {
+            name: true,
           },
         },
-        orderBy: [{ transactionDate: "asc" }, { transactionRef: "asc" }],
-      });
+      },
+      orderBy: [{ transactionDate: "asc" }, { transactionRef: "asc" }],
+    });
 
-      rows = mapGenericTransactionRows(genericTransactions);
-    }
+    const genericRows = mapGenericTransactionRows(genericTransactions);
+    rows = [...rows, ...genericRows];
 
     rows = rows.filter((row) => {
       if (productFilter && productFilter !== "all" && row.productCode !== productFilter) return false;
@@ -470,7 +514,38 @@ function buildTransactionRows(params: Record<string, any>) {
           net: subtotal.total_credit - subtotal.total_debit,
         },
       };
-    });
+    }).filter((p) => p.transactions.length > 0);
+
+    const otherRows = rows.filter((row) => !PRODUCT_ORDER.includes(row.productCode as any));
+    if (otherRows.length > 0) {
+      const subtotal = {
+        count: otherRows.length,
+        total_debit: otherRows.reduce((sum, row) => sum + row.debit_amount, 0),
+        total_credit: otherRows.reduce((sum, row) => sum + row.credit_amount, 0),
+      };
+      products.push({
+        product_code: "OTHER",
+        product_name: "Other Share Accounts",
+        transactions: otherRows.map((row) => ({
+          account_number: row.account_number,
+          member_name: row.member_name,
+          bvn_tin_note: row.bvn_tin_note,
+          ref_no: row.ref_no,
+          trx_number: row.trx_number,
+          session_date: row.session_date,
+          trx_date: row.trx_date,
+          debit_amount: row.debit_amount,
+          credit_amount: row.credit_amount,
+          user_name: row.user_name,
+          teller_code: row.teller_code,
+          direction: row.direction,
+        })),
+        subtotal: {
+          ...subtotal,
+          net: subtotal.total_credit - subtotal.total_debit,
+        },
+      } as any);
+    }
 
     const grandCount = rows.length;
     const grandDebit = rows.reduce((sum, row) => sum + row.debit_amount, 0);
@@ -503,7 +578,7 @@ function buildZeroBalanceRows(accounts: any[], params: Record<string, any>) {
       const productName = getProductName(account, productCode);
       const idCardRaw = normalizeText(account.member?.typeOfId) || normalizeText(account.member?.user?.nationalId);
       const idCard = normaliseIdCard(idCardRaw);
-      const phone = normalizePhone(account.member?.user?.phone);
+      const phone = normalizePhone(account.member?.user?.phone || account.institution?.institutionPhone);
       const refNo = account.batchNumber == null ? null : account.batchNumber;
       const areaCode = getAreaCode(account);
       const gender = (account.member?.gender || "").toString();
@@ -526,7 +601,7 @@ function buildZeroBalanceRows(accounts: any[], params: Record<string, any>) {
         },
       };
     })
-    .filter((row) => row.productCode && PRODUCT_ORDER.includes(row.productCode as any));
+    .filter((row) => row.productCode);
 
   const filtered = rows.filter((row) => {
     if (productFilter && productFilter !== "all" && row.productCode !== productFilter) return false;
@@ -559,7 +634,30 @@ function buildZeroBalanceRows(accounts: any[], params: Record<string, any>) {
         count: productRows.length,
       },
     };
-  });
+  }).filter((p) => p.accounts.length > 0);
+
+  const otherRows = filtered.filter((row) => !PRODUCT_ORDER.includes(row.productCode as any));
+  if (otherRows.length > 0) {
+    products.push({
+      product_code: "OTHER",
+      product_name: "Other Share Accounts",
+      accounts: otherRows.map((row) => ({
+        account_number: row.account_number,
+        member_name: row.member_name,
+        gender: row.gender,
+        bvn_tin: row.bvn_tin,
+        ref_no: row.ref_no,
+        phone: row.phone,
+        id_card_raw: row.id_card_raw,
+        id_card_normalised: row.id_card_normalised,
+        area_code: row.area_code,
+        flags: row.flags,
+      })),
+      subtotal: {
+        count: otherRows.length,
+      },
+    } as any);
+  }
 
   const grandTotal = filtered.length;
   const areaCodeBreakdown = filtered.reduce((acc, row) => {

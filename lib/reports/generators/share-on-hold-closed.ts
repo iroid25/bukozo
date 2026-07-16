@@ -71,6 +71,7 @@ export class ShareOnHoldClosedGenerator extends BaseReportGenerator {
         institution: {
           select: {
             institutionName: true,
+            institutionPhone: true,
           },
         },
         accountType: {
@@ -103,7 +104,7 @@ export class ShareOnHoldClosedGenerator extends BaseReportGenerator {
       return {
         accountNumber: account.accountNumber,
         memberName: account.member?.user?.name || account.institution?.institutionName || 'N/A',
-        memberPhone: account.member?.user?.phone || 'N/A',
+        memberPhone: account.member?.user?.phone || account.institution?.institutionPhone || 'N/A',
         accountType: account.accountType.name,
         branch: account.branch?.name || 'N/A',
         numberOfShares: sharesCount,

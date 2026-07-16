@@ -43,6 +43,11 @@ const reportGroups: ReportGroup[] = [
         href: "/dashboard/reports/shares/share-batch-totals",
         source: "batch remittances and totals",
       },
+      {
+        name: "Top & Bottom Shareholders",
+        href: "/dashboard/reports/shares/top-bottom-shareholders",
+        source: "highest and lowest shareholders",
+      },
     ],
   },
   {
@@ -65,8 +70,8 @@ const reportGroups: ReportGroup[] = [
   },
   {
     title: "Transfers",
-    description: "Share transfer history",
-    sources: ["share transfers", "reversals", "zero balance"],
+    description: "Share transfer history and account status",
+    sources: ["share transfers", "reversals", "zero balance", "on hold / closed"],
     icon: BarChart,
     items: [
       {
@@ -78,6 +83,11 @@ const reportGroups: ReportGroup[] = [
         name: "Shares Zero Balance Report",
         href: "/dashboard/reports/shares/share-zero-balance",
         source: "zero-balance share accounts",
+      },
+      {
+        name: "Accounts On Hold / Closed",
+        href: "/dashboard/reports/shares/on-hold-closed",
+        source: "on hold, suspended, or closed share accounts",
       },
     ],
   },

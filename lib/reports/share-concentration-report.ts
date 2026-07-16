@@ -215,6 +215,7 @@ async function fetchShareAccounts(branchId: string | null, reportDate: Date) {
       institution: {
         select: {
           institutionName: true,
+          institutionPhone: true,
         },
       },
       accountType: {
@@ -263,7 +264,6 @@ function mapShareRecords(accounts: any[], reportDate: Date, excludeNonFinancial:
         branchName: account.branch?.name || "All Branches",
       } as ShareRecord;
     })
-    .filter((record) => !record.productCode || PRODUCT_ORDER.includes(record.productCode as (typeof PRODUCT_ORDER)[number]))
     .filter((record) => (!excludeNonFinancial ? true : record.balance > 0));
 }
 

@@ -85,7 +85,12 @@ function normalizeStatus(value: string | null | undefined) {
 }
 
 function getProductCode(record: any) {
-  return String(record.accountType?.ledgerAccount?.accountCode || "").trim();
+  const code = String(record.accountType?.ledgerAccount?.accountCode || "").trim();
+  if (code) return code;
+  // Fallback: derive a stable product code from the account type name
+  const typeName = String(record.accountType?.name || "").trim();
+  if (!typeName) return "";
+  return typeName.replace(/\s+/g, "_").toUpperCase();
 }
 
 function getProductName(record: any, code: string) {
@@ -263,7 +268,7 @@ async function fetchShareAccounts(branchId: string | null, reportDate: Date) {
     status: a.status,
     openedDate: a.openedAt,
     closedDate: a.closedAt,
-    lastTransactionDate: a.closedAt,
+    lastTransactionDate: null,
     createdAt: a.openedAt,
     updatedAt: a.openedAt,
     batchNumber: null,
@@ -279,7 +284,7 @@ async function fetchShareAccounts(branchId: string | null, reportDate: Date) {
 async function resolveLastTransactionDates(accountIds: string[], reportDate: Date) {
   if (accountIds.length === 0) return new Map<string, Date>();
 
-  const rows = await db.shareTransaction.groupBy({
+  const shareRows = await db.shareTransaction.groupBy({
     by: ["accountId"],
     where: {
       accountId: { in: accountIds },
@@ -291,11 +296,30 @@ async function resolveLastTransactionDates(accountIds: string[], reportDate: Dat
     },
   });
 
-  return new Map(
-    rows
-      .filter((row) => Boolean(row._max.transactionDate))
-      .map((row) => [row.accountId, row._max.transactionDate as Date] as const),
-  );
+  const txnRows = await db.transaction.groupBy({
+    by: ["accountId"],
+    where: {
+      accountId: { in: accountIds },
+      transactionDate: { lte: reportDate },
+      status: "COMPLETED",
+    },
+    _max: {
+      transactionDate: true,
+    },
+  });
+
+  const dateMap = new Map<string, Date>();
+  for (const row of shareRows) {
+    if (row._max.transactionDate) dateMap.set(row.accountId, row._max.transactionDate);
+  }
+  for (const row of txnRows) {
+    const existing = dateMap.get(row.accountId);
+    if (row._max.transactionDate && (!existing || row._max.transactionDate > existing)) {
+      dateMap.set(row.accountId, row._max.transactionDate);
+    }
+  }
+
+  return dateMap;
 }
 
 function mapAccountRows(
@@ -486,8 +510,7 @@ export async function getShareBatchTotalsReport(params: {
     reportDate,
   );
 
-  const records = mapAccountRows(accounts, lastTrxDates, reportDate)
-    .filter((record) => PRODUCT_ORDER.includes(record.productCode as (typeof PRODUCT_ORDER)[number]));
+  const records = mapAccountRows(accounts, lastTrxDates, reportDate);
 
   const productFilter = (params.productId || params.productCode || "").trim();
   const memberSearch = (params.memberSearch || "").trim().toLowerCase();
@@ -565,7 +588,59 @@ export async function getShareBatchTotalsReport(params: {
         total_balance: totalBalance,
       },
     };
-  });
+  }).filter((p) => p.grand_total.count > 0);
+
+  const otherRecords = filtered.filter((record) => !PRODUCT_ORDER.includes(record.productCode as any));
+  if (otherRecords.length > 0) {
+    const batchMap = new Map<string, ShareAccountRow[]>();
+    otherRecords.forEach((record) => {
+      const key = record.batchNumber == null ? "__blank__" : String(record.batchNumber);
+      const current = batchMap.get(key) || [];
+      current.push(record);
+      batchMap.set(key, current);
+    });
+
+    const batches = Array.from(batchMap.entries())
+      .sort((a, b) => {
+        const aBlank = a[0] === "__blank__";
+        const bBlank = b[0] === "__blank__";
+        if (aBlank && !bBlank) return -1;
+        if (!aBlank && bBlank) return 1;
+        if (aBlank && bBlank) return 0;
+        return Number(a[0]) - Number(b[0]);
+      })
+      .map(([key, batchRecords]) => ({
+        batch_number: key === "__blank__" ? null : Number(key),
+        batch_label: key === "__blank__" ? "BATCH:" : `BATCH: ${key}`,
+        accounts: batchRecords
+          .sort((a, b) => a.accountNumber.localeCompare(b.accountNumber))
+          .map((record) => ({
+            account_number: record.accountNumber,
+            member_name: record.memberName,
+            bvn_tin: record.bvnTin,
+            phone: record.phone,
+            ref_no: record.batchNumber,
+            current_balance: record.currentBalance,
+          })),
+        subtotal: {
+          count: batchRecords.length,
+          total_balance: batchRecords.reduce((sum, row) => sum + row.currentBalance, 0),
+        },
+      }));
+
+    const totalBalance = batches.reduce((sum, batch) => sum + batch.subtotal.total_balance, 0);
+    const totalCount = batches.reduce((sum, batch) => sum + batch.subtotal.count, 0);
+
+    grouped.push({
+      product_code: "OTHER",
+      product_name: "Other Share Accounts",
+      batches,
+      grand_total: {
+        count: totalCount,
+        total_balance: totalBalance,
+      },
+    } as any);
+  }
 
   const branchMeta = await resolveBranchLabel(branchId, accounts);
 

@@ -183,20 +183,24 @@ function balanceType(amount: number): "CR" | "DR" {
   return amount >= 0 ? "CR" : "DR";
 }
 
-function resolveTransactionTypeCode(row: ShareTransactionRecord) {
-  const reference = row.reference?.trim();
+function resolveTransactionTypeCode(row: any) {
+  const reference = row.reference?.trim() || row.transactionRef?.trim();
   if (reference) {
     const code = reference.slice(-1).toUpperCase();
     if (/^[A-Z]$/.test(code)) return code;
   }
 
-  switch (row.transactionType) {
+  const txnType = row.transactionType || row.type;
+  switch (txnType) {
     case "PURCHASE":
     case "TRANSFER_IN":
     case "DIVIDEND":
+    case "SHARES_PURCHASE":
+    case "DEPOSIT":
       return "C";
     case "SALE":
     case "TRANSFER_OUT":
+    case "WITHDRAWAL":
       return "D";
     case "REVERSAL":
       return "H";
@@ -205,10 +209,12 @@ function resolveTransactionTypeCode(row: ShareTransactionRecord) {
   }
 }
 
-function resolveTellerName(row: ShareTransactionRecord) {
+function resolveTellerName(row: any) {
   const teller = row.teller;
-  if (!teller) return "System";
-  return teller.name?.trim() || [teller.firstName, teller.lastName].filter(Boolean).join(" ").trim() || "System";
+  if (teller) return teller.name?.trim() || [teller.firstName, teller.lastName].filter(Boolean).join(" ").trim() || "System";
+  const user = row.processedByUser;
+  if (user) return user.name?.trim() || "System";
+  return "System";
 }
 
 type ShareTransactionRecord = Prisma.ShareTransactionGetPayload<{
@@ -400,37 +406,51 @@ async function findShareAccount(filters: ShareStatementFilters, branchId: string
   return null;
 }
 
-function txDirection(tx: ShareTransactionRecord) {
-  if (tx.transactionType === "PURCHASE" || tx.transactionType === "TRANSFER_IN" || tx.transactionType === "DIVIDEND") {
+function txDirection(tx: any) {
+  const txnType = tx.transactionType || tx.type;
+  if (txnType === "PURCHASE" || txnType === "TRANSFER_IN" || txnType === "DIVIDEND" || txnType === "SHARES_PURCHASE" || txnType === "DEPOSIT") {
     return "credit" as const;
   }
   return "debit" as const;
 }
 
-function isLoanShareDeduction(tx: ShareTransactionRecord) {
-  const reference = tx.reference?.trim().toUpperCase() || "";
-  const description = tx.description?.trim().toLowerCase() || "";
+function isLoanShareDeduction(tx: any) {
+  const reference = (tx.reference || tx.transactionRef || "").trim().toUpperCase();
+  const description = (tx.description || "").trim().toLowerCase();
   return reference.startsWith("LN-SHARE-") || description.includes("share capital deduction from loan");
 }
 
-function resolveTxnLabel(tx: ShareTransactionRecord) {
+function resolveTxnLabel(tx: any) {
   if (isLoanShareDeduction(tx)) {
     return "Loan deduction - Associate Shares";
   }
-  return TRX_TYPE_LABELS[tx.transactionType] || "Shares Deposit";
+  return TRX_TYPE_LABELS[tx.transactionType] || TRX_TYPE_LABELS[tx.type] || "Shares Deposit";
 }
 
 async function ledgerBalanceForAccount(account: ShareAccountRecord, asOfDate: Date, _branchId?: string) {
   const endOfDay = new Date(asOfDate);
   endOfDay.setHours(23, 59, 59, 999);
 
-  const relevant = account.transactions.filter(
+  let txns = account.transactions.filter(
     (tx) => !tx.isReversed && tx.transactionDate <= endOfDay,
   );
 
+  // For institution accounts (no ShareTransaction records), query Transaction model
+  if ((account as any).institutionId && txns.length === 0) {
+    const institutionTxns = await db.transaction.findMany({
+      where: {
+        accountId: account.id,
+        status: "COMPLETED",
+        transactionDate: { lte: endOfDay },
+      },
+    });
+    txns = institutionTxns as any[];
+  }
+
   let balance = 0;
-  for (const tx of relevant) {
-    if (tx.transactionType === "PURCHASE" || tx.transactionType === "TRANSFER_IN" || tx.transactionType === "DIVIDEND") {
+  for (const tx of txns) {
+    const txnType = (tx as any).transactionType || (tx as any).type;
+    if (txnType === "PURCHASE" || txnType === "TRANSFER_IN" || txnType === "DIVIDEND" || txnType === "SHARES_PURCHASE" || txnType === "DEPOSIT") {
       balance += Number(tx.amount || 0);
     } else {
       balance -= Number(tx.amount || 0);
@@ -451,7 +471,21 @@ export async function buildShareAccountStatementReport(filters: ShareStatementFi
     throw new Error("Share account not found");
   }
 
-  const allTransactions = (account.transactions as any[])
+  let accountTransactions = account.transactions as any[];
+
+  // For institution accounts (which have no ShareTransaction records), query Transaction model
+  if (account.institutionId && accountTransactions.length === 0) {
+    accountTransactions = await db.transaction.findMany({
+      where: {
+        accountId: account.id,
+        status: "COMPLETED",
+        transactionDate: { lte: dateTo },
+      },
+      orderBy: { transactionDate: "asc" },
+    });
+  }
+
+  const allTransactions = accountTransactions
     .filter((txn: any) => !txn.isReversed && txn.transactionDate <= dateTo)
     .sort((a: any, b: any) => a.transactionDate.getTime() - b.transactionDate.getTime() || a.createdAt.getTime() - b.createdAt.getTime());
 
@@ -493,11 +527,11 @@ export async function buildShareAccountStatementReport(filters: ShareStatementFi
       ? (previousTransactions.at(-1)?.transactionDate || dateFrom)
       : periodTransactions[index - 1].transactionDate;
     const daysSincePrev = Math.max(0, differenceInCalendarDays(txn.transactionDate, prevDate));
-    const trxNo = txn.reference || txn.id;
+    const trxNo = txn.reference || txn.transactionRef || txn.id;
     const trxTypeCode = resolveTransactionTypeCode(txn);
     const sourceLine = isLoanShareDeduction(txn)
       ? "Loan deduction - Associate Shares"
-      : TRX_TYPE_LABELS[txn.transactionType] || "Shares Deposit";
+      : TRX_TYPE_LABELS[txn.transactionType] || TRX_TYPE_LABELS[txn.type] || "Shares Deposit";
 
     transactions.push({
       id: txn.id,

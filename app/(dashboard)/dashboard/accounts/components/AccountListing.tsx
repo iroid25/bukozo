@@ -71,20 +71,54 @@ export default function AccountListing({
       accessorKey: "accountNumber",
       header: "Account Details",
       cell: (row) => {
-        const account = row;
+        const account = row as any;
         const statusInfo = getAccountStatusInfo(account.status);
+        const isFd = account.isFd;
 
         return (
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+            <div className={`flex h-10 w-10 items-center justify-center rounded-full ${
+              isFd
+                ? "bg-amber-100 text-amber-600"
+                : "bg-blue-100 text-blue-600"
+            }`}>
               <CreditCard className="h-5 w-5" />
             </div>
             <div className="flex flex-col">
               <div className="flex items-center gap-2">
                 <span className="font-medium">{account.accountNumber}</span>
-                <Badge className={statusInfo.color}>
-                  {statusInfo.icon} {statusInfo.label}
-                </Badge>
+                {isFd ? (
+                  <Badge className={
+                    account.fdStatus === "ACTIVE"
+                      ? account.daysToMaturity <= 0
+                        ? "bg-amber-100 text-amber-800"
+                        : "bg-green-100 text-green-800"
+                      : account.fdStatus === "WITHDRAWN"
+                      ? "bg-red-100 text-red-800"
+                      : account.fdStatus === "REVERSED"
+                      ? "bg-orange-100 text-orange-800"
+                      : "bg-blue-100 text-blue-800"
+                  }>
+                    {account.fdStatus === "ACTIVE"
+                      ? account.daysToMaturity <= 0 ? "Matured" : "Active"
+                      : account.fdStatus === "WITHDRAWN"
+                      ? "Withdrawn"
+                      : account.fdStatus === "REVERSED"
+                      ? "Reversed"
+                      : account.fdStatus === "RENEWED"
+                      ? "Renewed"
+                      : account.fdStatus}
+                  </Badge>
+                ) : (
+                  <Badge className={statusInfo.color}>
+                    {statusInfo.icon} {statusInfo.label}
+                  </Badge>
+                )}
+                {isFd && (
+                  <Badge variant="outline" className="text-[10px] bg-amber-50 border-amber-200 text-amber-700">
+                    FD
+                  </Badge>
+                )}
               </div>
               <span className="text-sm text-gray-500">
                 {getAccountTypeDisplayName(account.accountType.name)}
@@ -178,9 +212,10 @@ export default function AccountListing({
       accessorKey: "balance",
       header: "Balance",
       cell: (row) => {
-        const account = row;
+        const account = row as any;
+        const isFd = account.isFd;
         const balanceColor =
-          account.balance >= account.accountType.minBalance
+          account.balance >= (account.accountType.minBalance || 0)
             ? "text-green-700"
             : "text-red-700";
 
@@ -193,9 +228,53 @@ export default function AccountListing({
               </span>
             </div>
             <div className="text-xs text-gray-500">
-              Min: {formatCurrency(account.accountType.minBalance)}
+              Min: {formatCurrency(account.accountType.minBalance || 0)}
             </div>
-            {account.accountType.hasFixedPeriod && account.expectedInterest && (
+
+            {isFd && account.expectedInterest > 0 && (
+              <div className="mt-1.5 pt-1.5 border-t border-gray-200 space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Interest ({account.accountType.interestRate}% p.a.)</span>
+                  <span className="text-green-600 font-semibold">{formatCurrency(account.expectedInterest)}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">At Maturity</span>
+                  <span className="text-blue-700 font-bold">{formatCurrency(account.maturityAmount || account.balance + account.expectedInterest)}</span>
+                </div>
+
+                {isFd && (
+                  <div className="mt-1">
+                    <div className="flex items-center justify-between text-[10px] text-gray-500 mb-0.5">
+                      <span>{account.termMonths} months</span>
+                      <span>{account.daysToMaturity > 0 ? `${account.daysToMaturity}d left` : "Matured"}</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all ${
+                          account.maturityProgressPct >= 100
+                            ? "bg-green-500"
+                            : account.maturityProgressPct >= 75
+                            ? "bg-blue-500"
+                            : account.maturityProgressPct >= 50
+                            ? "bg-amber-400"
+                            : "bg-orange-400"
+                        }`}
+                        style={{ width: `${Math.min(100, account.maturityProgressPct || 0)}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {account.fixingEndDate && (
+                  <div className="text-[10px] text-gray-500 flex items-center gap-1">
+                    <Calendar className="h-3 w-3" />
+                    Due: {formatISODate(account.fixingEndDate)}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!isFd && account.accountType.hasFixedPeriod && account.expectedInterest && (
               <div className="mt-1 pt-1 border-t border-gray-200">
                 <div className="text-xs text-green-600 font-medium">
                   Interest: {formatCurrency(account.expectedInterest)}
@@ -210,7 +289,7 @@ export default function AccountListing({
                 )}
               </div>
             )}
-            
+
             {account.accountType.isShareAccount && account.sharesCount !== null && (
               <div className="mt-1 pt-1 border-t border-gray-200">
                 <div className="bg-blue-50 px-1.5 py-0.5 rounded inline-flex items-center gap-1.5">
@@ -275,7 +354,34 @@ export default function AccountListing({
       accessorKey: "id",
       header: "Actions",
       cell: (row) => {
-        const account = row;
+        const account = row as any;
+        const isFd = account.isFd;
+
+        if (isFd) {
+          return (
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.push(`/dashboard/accounts/fixed-deposits?view=${account.id}`)}
+              >
+                <Eye className="h-4 w-4 mr-1" />
+                View
+              </Button>
+              {account.fdStatus === "ACTIVE" && account.daysToMaturity <= 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => router.push(`/dashboard/accounts/fixed-deposits`)}
+                  className="border-green-200 text-green-700 hover:bg-green-50"
+                >
+                  <DollarSign className="h-4 w-4 mr-1" />
+                  Withdraw
+                </Button>
+              )}
+            </div>
+          );
+        }
 
         return (
           <div className="flex items-center gap-1">
@@ -496,55 +602,86 @@ export default function AccountListing({
           enableDateFilter: true,
           getItemDate: (item) => item.openedAt,
         }}
-        renderRowActions={(item) => (
-          <div className="flex items-center justify-end gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => router.push(`/dashboard/accounts/${item.id}`)}
-            >
-              <Eye className="h-4 w-4 mr-1" />
-              View
-            </Button>
+        renderRowActions={(item) => {
+          const a = item as any;
+          const isFd = a.isFd;
 
-            {item.status === AccountStatus.DORMANT &&
-              ["ADMIN", "ACCOUNTANT", "TELLER"].includes(userRole) && (
+          if (isFd) {
+            return (
+              <div className="flex items-center justify-end gap-2">
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => handleReactivateAccountClick(item)}
-                  className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                  onClick={() => router.push(`/dashboard/accounts/fixed-deposits?view=${a.id}`)}
                 >
-                  <RefreshCcw className="h-4 w-4 mr-1" />
-                  Reactivate
+                  <Eye className="h-4 w-4 mr-1" />
+                  View
+                </Button>
+                {a.fdStatus === "ACTIVE" && (a.daysToMaturity ?? 0) <= 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => router.push(`/dashboard/accounts/fixed-deposits`)}
+                    className="border-green-200 text-green-700 hover:bg-green-50"
+                  >
+                    <DollarSign className="h-4 w-4 mr-1" />
+                    Withdraw
+                  </Button>
+                )}
+              </div>
+            );
+          }
+
+          return (
+            <div className="flex items-center justify-end gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.push(`/dashboard/accounts/${item.id}`)}
+              >
+                <Eye className="h-4 w-4 mr-1" />
+                View
+              </Button>
+
+              {item.status === AccountStatus.DORMANT &&
+                ["ADMIN", "ACCOUNTANT", "TELLER"].includes(userRole) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleReactivateAccountClick(item)}
+                    className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                  >
+                    <RefreshCcw className="h-4 w-4 mr-1" />
+                    Reactivate
+                  </Button>
+                )}
+
+              {item.status !== AccountStatus.CLOSED && userRole === "ADMIN" && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    router.push(`/dashboard/accounts/manage${item.accountTypeId}`)
+                  }
+                >
+                  <Settings className="h-4 w-4" />
                 </Button>
               )}
 
-            {item.status !== AccountStatus.CLOSED && userRole === "ADMIN" && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  router.push(`/dashboard/accounts/manage${item.accountTypeId}`)
-                }
-              >
-                <Settings className="h-4 w-4" />
-              </Button>
-            )}
-
-            {item.status !== AccountStatus.CLOSED && userRole === "ADMIN" && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleCloseAccountClick(item)}
-                className="text-destructive"
-              >
-                <Settings className="h-4 w-4 mr-1" />
-                Close
-              </Button>
-            )}
-          </div>
-        )}
+              {item.status !== AccountStatus.CLOSED && userRole === "ADMIN" && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleCloseAccountClick(item)}
+                  className="text-destructive"
+                >
+                  <Settings className="h-4 w-4 mr-1" />
+                  Close
+                </Button>
+              )}
+            </div>
+          );
+        }}
       />
 
       <ConfirmationDialog

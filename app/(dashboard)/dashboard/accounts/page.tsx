@@ -55,38 +55,61 @@ async function fetchAccounts() {
   ]);
 
   // Map FixedDeposit records to Account-compatible shape for the listing
-  const fdAccounts = fixedDeposits.map((fd) => ({
-    id: fd.id,
-    accountNumber: fd.accountNumber,
-    balance: fd.principalAmount,
-    status: fd.status === "ACTIVE" ? "ACTIVE" : fd.status === "WITHDRAWN" ? "CLOSED" : "ACTIVE",
-    accountTypeId: "",
-    accountType: {
-      id: "fixed-deposit-model",
-      name: "FIXED_DEPOSIT",
-      minBalance: 0,
-      hasFixedPeriod: true,
-      interestRate: fd.interestRate,
-    },
-    memberId: fd.memberId,
-    member: fd.member
-      ? {
-          ...fd.member,
-          user: fd.member.user,
-        }
-      : null,
-    institutionId: fd.institutionId,
-    institution: fd.institution
-      ? {
-          ...fd.institution,
-          user: fd.institution.user,
-        }
-      : null,
-    branchId: fd.branchId,
-    branch: fd.branch,
-    openedAt: fd.createdAt,
-    _count: { transactions: 0, deposits: 0, withdrawals: 0 },
-  }));
+  const fdAccounts = fixedDeposits.map((fd) => {
+    const now = new Date();
+    const maturityDate = new Date(fd.maturityAmount ? fd.maturityDate : fd.maturityDate);
+    const totalInterest = fd.maturityAmount - fd.principalAmount;
+    const daysTotal = Math.max(1, Math.ceil((maturityDate.getTime() - new Date(fd.startDate).getTime()) / 86400000));
+    const daysElapsed = Math.max(0, Math.min(daysTotal, Math.ceil((now.getTime() - new Date(fd.startDate).getTime()) / 86400000)));
+    const progressPct = Math.min(100, Math.round((daysElapsed / daysTotal) * 100));
+    const daysToMaturity = Math.max(0, Math.ceil((maturityDate.getTime() - now.getTime()) / 86400000));
+    const isMatured = fd.status === "ACTIVE" && now >= maturityDate;
+    const status = fd.status === "WITHDRAWN" ? "CLOSED" : isMatured ? "MATURED" : "ACTIVE";
+
+    return {
+      id: fd.id,
+      accountNumber: fd.accountNumber,
+      balance: fd.principalAmount,
+      status,
+      accountTypeId: "fixed-deposit-model",
+      accountType: {
+        id: "fixed-deposit-model",
+        name: "FIXED_DEPOSIT",
+        minBalance: 0,
+        hasFixedPeriod: true,
+        isShareAccount: false,
+        interestRate: fd.interestRate,
+        sharePrice: null,
+      },
+      memberId: fd.memberId,
+      member: fd.member
+        ? {
+            ...fd.member,
+            user: fd.member.user,
+          }
+        : null,
+      institutionId: fd.institutionId,
+      institution: fd.institution
+        ? {
+            ...fd.institution,
+            user: fd.institution.user,
+          }
+        : null,
+      branchId: fd.branchId,
+      branch: fd.branch,
+      openedAt: fd.startDate,
+      closedAt: fd.withdrawnDate || null,
+      expectedInterest: totalInterest,
+      maturityAmount: fd.maturityAmount,
+      fixingEndDate: fd.maturityDate,
+      termMonths: fd.termMonths,
+      daysToMaturity,
+      maturityProgressPct: progressPct,
+      isFd: true as const,
+      fdStatus: fd.status,
+      _count: { transactions: 0, deposits: 0, withdrawals: 0 },
+    };
+  });
 
   return [...accounts, ...fdAccounts as any[]];
 }

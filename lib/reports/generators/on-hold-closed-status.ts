@@ -14,11 +14,12 @@ export class OnHoldClosedStatusGenerator extends BaseReportGenerator {
   }
 
   async generateData(params: Record<string, any>): Promise<ReportData> {
-    // Build query for on hold or closed accounts
+    const shareMode = params.shareAccounts === true || params.shareAccounts === "true";
+
     const where: any = {
       accountType: {
-        isShareAccount: false,
-        hasFixedPeriod: false,
+        isShareAccount: shareMode,
+        ...(shareMode ? {} : { hasFixedPeriod: false }),
       },
       OR: [
         {
