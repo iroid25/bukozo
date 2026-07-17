@@ -1812,6 +1812,7 @@ model ShareTransaction {
   description     String?
   tellerId        String?
   batchId         String?
+  sessionId       String?
   isReversed      Boolean              @default(false)
   reversedDate    DateTime?
   createdAt       DateTime             @default(now())
@@ -1822,6 +1823,8 @@ model ShareTransaction {
   @@index([accountId])
   @@index([transactionDate])
   @@index([transactionType])
+  @@index([batchId])
+  @@index([sessionId])
 }
 
 model FixedDeposit {

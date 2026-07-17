@@ -68,6 +68,8 @@ export class SavingsBatchTotalsGenerator extends BaseReportGenerator {
             institution: {
               select: {
                 institutionName: true,
+                institutionPhone: true,
+                institutionNumber: true,
               },
             },
             accountType: {
@@ -127,9 +129,9 @@ export class SavingsBatchTotalsGenerator extends BaseReportGenerator {
         members: txns.map((transaction) => ({
           accountNumber: transaction.account.accountNumber,
           memberName: transaction.account.member?.user?.name || transaction.account.institution?.institutionName || 'N/A',
-          phone: transaction.account.member?.user?.phone || '',
+          phone: transaction.account.member?.user?.phone || transaction.account.institution?.institutionPhone || '',
           bankVerificationNo: transaction.account.member?.user?.nationalId || null,
-          refNo: transaction.account.member?.memberNumber || 'N/A',
+          refNo: transaction.account.member?.memberNumber || transaction.account.institution?.institutionNumber || 'N/A',
           balance: this.formatCurrency(transaction.account.balance),
           transactionAmount: this.formatCurrency(transaction.amount),
           teller: processorName,

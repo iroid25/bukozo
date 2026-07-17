@@ -41,6 +41,7 @@ import {
   Shield,
   ShieldCheck,
   ShieldAlert,
+  ShoppingCart,
   BookOpenCheck,
   CircleDollarSign,
   Handshake,
@@ -949,6 +950,13 @@ const baseRoutes: Route[] = [
     href: "/dashboard/loans/institution-loan-process-tracking",
     icon: Handshake,
     roles: [UserRoleType.INSTITUTION, UserRoleType.ADMIN],
+    group: "System Configuration",
+  },
+  {
+    title: "Institution Share Purchase",
+    href: "/dashboard/shares/institution-purchase",
+    icon: ShoppingCart,
+    roles: [UserRoleType.ADMIN, UserRoleType.TELLER, UserRoleType.AGENT, UserRoleType.BRANCHMANAGER, UserRoleType.ACCOUNTANT],
     group: "System Configuration",
   },
   {

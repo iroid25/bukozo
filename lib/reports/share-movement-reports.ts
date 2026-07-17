@@ -196,7 +196,7 @@ async function fetchShareAccounts(branchId: string | null) {
 }
 
 function getProductCode(account: any) {
-  return String(account.accountType?.ledgerAccount?.accountCode || "").trim();
+  return String(account.accountType?.ledgerAccount?.accountCode || account.accountType?.name || "").trim();
 }
 
 function getProductName(account: any, productCode: string) {

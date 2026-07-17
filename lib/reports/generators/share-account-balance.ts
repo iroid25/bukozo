@@ -54,6 +54,7 @@ export class ShareAccountBalanceGenerator extends BaseReportGenerator {
           select: {
             institutionName: true,
             institutionNumber: true,
+            institutionPhone: true,
           },
         },
       },
@@ -75,7 +76,7 @@ export class ShareAccountBalanceGenerator extends BaseReportGenerator {
         amountBlocked: 0,
         balance: account.balance,
         drCr: account.balance >= 0 ? "CR" : "DR",
-        phone: account.member?.user?.phone || "",
+        phone: account.member?.user?.phone || account.institution?.institutionPhone || "",
         bankVerificationNo: account.member?.user?.nationalId || null,
       };
       acc[code].accountCount++;
@@ -90,7 +91,9 @@ export class ShareAccountBalanceGenerator extends BaseReportGenerator {
       accountCount: type.accountCount,
       totalBlocked: this.formatCurrency(type.totalBlocked),
       totalValue: this.formatCurrency(type.totalValue),
-      averageShares: 0,
+      averageShares: type.accounts.length > 0
+        ? Math.round(type.accounts.reduce((sum: number, acc: any) => sum + (acc.sharesCount || 0), 0) / type.accounts.length)
+        : 0,
     }));
 
     const summary = {
@@ -113,7 +116,7 @@ export class ShareAccountBalanceGenerator extends BaseReportGenerator {
         amountBlocked: 0,
         balance: account.balance,
         drCr: account.balance >= 0 ? "CR" : "DR",
-        phone: account.member?.user?.phone || "",
+        phone: account.member?.user?.phone || account.institution?.institutionPhone || "",
         bankVerificationNo: account.member?.user?.nationalId || null,
         productCode: account.accountType.ledgerAccount?.accountCode || account.accountNumber.split(".")[0] || account.accountType.name,
         productName: account.accountType.ledgerAccount?.accountName || account.accountType.name,

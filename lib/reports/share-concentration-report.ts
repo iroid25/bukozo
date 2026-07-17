@@ -209,6 +209,7 @@ async function fetchShareAccounts(branchId: string | null, reportDate: Date) {
       accountType: { isShareAccount: true },
       institutionId: { not: null },
       status: "ACTIVE",
+      openedAt: { lte: reportDate },
       ...(branchId ? { branchId } : {}),
     },
     include: {
@@ -319,7 +320,7 @@ export async function getShareConcentrationReport(params: {
     },
   });
 
-  const recordsByProduct = PRODUCT_ORDER.map((productCode) => {
+  const recordsByProduct: Array<{ product_code: string; product_name: string; bands: ReturnType<typeof buildBandRows>; total: ReturnType<typeof buildTotal> }> = PRODUCT_ORDER.map((productCode) => {
     const productRecords = shareRecords.filter((record) => record.productCode === productCode);
     const bandRows = buildBandRows(productRecords, bands);
     return {
@@ -329,6 +330,17 @@ export async function getShareConcentrationReport(params: {
       total: buildTotal(bandRows),
     };
   });
+
+  const otherRecords = shareRecords.filter((record) => !(PRODUCT_ORDER as readonly string[]).includes(record.productCode));
+  if (otherRecords.length > 0) {
+    const otherBands = buildBandRows(otherRecords, bands);
+    recordsByProduct.push({
+      product_code: "OTHER",
+      product_name: "Other Share Accounts",
+      bands: otherBands,
+      total: buildTotal(otherBands),
+    });
+  }
 
   const aggregateBands = bands.map((band) => {
     const combined = recordsByProduct.reduce(
@@ -358,7 +370,7 @@ export async function getShareConcentrationReport(params: {
     band.balance_pct = aggregateTotalBalance ? (band.total_balance / aggregateTotalBalance) * 100 : 0;
   });
 
-  const loanDeductionSummary = PRODUCT_ORDER.map((productCode) => {
+  const loanDeductionSummary: LoanDeductionSummaryRow[] = PRODUCT_ORDER.map((productCode) => {
     const productTx = loanDeductionTransactions.filter((tx) => {
       const txCode = String(tx.account?.accountType?.ledgerAccount?.accountCode || "").trim();
       return txCode === productCode;
@@ -370,6 +382,19 @@ export async function getShareConcentrationReport(params: {
       total_amount: productTx.reduce((sum, tx) => sum + Number(tx.amount || 0), 0),
     } satisfies LoanDeductionSummaryRow;
   });
+
+  const otherTx = loanDeductionTransactions.filter((tx) => {
+    const txCode = String(tx.account?.accountType?.ledgerAccount?.accountCode || "").trim();
+    return !(PRODUCT_ORDER as readonly string[]).includes(txCode);
+  });
+  if (otherTx.length > 0) {
+    loanDeductionSummary.push({
+      product_code: "OTHER",
+      product_name: "Other Share Accounts",
+      count: otherTx.length,
+      total_amount: otherTx.reduce((sum, tx) => sum + Number(tx.amount || 0), 0),
+    });
+  }
 
   return {
     saccoName: REPORT_HEADER_DETAILS.institutionName,

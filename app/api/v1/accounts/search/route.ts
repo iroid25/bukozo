@@ -32,6 +32,8 @@ export async function GET(request: NextRequest) {
                 { accountNumber: { contains: query, mode: "insensitive" as const } },
                 { member: { user: { name: { contains: query, mode: "insensitive" as const } } } },
                 { member: { user: { phone: { contains: query } } } },
+                { institution: { institutionName: { contains: query, mode: "insensitive" as const } } },
+                { institution: { user: { name: { contains: query, mode: "insensitive" as const } } } },
               ],
             }),
       },
@@ -55,6 +57,17 @@ export async function GET(request: NextRequest) {
             },
           },
         },
+        institution: {
+          select: {
+            institutionName: true,
+            user: {
+              select: {
+                name: true,
+                phone: true,
+              },
+            },
+          },
+        },
       },
       take: 20,
       orderBy: {
@@ -66,8 +79,8 @@ export async function GET(request: NextRequest) {
     const formattedAccounts = accounts.map((account) => ({
       id: account.id,
       accountNumber: account.accountNumber,
-      memberName: account.member?.user?.name || "Unknown",
-      memberPhone: account.member?.user?.phone || "",
+      memberName: account.member?.user?.name || account.institution?.user?.name || account.institution?.institutionName || "Unknown",
+      memberPhone: account.member?.user?.phone || account.institution?.user?.phone || "",
       accountType: account.accountType?.name || "Unknown",
       balance: account.balance,
       isActive: account.status === "ACTIVE",

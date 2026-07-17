@@ -369,8 +369,8 @@ export async function POST(request: NextRequest) {
         if (accountType.isShareAccount && data.institutionId && initialDeposit > 0) {
           const txnRecord = await tx.transaction.create({
             data: {
-              transactionRef: `DEP-SHARE-INST-${Date.now()}`,
-              type: TransactionType.DEPOSIT,
+              transactionRef: `SHR-PUR-INST-${Date.now()}`,
+              type: TransactionType.SHARES_PURCHASE,
               amount: initialDeposit,
               status: TransactionStatus.COMPLETED,
               description: "Institution Share Purchase",

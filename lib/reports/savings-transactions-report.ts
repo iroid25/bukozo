@@ -397,10 +397,13 @@ function resolveGenericTransactionTypeLabel(
 
 function resolveGenericFullName(transaction: GenericSavingsTransactionRecord) {
   const user = transaction.account.member?.user;
+  const inst = (transaction.account as any).institution;
   return (
     user?.name?.trim() ||
     [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() ||
     transaction.account.member?.memberNumber ||
+    inst?.institutionName?.trim() ||
+    inst?.user?.name?.trim() ||
     transaction.account.accountNumber
   );
 }
@@ -1083,6 +1086,16 @@ async function fetchTransactions(filters: SavingsTransactionReportFilters, user:
                   lastName: true,
                   nationalId: true,
                   phone: true,
+                },
+              },
+            },
+          },
+          institution: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
                 },
               },
             },
