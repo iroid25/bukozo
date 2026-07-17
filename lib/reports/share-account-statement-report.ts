@@ -5,6 +5,17 @@ import { Prisma, UserRole } from "@prisma/client";
 import { db } from "@/prisma/db";
 import { getBranchFilterForService } from "@/lib/services/financial-reports";
 
+const ACCOUNT_NAME_TO_PRODUCT: Record<string, string> = {
+  "affiliate shares": "300501",
+  "ordinary shares": "300502",
+  "associate shares": "300503",
+};
+
+function resolveProductCode(typeName: string): string {
+  const key = typeName.toLowerCase().trim();
+  return ACCOUNT_NAME_TO_PRODUCT[key] || "";
+}
+
 type AuthUserLike = {
   id?: string | null;
   email?: string | null;
@@ -108,16 +119,7 @@ type ShareAccountRecord = Prisma.ShareAccountGetPayload<{
         };
       };
     };
-    accountType: {
-      include: {
-        ledgerAccount: {
-          select: {
-            accountCode: true;
-            accountName: true;
-          };
-        };
-      };
-    };
+    accountType: true;
     branch: {
       select: {
         id: true;
@@ -247,9 +249,7 @@ async function findShareAccount(filters: ShareStatementFilters, branchId: string
             { accountNumber: { startsWith: `${productCode}.` } },
             {
               accountType: {
-                ledgerAccount: {
-                  accountCode: productCode,
-                },
+                name: { in: Object.entries(ACCOUNT_NAME_TO_PRODUCT).filter(([, c]) => c === productCode).map(([n]) => n.charAt(0).toUpperCase() + n.slice(1)) },
               },
             },
           ],
@@ -277,16 +277,7 @@ async function findShareAccount(filters: ShareStatementFilters, branchId: string
             },
           },
         },
-        accountType: {
-          include: {
-            ledgerAccount: {
-              select: {
-                accountCode: true,
-                accountName: true,
-              },
-            },
-          },
-        },
+        accountType: true,
         branch: { select: { id: true, name: true } },
         transactions: { include: { teller: { select: { name: true, firstName: true, lastName: true } } } },
       },
@@ -321,16 +312,7 @@ async function findShareAccount(filters: ShareStatementFilters, branchId: string
             },
           },
         },
-        accountType: {
-          include: {
-            ledgerAccount: {
-              select: {
-                accountCode: true,
-                accountName: true,
-              },
-            },
-          },
-        },
+        accountType: true,
         branch: { select: { id: true, name: true } },
         transactions: { include: { teller: { select: { name: true, firstName: true, lastName: true } } } },
       },
@@ -355,7 +337,7 @@ async function findShareAccount(filters: ShareStatementFilters, branchId: string
             user: { select: { name: true, phone: true, email: true, address: true, nationalId: true } },
           },
         },
-        accountType: { include: { ledgerAccount: { select: { accountCode: true, accountName: true } } } },
+        accountType: true,
         branch: { select: { id: true, name: true } },
       },
     });
@@ -387,7 +369,7 @@ async function findShareAccount(filters: ShareStatementFilters, branchId: string
             user: { select: { name: true, phone: true, email: true, address: true, nationalId: true } },
           },
         },
-        accountType: { include: { ledgerAccount: { select: { accountCode: true, accountName: true } } } },
+        accountType: true,
         branch: { select: { id: true, name: true } },
       },
       orderBy: { accountNumber: "asc" },
@@ -565,8 +547,8 @@ export async function buildShareAccountStatementReport(filters: ShareStatementFi
   const amountBlocked = 0;
   const unclearedBalance = 0;
   const clearedBalance = closingBalance - unclearedBalance;
-  const productCode = account.accountType.ledgerAccount?.accountCode || account.accountNumber.split(".")[0] || "300502";
-  const productName = account.accountType.ledgerAccount?.accountName || account.accountType.name || "ORDINARY MEMBERS";
+  const productCode = resolveProductCode(account.accountType?.name || "") || account.accountNumber.split(".")[0] || "300502";
+  const productName = account.accountType?.name || "ORDINARY MEMBERS";
   const ledgerBalance = await ledgerBalanceForAccount(account, dateTo, branchId ?? undefined);
 
   return {
@@ -615,7 +597,7 @@ export async function buildShareAccountStatementReport(filters: ShareStatementFi
     reconciliation: {
       productCode,
       productName,
-      equityAccountCode: account.accountType.ledgerAccount?.accountCode || null,
+      equityAccountCode: resolveProductCode(account.accountType?.name || "") || null,
       systemBalance: closingBalance,
       ledgerBalance,
       difference: closingBalance - ledgerBalance,
@@ -635,7 +617,7 @@ export async function searchShareAccounts(filters: ShareStatementFilters) {
     andClauses.push({
       OR: [
         { accountNumber: { startsWith: `${productCode}.` } },
-        { accountType: { ledgerAccount: { accountCode: productCode } } },
+        { accountType: { name: { in: Object.entries(ACCOUNT_NAME_TO_PRODUCT).filter(([, c]) => c === productCode).map(([n]) => n.charAt(0).toUpperCase() + n.slice(1)) } } },
       ],
     });
   }
@@ -665,16 +647,7 @@ export async function searchShareAccounts(filters: ShareStatementFilters) {
           },
         },
       },
-      accountType: {
-        include: {
-          ledgerAccount: {
-            select: {
-              accountCode: true,
-              accountName: true,
-            },
-          },
-        },
-      },
+      accountType: true,
       branch: { select: { name: true } },
     },
     orderBy: { accountNumber: "asc" },
@@ -700,7 +673,7 @@ export async function searchShareAccounts(filters: ShareStatementFilters) {
     where: { AND: instAndClauses },
     include: {
       institution: { select: { institutionName: true, institutionPhone: true } },
-      accountType: { include: { ledgerAccount: { select: { accountCode: true, accountName: true } } } },
+      accountType: true,
       branch: { select: { name: true } },
     },
     orderBy: { accountNumber: "asc" },
@@ -710,7 +683,7 @@ export async function searchShareAccounts(filters: ShareStatementFilters) {
   const memberResults = accounts.map((account) => ({
     accountNumber: account.accountNumber,
     accountTitle: account.member.user.name,
-    product: account.accountType.ledgerAccount?.accountName || account.accountType.name || "ORDINARY MEMBERS",
+    product: account.accountType.name || "ORDINARY MEMBERS",
     nubanCode: account.member.savingsAccountNumber || account.accountNumber,
     phone: account.member.user.phone || "",
     address: account.member.user.address || account.member.postalAddress || "",
@@ -721,7 +694,7 @@ export async function searchShareAccounts(filters: ShareStatementFilters) {
   const instResults = instAccounts.map((account) => ({
     accountNumber: account.accountNumber,
     accountTitle: account.institution?.institutionName || "N/A",
-    product: account.accountType.ledgerAccount?.accountName || account.accountType.name || "SHARES",
+    product: account.accountType.name || "SHARES",
     nubanCode: account.accountNumber,
     phone: account.institution?.institutionPhone || "",
     address: "",

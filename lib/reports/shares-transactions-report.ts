@@ -68,18 +68,25 @@ const PRODUCT_NAMES: Record<string, string> = {
   "300503": "ASSOCIATE MEMBERS",
 };
 
+const ACCOUNT_NAME_TO_PRODUCT: Record<string, string> = {
+  "affiliate shares": "300501",
+  "ordinary shares": "300502",
+  "associate shares": "300503",
+};
+
 function resolveProductCode(account: any): string {
-  const code = String(account?.accountType?.ledgerAccount?.accountCode || "").trim();
-  if (code) return code;
   const name = String(account?.accountType?.name || "").trim();
-  if (name) return name;
+  if (name) {
+    const mapped = ACCOUNT_NAME_TO_PRODUCT[name.toLowerCase()];
+    if (mapped) return mapped;
+    return name;
+  }
   return "UNCATEGORIZED";
 }
 
 function resolveProductName(account: any, productCode: string): string {
   if (PRODUCT_NAMES[productCode]) return PRODUCT_NAMES[productCode];
   return (
-    account?.accountType?.ledgerAccount?.accountName ||
     account?.accountType?.name ||
     productCode
   );
@@ -151,11 +158,7 @@ export async function getSharesTransactionReport(
   const includeReversed = filters.includeReversed === true;
 
   const accountInclude = {
-    accountType: {
-      include: {
-        ledgerAccount: { select: { accountCode: true, accountName: true } },
-      },
-    },
+    accountType: true,
     branch: { select: { name: true, location: true } },
   };
 

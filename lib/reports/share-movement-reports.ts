@@ -132,16 +132,7 @@ async function fetchShareAccounts(branchId: string | null) {
           },
         },
       },
-      accountType: {
-        include: {
-          ledgerAccount: {
-            select: {
-              accountCode: true,
-              accountName: true,
-            },
-          },
-        },
-      },
+      accountType: true,
       branch: {
         select: {
           name: true,
@@ -152,29 +143,20 @@ async function fetchShareAccounts(branchId: string | null) {
     orderBy: [{ accountNumber: "asc" }],
   });
 
-    const institutionAccounts = await db.account.findMany({
-      where: {
-        accountType: { isShareAccount: true },
-        institutionId: { not: null },
-        ...(branchId ? { branchId } : {}),
-      },
-      include: {
-        institution: {
-          select: {
-            institutionName: true,
-            institutionPhone: true,
-          },
-        },
-      accountType: {
-        include: {
-          ledgerAccount: {
-            select: {
-              accountCode: true,
-              accountName: true,
-            },
-          },
+  const institutionAccounts = await db.account.findMany({
+    where: {
+      accountType: { isShareAccount: true },
+      institutionId: { not: null },
+      ...(branchId ? { branchId } : {}),
+    },
+    include: {
+      institution: {
+        select: {
+          institutionName: true,
+          institutionPhone: true,
         },
       },
+      accountType: true,
       branch: {
         select: {
           name: true,
@@ -195,13 +177,24 @@ async function fetchShareAccounts(branchId: string | null) {
   return [...memberAccounts, ...normalizedInstitution];
 }
 
+const ACCOUNT_NAME_TO_PRODUCT: Record<string, string> = {
+  "affiliate shares": "300501",
+  "ordinary shares": "300502",
+  "associate shares": "300503",
+};
+
+function resolveProductCode(typeName: string): string {
+  const key = typeName.toLowerCase().trim();
+  return ACCOUNT_NAME_TO_PRODUCT[key] || "";
+}
+
 function getProductCode(account: any) {
-  return String(account.accountType?.ledgerAccount?.accountCode || account.accountType?.name || "").trim();
+  const typeName = String(account.accountType?.name || "").trim();
+  return resolveProductCode(typeName) || typeName;
 }
 
 function getProductName(account: any, productCode: string) {
   return (
-    account.accountType?.ledgerAccount?.accountName?.trim() ||
     PRODUCT_NAMES[productCode] ||
     account.accountType?.name ||
     productCode
@@ -272,15 +265,26 @@ function buildTransactionRows(params: Record<string, any>) {
   }
 
   if (productFilter && productFilter !== "all") {
-    andConditions.push({
-      account: {
-        accountType: {
-          ledgerAccount: {
-            accountCode: productFilter,
+    const matchingNames = Object.entries(ACCOUNT_NAME_TO_PRODUCT)
+      .filter(([, code]) => code === productFilter)
+      .map(([name]) => name);
+    if (matchingNames.length > 0) {
+      andConditions.push({
+        account: {
+          accountType: {
+            name: { in: matchingNames.map(n => n.charAt(0).toUpperCase() + n.slice(1)) },
           },
         },
-      },
-    });
+      });
+    } else {
+      andConditions.push({
+        account: {
+          accountType: {
+            name: productFilter,
+          },
+        },
+      });
+    }
   }
 
   const mapShareTransactionRows = (transactions: any[]) =>
@@ -335,7 +339,6 @@ function buildTransactionRows(params: Record<string, any>) {
       .map((tx) => {
         const productCode =
           getProductCode(tx.account) ||
-          String(tx.account?.accountType?.ledgerAccount?.accountCode || "").trim() ||
           "300501";
         const productName = getProductName(tx.account, productCode);
         const amount = Number(tx.amount || 0);
@@ -395,16 +398,7 @@ function buildTransactionRows(params: Record<string, any>) {
               },
             },
           },
-          accountType: {
-            include: {
-              ledgerAccount: {
-                select: {
-                  accountCode: true,
-                  accountName: true,
-                },
-              },
-            },
-          },
+          accountType: true,
           branch: {
             select: {
               name: true,
@@ -449,16 +443,7 @@ function buildTransactionRows(params: Record<string, any>) {
                 },
               },
             },
-            accountType: {
-              include: {
-                ledgerAccount: {
-                  select: {
-                    accountCode: true,
-                    accountName: true,
-                  },
-                },
-              },
-            },
+            accountType: true,
             branch: {
               select: {
                 name: true,
@@ -634,7 +619,7 @@ function buildZeroBalanceRows(accounts: any[], params: Record<string, any>) {
         count: productRows.length,
       },
     };
-  }).filter((p) => p.accounts.length > 0);
+  });
 
   const otherRows = filtered.filter((row) => !PRODUCT_ORDER.includes(row.productCode as any));
   if (otherRows.length > 0) {

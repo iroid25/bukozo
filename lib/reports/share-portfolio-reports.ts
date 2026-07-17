@@ -84,18 +84,24 @@ function normalizeStatus(value: string | null | undefined) {
     .replace(/\b\w/g, (m) => m.toUpperCase());
 }
 
+const ACCOUNT_NAME_TO_PRODUCT: Record<string, string> = {
+  "affiliate shares": "300501",
+  "ordinary shares": "300502",
+  "associate shares": "300503",
+};
+
+function resolveProductCode(typeName: string): string {
+  const key = typeName.toLowerCase().trim();
+  return ACCOUNT_NAME_TO_PRODUCT[key] || "";
+}
+
 function getProductCode(record: any) {
-  const code = String(record.accountType?.ledgerAccount?.accountCode || "").trim();
-  if (code) return code;
-  // Fallback: derive a stable product code from the account type name
   const typeName = String(record.accountType?.name || "").trim();
-  if (!typeName) return "";
-  return typeName.replace(/\s+/g, "_").toUpperCase();
+  return resolveProductCode(typeName) || typeName;
 }
 
 function getProductName(record: any, code: string) {
   return (
-    record.accountType?.ledgerAccount?.accountName?.trim() ||
     PRODUCT_NAMES[code] ||
     record.accountType?.name ||
     code
@@ -199,16 +205,7 @@ async function fetchShareAccounts(branchId: string | null, reportDate: Date) {
           },
         },
       },
-      accountType: {
-        include: {
-          ledgerAccount: {
-            select: {
-              accountCode: true,
-              accountName: true,
-            },
-          },
-        },
-      },
+      accountType: true,
       branch: {
         select: {
           name: true,
@@ -235,16 +232,7 @@ async function fetchShareAccounts(branchId: string | null, reportDate: Date) {
           user: { select: { name: true, phone: true, nationalId: true } },
         },
       },
-      accountType: {
-        include: {
-          ledgerAccount: {
-            select: {
-              accountCode: true,
-              accountName: true,
-            },
-          },
-        },
-      },
+      accountType: true,
       branch: {
         select: {
           name: true,

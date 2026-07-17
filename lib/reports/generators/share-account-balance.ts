@@ -2,6 +2,12 @@ import { BaseReportGenerator, ReportData } from '@/lib/reports';
 import { db } from '@/prisma/db';
 import { getBranchFilterForService } from '@/lib/services/financial-reports';
 
+const ACCOUNT_NAME_TO_PRODUCT: Record<string, string> = {
+  "affiliate shares": "300501",
+  "ordinary shares": "300502",
+  "associate shares": "300503",
+};
+
 export class ShareAccountBalanceGenerator extends BaseReportGenerator {
   constructor() {
     super('Share Account Balance Report', 'Summary of share account balances and holdings');
@@ -28,12 +34,6 @@ export class ShareAccountBalanceGenerator extends BaseReportGenerator {
           select: {
             name: true,
             sharePrice: true,
-            ledgerAccount: {
-              select: {
-                accountCode: true,
-                accountName: true,
-              },
-            },
           },
         },
         branch: { select: { id: true, name: true } },
@@ -61,8 +61,9 @@ export class ShareAccountBalanceGenerator extends BaseReportGenerator {
     });
 
     const byAccountType = accounts.reduce((acc, account) => {
-      const code = account.accountType.ledgerAccount?.accountCode || account.accountNumber.split(".")[0] || account.accountType.name;
-      const name = account.accountType.ledgerAccount?.accountName || account.accountType.name;
+      const typeName = account.accountType.name || "";
+      const code = ACCOUNT_NAME_TO_PRODUCT[typeName.toLowerCase().trim()] || account.accountNumber.split(".")[0] || typeName;
+      const name = typeName || code;
       const sharesCount = account.sharesCount || 0;
       
       if (!acc[code]) {
@@ -118,8 +119,8 @@ export class ShareAccountBalanceGenerator extends BaseReportGenerator {
         drCr: account.balance >= 0 ? "CR" : "DR",
         phone: account.member?.user?.phone || account.institution?.institutionPhone || "",
         bankVerificationNo: account.member?.user?.nationalId || null,
-        productCode: account.accountType.ledgerAccount?.accountCode || account.accountNumber.split(".")[0] || account.accountType.name,
-        productName: account.accountType.ledgerAccount?.accountName || account.accountType.name,
+        productCode: ACCOUNT_NAME_TO_PRODUCT[(account.accountType.name || "").toLowerCase().trim()] || account.accountNumber.split(".")[0] || account.accountType.name,
+        productName: account.accountType.name || "",
       })),
       branchLabel: branchId ? accounts[0]?.branch?.name || "Selected Branch" : "All Branches",
     }, summary);

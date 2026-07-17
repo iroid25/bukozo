@@ -107,13 +107,24 @@ function normalizeBalance(value: number) {
   return Number.isFinite(value) ? value : 0;
 }
 
+const ACCOUNT_NAME_TO_PRODUCT: Record<string, string> = {
+  "affiliate shares": "300501",
+  "ordinary shares": "300502",
+  "associate shares": "300503",
+};
+
+function resolveProductCode(typeName: string): string {
+  const key = typeName.toLowerCase().trim();
+  return ACCOUNT_NAME_TO_PRODUCT[key] || "";
+}
+
 function getProductCode(record: any) {
-  return String(record.accountType?.ledgerAccount?.accountCode || "").trim();
+  const typeName = String(record.accountType?.name || "").trim();
+  return resolveProductCode(typeName) || typeName;
 }
 
 function getProductName(record: any, code: string) {
   return (
-    record.accountType?.ledgerAccount?.accountName?.trim() ||
     PRODUCT_NAMES[code] ||
     record.accountType?.name ||
     code
@@ -183,16 +194,7 @@ async function fetchShareAccounts(branchId: string | null, reportDate: Date) {
           },
         },
       },
-      accountType: {
-        include: {
-          ledgerAccount: {
-            select: {
-              accountCode: true,
-              accountName: true,
-            },
-          },
-        },
-      },
+      accountType: true,
       branch: {
         select: {
           name: true,
@@ -219,16 +221,7 @@ async function fetchShareAccounts(branchId: string | null, reportDate: Date) {
           institutionPhone: true,
         },
       },
-      accountType: {
-        include: {
-          ledgerAccount: {
-            select: {
-              accountCode: true,
-              accountName: true,
-            },
-          },
-        },
-      },
+      accountType: true,
       branch: {
         select: {
           name: true,
@@ -305,16 +298,7 @@ export async function getShareConcentrationReport(params: {
     include: {
       account: {
         include: {
-          accountType: {
-            include: {
-              ledgerAccount: {
-                select: {
-                  accountCode: true,
-                  accountName: true,
-                },
-              },
-            },
-          },
+          accountType: true,
         },
       },
     },
@@ -372,7 +356,7 @@ export async function getShareConcentrationReport(params: {
 
   const loanDeductionSummary: LoanDeductionSummaryRow[] = PRODUCT_ORDER.map((productCode) => {
     const productTx = loanDeductionTransactions.filter((tx) => {
-      const txCode = String(tx.account?.accountType?.ledgerAccount?.accountCode || "").trim();
+      const txCode = getProductCode(tx.account);
       return txCode === productCode;
     });
     return {
@@ -384,7 +368,7 @@ export async function getShareConcentrationReport(params: {
   });
 
   const otherTx = loanDeductionTransactions.filter((tx) => {
-    const txCode = String(tx.account?.accountType?.ledgerAccount?.accountCode || "").trim();
+    const txCode = getProductCode(tx.account);
     return !(PRODUCT_ORDER as readonly string[]).includes(txCode);
   });
   if (otherTx.length > 0) {
