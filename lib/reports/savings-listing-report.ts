@@ -132,7 +132,11 @@ const PASSBOOK_OVERRIDES: Record<string, number> = {
 function safeDate(value?: string | Date | null) {
   if (!value) return new Date();
   const parsed = value instanceof Date ? value : new Date(value);
-  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  if (Number.isNaN(parsed.getTime())) return new Date();
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    parsed.setUTCHours(23, 59, 59, 999);
+  }
+  return parsed;
 }
 
 function money(value: unknown) {
@@ -329,6 +333,7 @@ export async function buildSavingsListingReport(input: SavingsListingFilters, us
         startDate: { lte: asAtDate },
         isReversed: false,
         ...(branchFilter.branchId ? { branchId: branchFilter.branchId } : {}),
+        ...(input.status && input.status !== "all" ? { status: input.status as any } : {}),
       },
       include: {
         member: {

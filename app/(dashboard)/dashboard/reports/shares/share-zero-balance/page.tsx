@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { format } from "date-fns";
-import { Download, Loader2, RefreshCw, Search, AlertTriangle } from "lucide-react";
+import { Download, Loader2, RefreshCw, Search, AlertTriangle, Printer } from "lucide-react";
 import { toast } from "sonner";
 import { useReportLiveRefresh } from "@/lib/hooks/useReportLiveRefresh";
+import { printReport } from "@/lib/reports/print-report";
 
 type BranchOption = { id: string; name: string };
 
@@ -182,6 +183,39 @@ export default function ShareZeroBalancePage() {
     }
   }, [filters, isAdmin, userBranchId]);
 
+  const handlePrint = useCallback(() => {
+    if (!report) {
+      toast.error("No report data to print");
+      return;
+    }
+
+    const groupBy = report.products.map((product, index) => ({
+      key: index,
+      label: `${product.product_code} - ${product.product_name}`,
+      subHeaders: ["A/C No.", "Name", "Gender", "BVN/TIN", "Ref. No.", "Phone", "ID Card", "Area Code"],
+      subRows: product.accounts.map((account) => [
+        account.account_number,
+        account.member_name,
+        account.gender,
+        account.bvn_tin,
+        account.ref_no == null ? "" : account.ref_no,
+        account.phone,
+        account.id_card_normalised,
+        account.area_code,
+      ]),
+      subTotals: ["Subtotal", String(product.subtotal.count)],
+    }));
+
+    printReport({
+      title: "Share Zero Balance Accounts",
+      subtitle: `${branchLabel} | ${dateValue(filters.reportDate)}`,
+      headers: [],
+      rows: [],
+      groupBy,
+      totals: ["Grand Total", String(report.grand_total.count)],
+    });
+  }, [report, branchLabel, filters.reportDate]);
+
   const products = report?.products || [];
 
   return (
@@ -286,6 +320,10 @@ export default function ShareZeroBalancePage() {
           <button type="button" className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground md:text-sm" onClick={() => void exportExcel()} disabled={exporting || !report}>
             <Download className={`h-4 w-4 ${exporting ? "animate-spin" : ""}`} />
             Excel
+          </button>
+          <button type="button" className="inline-flex items-center gap-2 rounded-md border border-input bg-background px-4 py-2 text-xs font-semibold md:text-sm" onClick={handlePrint} disabled={!report}>
+            <Printer className="h-4 w-4" />
+            Print
           </button>
         </div>
       </div>

@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { format } from "date-fns";
-import { Download, Loader2, RefreshCw, Trophy, TrendingDown } from "lucide-react";
+import { Download, Loader2, Printer, RefreshCw, Trophy, TrendingDown } from "lucide-react";
 import { toast } from "sonner";
 import { useReportLiveRefresh } from "@/lib/hooks/useReportLiveRefresh";
 import { SaccoReportHeader } from "@/components/reports/SaccoReportHeader";
 import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
+import { printReport } from "@/lib/reports/print-report";
 import { ReportSummaryCard } from "@/components/reports/ReportSummaryCard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -97,6 +98,47 @@ export default function TopBottomShareholdersPage() {
     }
   }, [liveRefreshVersion, fetchReport]);
 
+  const handlePrint = useCallback(() => {
+    if (!data) {
+      toast.error("No report to print");
+      return;
+    }
+
+    const groupBy = [
+      {
+        key: 0,
+        label: "Top Shareholders",
+        subHeaders: ["Rank", "Account", "Member", "Shares", "Value"],
+        subRows: data.topShareholders.map((row) => [
+          row.rank,
+          row.accountNumber,
+          row.memberName,
+          row.numberOfShares,
+          row.totalValue,
+        ]),
+      },
+      {
+        key: 1,
+        label: "Bottom Shareholders",
+        subHeaders: ["Rank", "Account", "Member", "Shares", "Value"],
+        subRows: data.bottomShareholders.map((row) => [
+          row.rank,
+          row.accountNumber,
+          row.memberName,
+          row.numberOfShares,
+          row.totalValue,
+        ]),
+      },
+    ];
+
+    printReport({
+      title: "Top & Bottom Shareholders",
+      headers: [],
+      rows: [],
+      groupBy,
+    });
+  }, [data]);
+
   return (
     <ReportPageLayout
       title="Top & Bottom Shareholders"
@@ -121,6 +163,10 @@ export default function TopBottomShareholdersPage() {
         <Button onClick={fetchReport} disabled={loading}>
           {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
           Generate
+        </Button>
+        <Button variant="outline" onClick={() => void handlePrint()} disabled={!data}>
+          <Printer className="mr-2 h-4 w-4" />
+          Print
         </Button>
       </div>
 

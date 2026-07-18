@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { printReport } from "@/lib/reports/print-report";
 import { cn } from "@/lib/utils";
 import type {
   GeneralTransactionRegisterReport,
@@ -325,6 +326,35 @@ export function GeneralTransactionRegisterReportPage({ dense = false }: { dense?
 
   const report = state.report;
 
+  const handlePrint = useCallback(() => {
+    if (!report) {
+      toast.error("No report data to print");
+      return;
+    }
+    const period = `${localDateLabel(report.report_meta.from_date)} — ${localDateLabel(report.report_meta.to_date)}`;
+    const headers = ["Trx No.", "GL A/C No.", "A/C No.", "Name", "Trx Code", "Voucher No.", "Selected Date", "Trx Date", "Debit", "Credit", "User Name"];
+    const rows = report.transactions.map((row) => [
+      row.trx_number,
+      row.gl_account_no,
+      row.account_no,
+      row.name,
+      row.trx_code,
+      row.voucher_no,
+      localDateLabel(row.session_date),
+      localDateLabel(row.trx_date),
+      row.debit,
+      row.credit,
+      row.user_name,
+    ]);
+    printReport({
+      title: report.report_title || "General Transaction Register",
+      period,
+      headers,
+      rows,
+      totals: ["", "", "", "", "", "", "", "", report.summary.total_debit, report.summary.total_credit, ""],
+    });
+  }, [report]);
+
   return (
     <ReportPageLayout
       title={report?.report_title || "General Trx Register by Trx Date"}
@@ -387,7 +417,7 @@ export function GeneralTransactionRegisterReportPage({ dense = false }: { dense?
             <Button onClick={state.fetchReport} disabled={state.loading} icon={RefreshCw} iconPosition="left">
               {state.loading ? "Loading..." : "Generate Report"}
             </Button>
-            <Button variant="outline" onClick={() => window.print()} icon={Printer} iconPosition="left">
+            <Button variant="outline" onClick={handlePrint} icon={Printer} iconPosition="left">
               Print
             </Button>
             <Button variant="outline" onClick={() => downloadFile(exportUrl, "general-transaction-register.xlsx")} icon={Download} iconPosition="left">
@@ -540,6 +570,36 @@ export function TransactionJournalListingReportPage() {
 
   const report = state.report;
 
+  const handlePrint = useCallback(() => {
+    if (!report) {
+      toast.error("No report data to print");
+      return;
+    }
+    const period = `${localDateLabel(report.report_meta.from_date)} — ${localDateLabel(report.report_meta.to_date)}`;
+    const headers = ["GL A/C", "A/C No.", "Name", "Voucher / Text", "Trx Ref", "Code", "Selected Date", "Trx Date", "Debit", "Credit", "Supervisor", "Teller"];
+    const rows = report.transactions.map((row) => [
+      row.gl_account_no,
+      row.account_no,
+      row.name,
+      row.voucher_no + (row.transaction_text && row.transaction_text !== row.voucher_no ? ` ${row.transaction_text}` : ""),
+      row.trx_number,
+      row.trx_code,
+      localDateLabel(row.session_date),
+      localDateLabel(row.trx_date),
+      row.debit,
+      row.credit,
+      row.supervisor_name || "",
+      row.user_name,
+    ]);
+    printReport({
+      title: report.report_title || "Transaction Journal Listing",
+      period,
+      headers,
+      rows,
+      totals: ["", "", "", "", "", "", "", "", report.summary.total_debit, report.summary.total_credit, "", ""],
+    });
+  }, [report]);
+
   return (
     <ReportPageLayout
       title={report?.report_title || "Transaction Journal Listing By Selected Date"}
@@ -607,7 +667,7 @@ export function TransactionJournalListingReportPage() {
             <Button size="sm" onClick={state.fetchReport} disabled={state.loading} icon={RefreshCw} iconPosition="left">
               {state.loading ? "Loading…" : "Generate Report"}
             </Button>
-            <Button size="sm" variant="outline" onClick={() => window.print()} icon={Printer} iconPosition="left">
+            <Button size="sm" variant="outline" onClick={handlePrint} icon={Printer} iconPosition="left">
               Print
             </Button>
             <Button size="sm" variant="outline" onClick={() => downloadFile(exportUrl, "transaction-journal-listing.xlsx")} icon={Download} iconPosition="left">

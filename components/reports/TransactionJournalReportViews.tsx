@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useReportLiveRefresh } from "@/lib/hooks/useReportLiveRefresh";
+import { printReport } from "@/lib/reports/print-report";
 
 type DaySheetFilterMode = "trx_date" | "session_date";
 
@@ -490,6 +491,45 @@ export function DaySheetReportPage({ mode }: { mode: DaySheetFilterMode }) {
 
   const report = state.report;
 
+  const handlePrint = useCallback(() => {
+    if (!report) {
+      toast.error("No data to print. Generate the report first.");
+      return;
+    }
+    const headers = ["Trx No.", "GL A/C No.", "A/C No.", "Name", "Trx Code", "Voucher No.", "Selected Date", "Trx Date", "Debit", "Credit", "User Name"];
+    const rows = report.transactions.map((row) => [
+      row.trx_number,
+      row.gl_account_no,
+      row.account_no,
+      row.name,
+      row.trx_code,
+      row.voucher_no,
+      localDateLabel(row.session_date),
+      localDateLabel(row.trx_date),
+      row.debit,
+      row.credit,
+      row.user_name,
+    ]);
+    printReport({
+      title: report.report_title || "Day Sheet",
+      subtitle: report.filter_label,
+      period: `${report.report_meta.from_date} to ${report.report_meta.to_date}`,
+      filters: {
+        Branch: report.report_meta.branch,
+      },
+      headers,
+      rows,
+      totals: ["", "", "", "", "", "", "", "Total", report.summary.total_debit, report.summary.total_credit, ""],
+      summary: {
+        Rows: report.summary.row_count,
+        "Debit Total": report.summary.total_debit,
+        "Credit Total": report.summary.total_credit,
+        "Unique Vouchers": report.summary.unique_vouchers,
+        "Unique Tellers": report.summary.unique_tellers,
+      },
+    });
+  }, [report]);
+
   return (
     <ReportPageLayout
       title={report?.report_title || DAY_SHEET_MODES[mode].label}
@@ -548,7 +588,7 @@ export function DaySheetReportPage({ mode }: { mode: DaySheetFilterMode }) {
             <Button onClick={state.fetchReport} disabled={state.loading} icon={RefreshCw} iconPosition="left">
               {state.loading ? "Loading..." : "Generate Report"}
             </Button>
-            <Button variant="outline" onClick={() => window.print()} icon={Printer} iconPosition="left">
+            <Button variant="outline" onClick={handlePrint} icon={Printer} iconPosition="left">
               Print
             </Button>
             <Button variant="outline" onClick={() => downloadFile(exportUrl, `${DAY_SHEET_MODES[mode].label.replace(/\s+/g, "-").toLowerCase()}.xlsx`)} icon={Download} iconPosition="left">
@@ -696,6 +736,46 @@ export function CashierCashStatusReportPage() {
 
   const report = state.report;
 
+  const handlePrint = useCallback(() => {
+    if (!report) {
+      toast.error("No data to print. Generate the report first.");
+      return;
+    }
+    const headers = ["GL A/C No.", "A/C No.", "Name", "Trx No.", "Time", "Trx Code", "Source", "Voucher No.", "Trx Date", "Debit", "Credit", "Running Balance", "User Name"];
+    const rows = report.transactions.map((row) => [
+      row.gl_account_no,
+      row.account_no,
+      row.name,
+      row.trx_number,
+      row.time_posted,
+      row.trx_code,
+      row.source_label,
+      row.voucher_no,
+      localDateLabel(row.trx_date),
+      row.debit,
+      row.credit,
+      row.running_balance,
+      row.user_name,
+    ]);
+    printReport({
+      title: "Cashier / Teller Cash Status",
+      subtitle: `Cashier/Teller: ${report.report_meta.teller_code} - ${report.report_meta.teller_name}`,
+      period: localDateLabel(report.report_meta.session_date),
+      filters: {
+        Branch: report.report_meta.branch,
+      },
+      headers,
+      rows,
+      totals: ["", "", "", "", "", "", "", "", "Total", report.summary.total_debit, report.summary.total_credit, report.summary.closing_balance, ""],
+      summary: {
+        Transactions: report.summary.transaction_count,
+        "Opening Float": report.summary.opening_float,
+        "Net Change": report.summary.net_change,
+        "Closing Balance": report.summary.closing_balance,
+      },
+    });
+  }, [report]);
+
   const rowClass = (row: TellerReportRow) =>
     cn(
       row.is_r2t && "bg-emerald-50",
@@ -761,7 +841,7 @@ export function CashierCashStatusReportPage() {
             <Button onClick={state.fetchReport} disabled={state.loading} icon={RefreshCw} iconPosition="left">
               {state.loading ? "Loading..." : "Generate Report"}
             </Button>
-            <Button variant="outline" onClick={() => window.print()} icon={Printer} iconPosition="left">
+            <Button variant="outline" onClick={handlePrint} icon={Printer} iconPosition="left">
               Print
             </Button>
             <Button variant="outline" onClick={() => downloadFile(exportUrl, "cashier-teller-cash-status.xlsx")} icon={Download} iconPosition="left">

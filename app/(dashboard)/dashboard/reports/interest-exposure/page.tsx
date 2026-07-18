@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
 import { cn } from "@/lib/utils";
 import { useReportLiveRefresh } from "@/lib/hooks/useReportLiveRefresh";
+import { printReport } from "@/lib/reports/print-report";
 
 type DepositRow = {
   accountNumber: string;
@@ -185,6 +186,53 @@ export default function InterestExposurePage() {
     ];
   }, [report]);
 
+  const handlePrint = useCallback(() => {
+    if (!report) {
+      toast.error("No report data to print");
+      return;
+    }
+    const groupBy = report.products.map((product, idx) => ({
+      key: idx,
+      label: product.product_name,
+      subHeaders: ["A/C No.", "Member", "Principal", "Outstanding", "Rate", "Maturity", "Days Left", "Status"],
+      subRows: product.deposits.map((dep) => [
+        dep.accountNumber,
+        dep.memberName,
+        money(dep.depositAmount),
+        money(dep.maturityValue),
+        `${dep.annualRate}%`,
+        dep.maturityDate,
+        dep.daysToMaturity,
+        dep.isOverdue ? "Overdue" : "Active",
+      ]),
+      subTotals: [
+        product.subtotal.count,
+        product.subtotal.total_principal,
+        product.subtotal.total_accrued_interest,
+        product.subtotal.total_interest_at_maturity,
+        product.subtotal.total_maturity_value,
+      ],
+    }));
+    const summary: Record<string, string | number> = {
+      "Current Liability": money(report.exposure_summary.current_liability),
+      "Full Liability": money(report.exposure_summary.full_liability),
+      "Unexpired Interest": money(report.exposure_summary.unexpired_interest),
+      "Coverage %": `${report.exposure_summary.liability_coverage_pct.toFixed(2)}%`,
+      "Overdue Count": report.exposure_summary.overdue_count,
+      "Overdue Principal": money(report.exposure_summary.overdue_principal),
+      "Overdue Accrued Interest": money(report.exposure_summary.overdue_accrued_interest),
+      "Principal at Risk": money(report.exposure_summary.total_principal_at_risk),
+    };
+    printReport({
+      title: "Interest Exposure Report",
+      subtitle: report.report_meta.header_label,
+      groupBy,
+      summary,
+      headers: [],
+      rows: [],
+    });
+  }, [report]);
+
   return (
     <ReportPageLayout
       title="Interest Exposure Report"
@@ -264,7 +312,7 @@ export default function InterestExposurePage() {
             <Download className="mr-2 h-4 w-4" />
             {exporting ? "Exporting..." : "Excel"}
           </Button>
-          <Button variant="outline" onClick={() => window.print()}>
+          <Button variant="outline" onClick={handlePrint}>
             <Printer className="mr-2 h-4 w-4" />
             Print
           </Button>

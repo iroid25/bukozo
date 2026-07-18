@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { format } from "date-fns";
-import { Download, RefreshCw, Search } from "lucide-react";
+import { Download, Printer, RefreshCw, Search } from "lucide-react";
 import { toast } from "sonner";
 
 import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useReportLiveRefresh } from "@/lib/hooks/useReportLiveRefresh";
+import { printReport } from "@/lib/reports/print-report";
 
 type BranchOption = { id: string; name: string };
 
@@ -327,6 +328,84 @@ export function FixedDepositsReportClient({ mode }: Props) {
       ? `Reporting Date: ${toDisplayDate(filters.reportDate)}`
       : `Reporting Date From: ${toDisplayDate(filters.fromDate)} To: ${toDisplayDate(filters.toDate)}`;
 
+  const handlePrint = useCallback(() => {
+    if (!report) {
+      toast.error("No data to print. Generate the report first.");
+      return;
+    }
+
+    const period = periodLabel;
+
+    if (mode === "concentration") {
+      const section = report.sections[0] as ConcentrationSection | undefined;
+      if (!section) return;
+      const headers = ["Size of Account", "Account (count)", "Account %", "Balance Amount", "Balance %", "Average Balance"];
+      const rows = section.bands.map((band) => [
+        band.label,
+        band.accountCount,
+        `${band.accountPct.toFixed(2)}%`,
+        band.totalBalance,
+        `${band.balancePct.toFixed(2)}%`,
+        band.averageBalance,
+      ]);
+      const totals = ["TOTAL", section.total.accountCount, "100.00%", section.total.totalBalance, "100.00%", section.total.averageBalance];
+      printReport({ title: config.title, subtitle: config.description, period, headers, rows, totals });
+      return;
+    }
+
+    const allRows: (string | number)[][] = [];
+    for (const section of report.sections) {
+      if (mode === "listing") {
+        const s = section as ListingSection;
+        for (const r of s.records) {
+          allRows.push([
+            r.accountNumber,
+            r.memberName,
+            toDisplayDate(r.sessionDate),
+            toDisplayDate(r.trxDate),
+            r.fdNumber,
+            r.depositAmount,
+            r.interestAmount,
+            r.maturityValue,
+            toDisplayDate(r.maturityDate),
+            `${r.annualRate.toFixed(2)}%`,
+            r.depositPeriod,
+            r.atMaturityLabel,
+          ]);
+        }
+      } else {
+        const s = section as WithdrawnSection;
+        for (const r of s.records) {
+          allRows.push([
+            r.accountNumber,
+            r.memberName,
+            toDisplayDate(r.sessionDate),
+            toDisplayDate(r.trxDate),
+            r.fdNumber,
+            r.depositAmount,
+            r.interestPaid,
+            r.totalPaid,
+            toDisplayDate(r.maturityDate),
+            `${r.annualRate.toFixed(2)}%`,
+            r.depositPeriod,
+          ]);
+        }
+      }
+    }
+
+    if (mode === "listing") {
+      const gt = report.grandTotal as ListingSection["subtotal"];
+      const headers = ["A/C No.", "Name", "Session Date", "Trx Date", "Fixed Deposit No.", "Deposit Amount", "Interest Amount", "Maturity Value", "Maturity Date", "Annual Int. Rate (%)", "Deposit Period", "Maturity Code"];
+      const totals = ["GRAND TOTAL", "", "", "", "", gt.depositAmount, gt.interestAmount, gt.maturityValue, "", `${gt.count} records`];
+      printReport({ title: config.title, subtitle: config.description, period, headers, rows: allRows, totals });
+    } else {
+      const gt = report.grandTotal as WithdrawnSection["subtotal"];
+      const headers = ["A/C No.", "Name", "Session Date", "Trx Date", "Fixed Deposit No.", "Deposit Amount", "Interest Paid", "Total Paid", "Maturity Date", "Annual Int. Rate %", "Deposit Period"];
+      const totals = ["GRAND TOTAL", "", "", "", "", gt.depositAmount, gt.interestPaid, gt.totalPaid, "", `${gt.count} records`];
+      printReport({ title: config.title, subtitle: config.description, period, headers, rows: allRows, totals });
+    }
+  }, [config.title, config.description, mode, report, periodLabel]);
+
   const summary = useMemo(() => {
     if (!report) return null;
 
@@ -478,15 +557,25 @@ export function FixedDepositsReportClient({ mode }: Props) {
           {exporting ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
           Excel
         </Button>
+        <Button variant="outline" className="flex-1" onClick={handlePrint} disabled={!report}>
+          <Printer className="mr-2 h-4 w-4" />
+          Print
+        </Button>
       </div>
     </div>
   );
 
   const actions = (
-    <Button variant="outline" onClick={() => void exportExcel()} disabled={exporting || !report}>
-      {exporting ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-      Export
-    </Button>
+    <div className="flex items-center gap-2">
+      <Button variant="outline" onClick={() => void exportExcel()} disabled={exporting || !report}>
+        {exporting ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+        Export
+      </Button>
+      <Button variant="outline" onClick={handlePrint} disabled={!report}>
+        <Printer className="mr-2 h-4 w-4" />
+        Print
+      </Button>
+    </div>
   );
 
   const pageTitle = config.title;

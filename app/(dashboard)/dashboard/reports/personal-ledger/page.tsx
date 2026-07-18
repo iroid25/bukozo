@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import { BadgeCheck, Check, ChevronDown, Download, Loader2, Printer, ShieldAlert, UserCog } from "lucide-react";
 import { toast } from "sonner";
@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
+import { printReport } from "@/lib/reports/print-report";
 
 type SearchResult = {
   kind: "member" | "institution";
@@ -275,6 +276,60 @@ export default function PersonalLedgerPage() {
     ];
   }, [report]);
 
+  const handlePrint = useCallback(() => {
+    if (!report) {
+      toast.error("Generate a report before printing");
+      return;
+    }
+
+    const subjectName =
+      report.subject_type === "institution"
+        ? report.institution?.institution_name
+        : report.member?.full_name;
+
+    printReport({
+      title: "Personal Ledger",
+      subtitle: subjectName || "",
+      period: `${report.report_meta.from_date} to ${report.report_meta.to_date}`,
+      filters: {
+        Branch: report.report_meta.branch,
+        Subject: subjectName || "",
+      },
+      headers: [],
+      rows: [],
+      groupBy: report.accounts.map((account) => ({
+        key: 0,
+        label: `${account.account_no} - ${account.product_name}`,
+        subHeaders: ["Date", "Session", "Trx No", "Description", "Debit", "Credit", "Balance"],
+        subRows: account.transactions.map((tx) => [
+          tx.trx_date,
+          tx.session_date,
+          tx.trx_number,
+          tx.description,
+          tx.debit || "-",
+          tx.credit || "-",
+          tx.running_balance,
+        ]),
+        subTotals: [
+          "Subtotal",
+          String(account.summary.transaction_count),
+          "",
+          "",
+          account.summary.total_debit,
+          account.summary.total_credit,
+          account.summary.closing_balance,
+        ],
+      })),
+      summary: {
+        "Savings Balance": report.grand_summary.total_savings_balance,
+        "Shares Balance": report.grand_summary.total_shares_balance,
+        "Fixed Deposits": report.grand_summary.total_fixed_deposit_balance,
+        "Loan Balance": report.grand_summary.total_loan_balance,
+        "Net Worth": report.grand_summary.net_worth,
+      },
+    });
+  }, [report]);
+
   return (
     <ReportPageLayout
       title="Personal Ledger"
@@ -404,7 +459,7 @@ export default function PersonalLedgerPage() {
       }
       actions={
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" onClick={() => window.print()}>
+          <Button variant="outline" onClick={handlePrint}>
             <Printer className="mr-2 h-4 w-4" />
             Print
           </Button>

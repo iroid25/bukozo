@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { format } from "date-fns";
-import { Download, Loader2, RefreshCw, Search } from "lucide-react";
+import { Download, Loader2, Printer, RefreshCw, Search } from "lucide-react";
 import { toast } from "sonner";
 import { useReportLiveRefresh } from "@/lib/hooks/useReportLiveRefresh";
+import { printReport } from "@/lib/reports/print-report";
 
 type BranchOption = { id: string; name: string };
 
@@ -194,6 +195,53 @@ export default function ShareBatchTotalsPage() {
     }
   }, [filters, isAdmin, userBranchId]);
 
+  const handlePrint = useCallback(() => {
+    if (!report) {
+      toast.error("No report data to print");
+      return;
+    }
+
+    const groupBy = report.products.map((product) => {
+      const subHeaders = ["A/C No.", "Name", "BVN/TIN", "Phone", "Ref. No.", "Balance"];
+      const subRows: (string | number)[][] = [];
+      for (const batch of product.batches) {
+        for (const account of batch.accounts) {
+          subRows.push([
+            account.account_number,
+            account.member_name,
+            account.bvn_tin || "",
+            account.phone || "",
+            account.ref_no == null ? "" : account.ref_no,
+            account.current_balance,
+          ]);
+        }
+      }
+      const subTotals = [
+        "Subtotal",
+        String(product.grand_total.count),
+        "",
+        "",
+        "",
+        product.grand_total.total_balance,
+      ];
+      return {
+        key: 0,
+        label: `${product.product_code} - ${product.product_name}`,
+        subHeaders,
+        subRows,
+        subTotals,
+      };
+    });
+
+    printReport({
+      title: "Share Batch Totals",
+      subtitle: `${branchLabel} — ${formatDate(filters.reportDate)}`,
+      headers: [],
+      rows: [],
+      groupBy,
+    });
+  }, [report, branchLabel, filters.reportDate]);
+
   const products = report?.products || [];
 
   return (
@@ -322,6 +370,15 @@ export default function ShareBatchTotalsPage() {
           >
             <Download className={`h-4 w-4 ${exporting ? "animate-spin" : ""}`} />
             Excel
+          </button>
+          <button
+            type="button"
+            className="inline-flex items-center gap-2 rounded-md border border-input bg-background px-4 py-2 text-xs font-semibold md:text-sm"
+            onClick={() => void handlePrint()}
+            disabled={!report}
+          >
+            <Printer className="h-4 w-4" />
+            Print
           </button>
         </div>
       </div>

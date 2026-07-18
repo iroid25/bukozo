@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { format } from "date-fns";
-import { Download, Loader2, RefreshCw, Search } from "lucide-react";
+import { Download, Loader2, Printer, RefreshCw, Search } from "lucide-react";
 import { toast } from "sonner";
 import { SaccoReportHeader } from "@/components/reports/SaccoReportHeader";
 import { useReportLiveRefresh } from "@/lib/hooks/useReportLiveRefresh";
+import { printReport } from "@/lib/reports/print-report";
 
 type BranchOption = { id: string; name: string };
 
@@ -208,6 +209,48 @@ export default function SharesConcentrationPage() {
     }
   }, [filters, isAdmin, userBranchId]);
 
+  const handlePrint = useCallback(() => {
+    if (!report) {
+      toast.error("No report data to print");
+      return;
+    }
+
+    const groupBy = report.products.map((product) => {
+      const subHeaders = ["Band", "Accounts", "Account %", "Balance", "Balance %", "Avg Balance"];
+      const subRows: (string | number)[][] = product.bands.map((band) => [
+        band.band_label,
+        String(band.account_count),
+        band.account_pct,
+        band.total_balance,
+        band.balance_pct,
+        band.avg_balance,
+      ]);
+      const subTotals: (string | number)[] = [
+        "Total",
+        String(product.total.account_count),
+        "",
+        product.total.total_balance,
+        "",
+        product.total.avg_balance,
+      ];
+      return {
+        key: 0,
+        label: `${product.product_code} - ${product.product_name}`,
+        subHeaders,
+        subRows,
+        subTotals,
+      };
+    });
+
+    printReport({
+      title: "Share Concentration Report",
+      subtitle: `${branchLabel} — ${displayDate(filters.reportDate)}`,
+      headers: [],
+      rows: [],
+      groupBy,
+    });
+  }, [report, branchLabel, filters.reportDate]);
+
   const sections = report?.products || [];
   const aggregate = report?.aggregate;
   const loanDeductionSummary = report?.loan_deduction_summary;
@@ -318,6 +361,15 @@ export default function SharesConcentrationPage() {
           >
             <Download className={`h-4 w-4 ${exporting ? "animate-spin" : ""}`} />
             Excel
+          </button>
+          <button
+            type="button"
+            className="inline-flex items-center gap-2 rounded-md border border-input bg-background px-4 py-2 text-xs font-semibold md:text-sm"
+            onClick={() => void handlePrint()}
+            disabled={!report}
+          >
+            <Printer className="h-4 w-4" />
+            Print
           </button>
         </div>
       </div>

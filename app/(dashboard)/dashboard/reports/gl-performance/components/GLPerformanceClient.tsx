@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { format } from "date-fns";
-import { Calendar as CalendarIcon, Search, Download, Printer, ArrowRight, ChevronDown } from "lucide-react";
+import { Calendar as CalendarIcon, Search, Printer, ArrowRight, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -14,6 +14,7 @@ import axios from "axios";
 import { toast } from "sonner";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useReportLiveRefresh } from "@/lib/hooks/useReportLiveRefresh";
+import { printReport } from "@/lib/reports/print-report";
 
 interface GLPerformanceClientProps {
   userRole: string;
@@ -140,7 +141,60 @@ export default function GLPerformanceClient({ userRole, userBranchId }: GLPerfor
     }
   }, [date.from, date.to, selectedBranch, selectedValue]);
 
-  const handlePrint = () => window.print();
+  const handlePrint = () => {
+    if (!reportData) {
+      toast.error("No report data to print. Generate a report first.");
+      return;
+    }
+
+    const period = `${format(date.from, "PP")} to ${format(date.to as Date, "PP")}`;
+
+    if (reportData.categories) {
+      const rows = reportData.categories.map((cat: any) => [
+        cat.name,
+        cat.totalBalance,
+        cat.accounts.length,
+      ]);
+      const grandTotal = reportData.categories.reduce(
+        (sum: number, cat: any) => sum + cat.totalBalance,
+        0,
+      );
+
+      printReport({
+        title: "GL Account Performance",
+        subtitle: "All Categories Summary",
+        period,
+        headers: ["Category", "Total Balance", "Accounts"],
+        rows,
+        totals: ["Grand Total", grandTotal, reportData.categories.length],
+      });
+    } else {
+      const rows = reportData.transactions.map((tx: any) => [
+        format(new Date(tx.entryDate), "dd MMM yyyy"),
+        tx.entryNumber,
+        `${tx.account?.accountCode ?? ""} — ${tx.account?.accountName ?? ""}`,
+        tx.description,
+        tx.debitAmount > 0 ? tx.debitAmount : "—",
+        tx.creditAmount > 0 ? tx.creditAmount : "—",
+        tx.effect,
+        tx.transaction?.processedByUser?.name || tx.createdBy?.name || "System",
+      ]);
+
+      printReport({
+        title: "GL Account Performance",
+        subtitle: reportData.category.name,
+        period,
+        headers: ["Date", "Entry No", "Account", "Description", "Debit", "Credit", "Effect", "User"],
+        rows,
+        summary: {
+          "Opening Balance": reportData.summary.openingBalance,
+          "Total Debits": reportData.summary.totalPeriodDebit,
+          "Total Credits": reportData.summary.totalPeriodCredit,
+          "Closing Balance": reportData.summary.closingBalance,
+        },
+      });
+    }
+  };
 
   // Build display label for the selected value
   const getSelectedLabel = () => {
@@ -406,14 +460,9 @@ export default function GLPerformanceClient({ userRole, userBranchId }: GLPerfor
 
               <div className="flex justify-between items-center print:hidden">
                 <h3 className="text-xl font-bold">{reportData.category.name}</h3>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={handlePrint}>
-                    <Printer className="mr-2 h-4 w-4" /> Print
-                  </Button>
-                  <Button variant="outline" size="sm">
-                    <Download className="mr-2 h-4 w-4" /> Export CSV
-                  </Button>
-                </div>
+                <Button variant="outline" size="sm" onClick={handlePrint}>
+                  <Printer className="mr-2 h-4 w-4" /> Print
+                </Button>
               </div>
 
               {/* Summary Cards */}

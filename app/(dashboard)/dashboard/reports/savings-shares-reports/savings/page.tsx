@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useReportLiveRefresh } from "@/lib/hooks/useReportLiveRefresh";
+import { printReport } from "@/lib/reports/print-report";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -446,8 +447,68 @@ export default function SavingsTransactionsReportPage() {
     }
   }
 
-  async function handlePrint() {
-    window.print();
+  function handlePrint() {
+    if (!report?.transactions?.length) {
+      toast.error("No data to print. Please generate a report first.");
+      return;
+    }
+
+    const title = report.reportTitle || "Savings Transactions Report";
+    const headers = [
+      "A/C No.",
+      "Member Name",
+      "Ref. No.",
+      "Trx No.",
+      "Session Date",
+      "Trx Date",
+      "Debit (UGX)",
+      "Credit (UGX)",
+      "Processed By",
+    ];
+
+    const rows = report.transactions.map((row) => [
+      row.accountNumber,
+      row.memberName,
+      row.passbookCount,
+      row.trxNo,
+      normalizeDateDisplay(row.sessionDate),
+      normalizeDateDisplay(row.trxDate),
+      row.debitAmount,
+      row.creditAmount,
+      row.processedBy,
+    ]);
+
+    const totals: (string | number)[] = [
+      "",
+      "TOTAL",
+      "",
+      "",
+      "",
+      "",
+      report.footer.totalDebits,
+      report.footer.totalCredits,
+      "",
+    ];
+
+    printReport({
+      title,
+      subtitle: `${report.saccoName} — ${report.location}`,
+      period: `${normalizeDateDisplay(report.dateRange.from)} to ${normalizeDateDisplay(report.dateRange.to)}`,
+      filters: {
+        Branch: report.branchScope,
+        Product: report.product.name,
+      },
+      headers,
+      rows,
+      totals,
+      summary: {
+        "Total Transactions": report.summary.transactionCount,
+        "Member Accounts": report.summary.memberCount,
+        "Total Debits": report.summary.totalDebits,
+        "Total Credits": report.summary.totalCredits,
+        "Net Movement": report.summary.netMovement,
+      },
+    });
   }
 
   const summary = report?.summary;

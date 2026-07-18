@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
 import { SaccoReportHeader } from "@/components/reports/SaccoReportHeader";
+import { printReport } from "@/lib/reports/print-report";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 type Branch = { id: string; name: string };
@@ -283,8 +284,6 @@ export default function SavingsAccountStatementPage() {
     }
   }, [filters.accountId, filters.accountNumber, filters.branchId, filters.dateFrom, filters.dateTo, isAdmin, userBranchId]);
 
-  const handlePrint = useCallback(() => window.print(), []);
-
   const handleAccountSelect = useCallback((account: AccountOption) => {
     setSelectedAccount(account);
     setAccountQuery("");
@@ -304,6 +303,38 @@ export default function SavingsAccountStatementPage() {
 
   const txs = report?.transactions || [];
   const data = report;
+
+  const handlePrint = useCallback(() => {
+    if (!data) {
+      toast.error("Generate the report first before printing.");
+      return;
+    }
+    printReport({
+      title: "Savings Account Statement",
+      subtitle: `${data.member.name} - ${data.member.accountNumber}`,
+      period: `${data.dateRange.from} to ${data.dateRange.to}`,
+      filters: {
+        Account: data.member.accountNumber,
+        Holder: data.member.name,
+        Product: data.member.productType,
+        Status: data.member.accountStatus,
+      },
+      headers: ["Date", "Value Date", "Reference", "Description", "Fee", "Debit", "Credit", "Balance"],
+      rows: data.transactions.map((tx) => [
+        tx.date, tx.valueDate, tx.reference, tx.description,
+        tx.fee > 0 ? tx.fee : "-",
+        tx.debit > 0 ? tx.debit : "-",
+        tx.credit > 0 ? tx.credit : "-",
+        tx.balance,
+      ]),
+      totals: ["TOTAL", "", "", "", "", data.footer.totalDebits, "", data.footer.closingBalance],
+      summary: {
+        "Opening Balance": data.openingBalance,
+        "Total Debits": data.footer.totalDebits,
+        "Closing Balance": data.footer.closingBalance,
+      },
+    });
+  }, [data]);
 
   return (
     <ReportPageLayout

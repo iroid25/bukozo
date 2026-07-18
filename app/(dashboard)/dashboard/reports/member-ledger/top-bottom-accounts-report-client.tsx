@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Download, Loader2, Printer, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
 import { cn } from "@/lib/utils";
 import { useReportLiveRefresh } from "@/lib/hooks/useReportLiveRefresh";
+import { printReport } from "@/lib/reports/print-report";
 
 type AccountRow = {
   rank: number;
@@ -230,6 +231,39 @@ export default function TopBottomAccountsReportClient({
 
   const products = report?.products || [];
 
+  const handlePrint = useCallback(() => {
+    if (!report) {
+      toast.error("No report data to print");
+      return;
+    }
+
+    const categoryLabel = accountCategory === "shares" ? "Shareholders" : "Savers";
+
+    const groupBy = report.products.map((product, index) => ({
+      key: index,
+      label: product.product_name,
+      subHeaders: ["Rank", "A/C No.", "Member", "Phone", "Balance"],
+      subRows: product.accounts.map((account) => [
+        account.rank,
+        account.account_no,
+        account.member_name,
+        account.phone,
+        formatMoney(account.balance),
+      ]),
+      subTotals: ["Subtotal", String(product.subtotal.count), "", "", formatMoney(product.subtotal.total_balance)],
+    }));
+
+    printReport({
+      title: `Top & Bottom ${categoryLabel}`,
+      subtitle: mode === "top" ? "Top Accounts" : "Bottom Accounts",
+      period: `${report.report_meta.start_date} to ${report.report_meta.end_date}`,
+      headers: [],
+      rows: [],
+      groupBy,
+      totals: ["Grand Total", String(report.grand_total.count), "", "", formatMoney(report.grand_total.total_balance)],
+    });
+  }, [report, accountCategory, mode]);
+
   return (
     <ReportPageLayout
       title={title}
@@ -375,7 +409,7 @@ export default function TopBottomAccountsReportClient({
             <Download className="mr-2 h-4 w-4" />
             {exporting ? "Exporting..." : "Excel"}
           </Button>
-          <Button variant="outline" onClick={() => window.print()}>
+          <Button variant="outline" onClick={handlePrint}>
             <Printer className="mr-2 h-4 w-4" />
             Print
           </Button>

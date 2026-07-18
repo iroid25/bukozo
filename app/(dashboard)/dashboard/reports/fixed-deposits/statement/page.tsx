@@ -1,14 +1,33 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { format } from "date-fns";
-import { FileText, RefreshCw, Search, TrendingDown, TrendingUp, Wallet } from "lucide-react";
+import { Check, ChevronDown, FileText, Printer, RefreshCw, TrendingDown, TrendingUp, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
 import { ReportSummaryCard } from "@/components/reports/ReportSummaryCard";
+import { printReport } from "@/lib/reports/print-report";
+
+interface FdSearchResult {
+  id: string;
+  accountNumber: string;
+  memberName: string;
+  memberPhone: string;
+  principalAmount: number;
+  maturityAmount: number;
+  interestRate: number;
+  termMonths: number;
+  startDate: string;
+  maturityDate: string;
+  status: string;
+  branch: string;
+}
 
 interface AccountInfo {
   accountNumber: string;
@@ -36,20 +55,57 @@ function ugx(n: number) {
 }
 
 export default function FixedDepositStatementPage() {
-  const [accountIdInput, setAccountIdInput] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<FdSearchResult[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [selectedFd, setSelectedFd] = useState<FdSearchResult | null>(null);
+
   const [startDate, setStartDate] = useState(format(new Date(new Date().setFullYear(new Date().getFullYear() - 1)), "yyyy-MM-dd"));
   const [endDate, setEndDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [accountInfo, setAccountInfo] = useState<AccountInfo | null>(null);
   const [transactions, setTransactions] = useState<StatementEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [generatedAt, setGeneratedAt] = useState("");
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const fetchSearch = useCallback(async (q: string) => {
+    if (!q || q.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    setSearchLoading(true);
+    try {
+      const params = new URLSearchParams({ q });
+      const response = await fetch(`/api/v1/reports/fixed-deposits/search?${params.toString()}`, { cache: "no-store" });
+      const json = await response.json();
+      setSearchResults(json.data || []);
+    } catch {
+      setSearchResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  }, []);
+
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchQuery(value);
+    setSelectedFd(null);
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = setTimeout(() => void fetchSearch(value), 300);
+  }, [fetchSearch]);
+
+  const handleSelect = useCallback((fd: FdSearchResult) => {
+    setSelectedFd(fd);
+    setSearchQuery(fd.accountNumber);
+    setSearchOpen(false);
+  }, []);
 
   const fetchStatement = useCallback(async () => {
-    const id = accountIdInput.trim();
-    if (!id) return;
+    const fdId = selectedFd?.id;
+    if (!fdId) return;
     setLoading(true);
     try {
-      const params = new URLSearchParams({ accountId: id, startDate, endDate });
+      const params = new URLSearchParams({ accountId: fdId, startDate, endDate });
       const response = await fetch(`/api/v1/reports/fixed-deposits/statement?${params.toString()}`, {
         cache: "no-store",
         credentials: "include",
@@ -66,48 +122,128 @@ export default function FixedDepositStatementPage() {
     } finally {
       setLoading(false);
     }
-  }, [accountIdInput, startDate, endDate]);
+  }, [selectedFd, startDate, endDate]);
 
   useEffect(() => {
-    if (accountIdInput.trim()) fetchStatement();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); };
   }, []);
 
   const totalDebits = transactions.reduce((sum, t) => sum + t.debit, 0);
   const totalCredits = transactions.reduce((sum, t) => sum + t.credit, 0);
 
+  const handlePrint = useCallback(() => {
+    if (!accountInfo || transactions.length === 0) {
+      toast.error("No statement data to print. Load a statement first.");
+      return;
+    }
+    const rows = transactions.map((t) => [
+      new Date(t.date).toLocaleDateString("en-UG"),
+      t.transactionRef,
+      t.description,
+      t.debit > 0 ? t.debit : "-",
+      t.credit > 0 ? t.credit : "-",
+      t.balance,
+    ]);
+    printReport({
+      title: "Fixed Deposit Statement",
+      subtitle: `Account: ${accountInfo.accountNumber} - ${accountInfo.memberName}`,
+      period: `From: ${startDate} To: ${endDate}`,
+      filters: {
+        "Account No.": accountInfo.accountNumber,
+        Member: accountInfo.memberName,
+        Branch: accountInfo.branch,
+        Rate: `${accountInfo.interestRate}%`,
+        Status: accountInfo.status,
+      },
+      headers: ["Date", "Ref No.", "Description", "Debit (UGX)", "Credit (UGX)", "Balance (UGX)"],
+      rows,
+      totals: ["Total", "", `${transactions.length} entries`, totalDebits, totalCredits, accountInfo.currentBalance],
+    });
+  }, [accountInfo, transactions, totalDebits, totalCredits, startDate, endDate]);
+
+  const selectedLabel = selectedFd
+    ? `${selectedFd.accountNumber} - ${selectedFd.memberName}`
+    : "Search by account number, member name, or phone...";
+
   return (
     <ReportPageLayout
       title="Fixed Deposit Statement"
-      description="Transaction history for a fixed deposit account. Enter the account ID to load."
+      description="Transaction history for a fixed deposit account."
       generatedAt={generatedAt || undefined}
       filters={
         <div className="grid w-full gap-4 lg:grid-cols-4">
           <div className="space-y-2 lg:col-span-2">
-            <label className="text-sm font-medium">Account ID</label>
-            <div className="flex gap-2">
-              <Input
-                value={accountIdInput}
-                onChange={(e) => setAccountIdInput(e.target.value)}
-                placeholder="Paste account database ID"
-                className="font-mono text-sm"
-              />
-              <Button onClick={fetchStatement} disabled={loading || !accountIdInput.trim()} icon={Search} iconPosition="left">
-                {loading ? "Loading..." : "Load"}
-              </Button>
-            </div>
+            <Label>Fixed Deposit Account</Label>
+            <Popover
+              open={searchOpen}
+              onOpenChange={(open) => {
+                setSearchOpen(open);
+                if (open) {
+                  setSearchQuery(selectedFd?.accountNumber || "");
+                  void fetchSearch(selectedFd?.accountNumber || "");
+                }
+              }}
+            >
+              <PopoverTrigger asChild>
+                <Button variant="outline" role="combobox" aria-expanded={searchOpen} className="w-full justify-between font-normal">
+                  <span className="truncate">{selectedLabel}</span>
+                  <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[400px] p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+                <Command shouldFilter={false}>
+                  <CommandInput
+                    placeholder="Search by account, name, or phone..."
+                    value={searchQuery}
+                    onValueChange={handleSearchChange}
+                  />
+                  <CommandList>
+                    <CommandEmpty>
+                      {searchLoading ? "Searching..." : "No matching accounts."}
+                    </CommandEmpty>
+                    <CommandGroup heading="Fixed Deposit Accounts">
+                      {searchResults.map((fd) => {
+                        const isSelected = selectedFd?.id === fd.id;
+                        return (
+                          <CommandItem key={fd.id} value={`${fd.accountNumber} ${fd.memberName} ${fd.memberPhone}`} onSelect={() => handleSelect(fd)}>
+                            <Check className={`mr-2 h-4 w-4 ${isSelected ? "opacity-100" : "opacity-0"}`} />
+                            <div className="flex w-full flex-col">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="font-medium">{fd.accountNumber}</span>
+                                <Badge variant={fd.status === "ACTIVE" ? "secondary" : "destructive"} className="text-xs">{fd.status}</Badge>
+                              </div>
+                              <span className="text-sm text-slate-600">{fd.memberName}</span>
+                              <span className="text-xs text-slate-500">
+                                {fd.termMonths} months at {fd.interestRate}%
+                                {fd.memberPhone ? ` \u2022 ${fd.memberPhone}` : ""}
+                                {" \u2022 "}
+                                {ugx(fd.principalAmount)}
+                              </span>
+                            </div>
+                          </CommandItem>
+                        );
+                      })}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+            <p className="mt-1 text-xs text-slate-500">Search and select a fixed deposit account.</p>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium">From Date</label>
+            <Label>From Date</Label>
             <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium">To Date</label>
+            <Label>To Date</Label>
             <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
           </div>
           <div className="flex items-end gap-2 lg:col-span-4">
-            <Button onClick={fetchStatement} disabled={loading || !accountIdInput.trim()} icon={RefreshCw} iconPosition="left" variant="outline">
+            <Button onClick={fetchStatement} disabled={loading || !selectedFd} icon={RefreshCw} iconPosition="left" variant="outline">
               {loading ? "Loading..." : "Refresh"}
+            </Button>
+            <Button onClick={handlePrint} disabled={!accountInfo || transactions.length === 0} icon={Printer} iconPosition="left" variant="outline">
+              Print
             </Button>
           </div>
         </div>
@@ -146,7 +282,7 @@ export default function FixedDepositStatementPage() {
 
         {!accountInfo && !loading && (
           <div className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
-            Enter an account ID above and click Load to view the statement.
+            Search and select a fixed deposit account above to view its statement.
           </div>
         )}
 
@@ -171,12 +307,12 @@ export default function FixedDepositStatementPage() {
                     <td className="px-3 py-2">{row.description}</td>
                     <td className="px-3 py-2 text-right">
                       <span className={row.debit > 0 ? "text-rose-600 font-medium" : "text-muted-foreground"}>
-                        {row.debit > 0 ? ugx(row.debit) : "—"}
+                        {row.debit > 0 ? ugx(row.debit) : "\u2014"}
                       </span>
                     </td>
                     <td className="px-3 py-2 text-right">
                       <span className={row.credit > 0 ? "text-emerald-600 font-medium" : "text-muted-foreground"}>
-                        {row.credit > 0 ? ugx(row.credit) : "—"}
+                        {row.credit > 0 ? ugx(row.credit) : "\u2014"}
                       </span>
                     </td>
                     <td className="px-3 py-2 text-right font-medium">
@@ -200,3 +336,4 @@ export default function FixedDepositStatementPage() {
     </ReportPageLayout>
   );
 }
+

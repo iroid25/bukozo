@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import * as XLSX from "xlsx";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { toast } from "sonner";
@@ -28,6 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { printReport } from "@/lib/reports/print-report";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -380,6 +381,111 @@ export default function LoansReportsClient({
     }
   };
 
+  const handlePrint = useCallback(() => {
+    if (
+      safeLoanSummary.totalLoans === 0 &&
+      safeProductPerformance.length === 0 &&
+      safeMonthlyTrends.length === 0
+    ) {
+      toast.error("No data to print", {
+        description: "Please load report data before printing.",
+      });
+      return;
+    }
+
+    const period = `${format(dateRange.from, "MMM dd, yyyy")} - ${format(dateRange.to, "MMM dd, yyyy")}`;
+
+    const summary: Record<string, string | number> = {
+      "Total Loans": safeNumber(safeLoanSummary.totalLoans),
+      "Total Disbursed": safeLoanSummary.totalDisbursed,
+      "Total Outstanding": safeLoanSummary.totalOutstanding,
+      "Total Repaid": safeLoanSummary.totalRepaid,
+      "Active Loans": safeNumber(safeLoanSummary.activeLoans),
+      "Overdue Loans": safeNumber(safeLoanSummary.overdueLoans),
+      "Repaid Loans": safeNumber(safeLoanSummary.repaidLoans),
+      "Approval Rate": formatPercentage(safeLoanSummary.approvalRate),
+      "Repayment Rate": formatPercentage(safeLoanSummary.repaymentRate),
+      "Default Rate": formatPercentage(safeLoanSummary.defaultRate),
+      "Avg Loan Amount": safeLoanSummary.averageLoanAmount,
+      "Avg Repayment Period": `${safeNumber(safeLoanSummary.averageRepaymentPeriod)} days`,
+    };
+
+    const headers = ["Product", "Applications", "Approved", "Disbursed", "Outstanding", "Repaid", "Approval %", "Repayment %"];
+    const rows = safeProductPerformance.map((p) => [
+      p.name,
+      safeNumber(p.totalApplications),
+      safeNumber(p.approvedApplications),
+      p.totalDisbursed,
+      p.outstandingBalance,
+      p.repaidAmount,
+      formatPercentage(p.approvalRate),
+      formatPercentage(p.repaymentRate),
+    ]);
+
+    const totals: (string | number)[] = [
+      "Total",
+      safeProductPerformance.reduce((s, p) => s + safeNumber(p.totalApplications), 0),
+      safeProductPerformance.reduce((s, p) => s + safeNumber(p.approvedApplications), 0),
+      safeProductPerformance.reduce((s, p) => s + p.totalDisbursed, 0),
+      safeProductPerformance.reduce((s, p) => s + p.outstandingBalance, 0),
+      safeProductPerformance.reduce((s, p) => s + p.repaidAmount, 0),
+      "",
+      "",
+    ];
+
+    const groupBy = [
+      {
+        key: 0,
+        label: "Monthly Trends",
+        subHeaders: ["Month", "Applications", "Approved", "Disbursed", "Repayments", "Outstanding"],
+        subRows: safeMonthlyTrends.map((t) => [
+          t.month,
+          safeNumber(t.applicationsCount),
+          safeNumber(t.approvedCount),
+          t.disbursedAmount,
+          t.repaymentsAmount,
+          t.outstandingAmount,
+        ]),
+      },
+      {
+        key: 1,
+        label: "Loan Age Analysis",
+        subHeaders: ["Range", "Count", "Total Amount", "Outstanding"],
+        subRows: safeAgeAnalysis.map((a) => [
+          a.range,
+          safeNumber(a.count),
+          a.totalAmount,
+          a.outstandingAmount,
+        ]),
+      },
+      {
+        key: 2,
+        label: "Repayment Channels",
+        subHeaders: ["Channel", "Count", "Amount", "Percentage"],
+        subRows: safeChannelStats.map((c) => [
+          c.channel,
+          safeNumber(c.count),
+          c.amount,
+          formatPercentage(c.percentage),
+        ]),
+      },
+    ];
+
+    printReport({
+      title: "Comprehensive Loan Reports Summary",
+      subtitle: `Bukonzo Teachers SACCO`,
+      period,
+      filters: currentBranchId && currentBranchId !== "all"
+        ? { Branch: branches.find((b) => b.id === currentBranchId)?.name || currentBranchId }
+        : undefined,
+      summary,
+      headers,
+      rows,
+      totals,
+      groupBy,
+    });
+  }, [safeLoanSummary, safeProductPerformance, safeMonthlyTrends, safeAgeAnalysis, safeChannelStats, dateRange, currentBranchId, branches]);
+
   // Prepare chart data with safe values
   const loanStatusData = [
     { name: "Active", value: safeNumber(safeLoanSummary.activeLoans), color: "#0088FE" },
@@ -470,7 +576,7 @@ export default function LoansReportsClient({
               />
             </PopoverContent>
           </Popover>
-          <Button variant="outline" onClick={() => window.print()}>
+          <Button variant="outline" onClick={handlePrint}>
             <Printer className="mr-2 h-4 w-4" />
             Print
           </Button>

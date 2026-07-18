@@ -46,6 +46,7 @@ import {
 } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { useReportLiveRefresh } from "@/lib/hooks/useReportLiveRefresh";
+import { printReport } from "@/lib/reports/print-report";
 
 type SearchResult = {
   accountNumber: string;
@@ -472,6 +473,53 @@ export default function ShareAccountStatementPage() {
 
   const branchLabel = filters.branchId === "all" ? "All branches" : selectedBranch?.name || "Selected branch";
 
+  const data = report;
+
+  const handlePrint = useCallback(() => {
+    if (!data) {
+      toast.error("Generate the report first before printing.");
+      return;
+    }
+    printReport({
+      title: "Share Account Statement",
+      subtitle: `${data.member.accountTitle} - ${data.member.accountNumber}`,
+      period: `${data.dateRange.from} to ${data.dateRange.to}`,
+      filters: {
+        Account: data.member.accountNumber,
+        Holder: data.member.accountTitle,
+        Product: data.member.product,
+        Branch: data.member.branchName || "Main",
+      },
+      headers: ["Date", "Value Date", "Trx No", "Description", "Debit", "Credit", "Balance", "Processed By"],
+      rows: data.transactions.map((tx) => [
+        tx.trxDate,
+        tx.valueDate,
+        tx.trxNo,
+        tx.description,
+        tx.debitAmount > 0 ? tx.debitAmount : "-",
+        tx.creditAmount > 0 ? tx.creditAmount : "-",
+        tx.balanceAfter,
+        tx.processedBy,
+      ]),
+      totals: [
+        "TOTAL",
+        "",
+        "",
+        "",
+        data.periodTotals.totalDebits,
+        data.periodTotals.totalCredits,
+        data.closingBalances.totalClearedAndUncleared.amount,
+        "",
+      ],
+      summary: {
+        "Opening Balance": data.openingBalance.amount,
+        "Total Debits": data.periodTotals.totalDebits,
+        "Total Credits": data.periodTotals.totalCredits,
+        "Closing Balance": data.closingBalances.totalClearedAndUncleared.amount,
+      },
+    });
+  }, [data]);
+
   return (
     <div className="space-y-6 p-4 md:p-6">
       <SaccoReportHeader
@@ -627,7 +675,7 @@ export default function ShareAccountStatementPage() {
             <Button
               type="button"
               variant="outline"
-              onClick={() => window.print()}
+              onClick={handlePrint}
               disabled={!report}
             >
               <Printer className="mr-2 h-4 w-4" />

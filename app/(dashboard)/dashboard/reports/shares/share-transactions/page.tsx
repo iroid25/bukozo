@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { format, subDays } from "date-fns";
-import { Download, Loader2, RefreshCw, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { Download, Loader2, Printer, RefreshCw, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { useReportLiveRefresh } from "@/lib/hooks/useReportLiveRefresh";
+import { printReport } from "@/lib/reports/print-report";
 
 type BranchOption = { id: string; name: string };
 
@@ -172,6 +173,40 @@ export default function ShareTransactionsPage() {
     }
   }, [filters, isAdmin, userBranchId]);
 
+  const handlePrint = useCallback(() => {
+    if (!report) {
+      toast.error("Generate the report first before printing.");
+      return;
+    }
+
+    const groupBy = report.products.map((product) => ({
+      key: 0,
+      label: `${product.productCode} - ${product.productName}`,
+      subHeaders: ["A/C No.", "Name", "Phone/Ref", "Trx Ref", "Session Date", "Trx Date", "Debit", "Credit", "User"],
+      subRows: product.transactions.map((tx) => [
+        tx.accountNumber,
+        tx.memberName,
+        tx.phone,
+        tx.reference,
+        dateDisplay(tx.sessionDate),
+        dateDisplay(tx.transactionDate),
+        tx.debit || "-",
+        tx.credit || "-",
+        tx.userName,
+      ]),
+      subTotals: ["Subtotal", String(product.subtotal.count), "", "", "", "", product.subtotal.totalDebit, product.subtotal.totalCredit, ""],
+    }));
+
+    printReport({
+      title: "Share Transactions",
+      subtitle: `${branchLabel} | ${dateDisplay(filters.dateFrom)} to ${dateDisplay(filters.dateTo)}`,
+      headers: [],
+      rows: [],
+      groupBy,
+      totals: ["Grand Total", String(report.grandTotal.count), "", "", "", "", report.grandTotal.totalDebit, report.grandTotal.totalCredit, ""],
+    });
+  }, [report, branchLabel, filters.dateFrom, filters.dateTo]);
+
   const filteredSections = useMemo(() => {
     return (report?.products || []).map((product) => {
       let rows = [...product.transactions];
@@ -302,6 +337,15 @@ export default function ShareTransactionsPage() {
           >
             <Download className={`h-4 w-4 ${exporting ? "animate-spin" : ""}`} />
             Excel
+          </button>
+          <button
+            type="button"
+            className="inline-flex items-center gap-2 rounded-md border border-input bg-background px-4 py-2 text-xs font-semibold md:text-sm"
+            onClick={() => void handlePrint()}
+            disabled={!report}
+          >
+            <Printer className="h-4 w-4" />
+            Print
           </button>
         </div>
       </div>

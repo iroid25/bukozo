@@ -3,13 +3,15 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
+import * as XLSX from "xlsx";
 import DataTable, { Column } from "@/components/ui/data-table/data-table";
 import { ReportPageLayout } from "./ReportPageLayout";
+import { printReport, PrintReportConfig } from "@/lib/reports/print-report";
 import { DateRange } from "react-day-picker";
 import { addDays, format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Download } from "lucide-react";
+import { Download, Printer } from "lucide-react";
 import { DatePickerWithRange } from "@/components/ui/date-range-picker";
 import { Label } from "@/components/ui/label";
 import {
@@ -36,6 +38,8 @@ interface GenericReportPageProps<T> {
   searchFields?: string[];
   typeField?: keyof T;
   typeOptions?: { label: string; value: string }[];
+  printConfigBuilder?: (data: T[], summary: any, title: string, period: string) => PrintReportConfig;
+  exportFileName?: string;
 }
 
 export function GenericReportPage<T>({
@@ -52,6 +56,8 @@ export function GenericReportPage<T>({
   searchFields = [],
   typeField,
   typeOptions = [],
+  printConfigBuilder,
+  exportFileName,
 }: GenericReportPageProps<T>) {
   const { data: session } = useSession();
   const liveRefreshVersion = useReportLiveRefresh({
@@ -213,9 +219,14 @@ export function GenericReportPage<T>({
     }
   }, [isAdmin, userBranchId]);
 
-  const handleExport = () => {
-    toast.info("Exporting data...");
-  };
+  const periodLabel = useMemo(() => {
+    if (dateRange?.from || dateRange?.to) {
+      const from = dateRange?.from ? format(dateRange.from, "dd MMM yyyy") : "Start";
+      const to = dateRange?.to ? format(dateRange.to, "dd MMM yyyy") : "Now";
+      return `${from} - ${to}`;
+    }
+    return "";
+  }, [dateRange]);
 
   const filteredData = typeField && typeFilter !== "all"
     ? data.filter((item) => String(item[typeField]) === typeFilter)
@@ -266,6 +277,49 @@ export function GenericReportPage<T>({
 
     return newSummary;
   }, [summary, typeFilter, typeField, filteredData, data.length]);
+
+  const handleExport = useCallback(() => {
+    if (filteredData.length === 0) {
+      toast.error("No data to export. Generate the report first.");
+      return;
+    }
+    const worksheet = XLSX.utils.json_to_sheet(filteredData as any);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, title.slice(0, 31));
+    const fileName = exportFileName || title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    XLSX.writeFile(workbook, `${fileName}.xlsx`);
+    toast.success("Excel file exported successfully.");
+  }, [filteredData, title, exportFileName]);
+
+  const handlePrint = useCallback(() => {
+    if (filteredData.length === 0) {
+      toast.error("No data to print. Generate the report first.");
+      return;
+    }
+    if (printConfigBuilder) {
+      printReport(printConfigBuilder(filteredData, filteredSummary, title, periodLabel));
+      return;
+    }
+    const allKeys = filteredData.length > 0 ? Object.keys(filteredData[0] as any) : [];
+    const headers = columns
+      .filter((col) => allKeys.includes(col.accessorKey as string))
+      .map((col) => col.header);
+    const accessorKeys = columns
+      .filter((col) => allKeys.includes(col.accessorKey as string))
+      .map((col) => col.accessorKey as string);
+    const rows = filteredData.map((item) =>
+      accessorKeys.map((key) => {
+        const val = (item as any)[key];
+        return val === null || val === undefined ? "" : val;
+      }),
+    );
+    printReport({
+      title,
+      period: periodLabel,
+      headers,
+      rows,
+    });
+  }, [filteredData, filteredSummary, columns, title, periodLabel, printConfigBuilder]);
 
   return (
     <ReportPageLayout
@@ -327,10 +381,16 @@ export function GenericReportPage<T>({
         </div>
       }
       actions={
-        <Button variant="outline" onClick={handleExport}>
-          <Download className="mr-2 h-4 w-4" />
-          Export
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handlePrint} disabled={filteredData.length === 0}>
+            <Printer className="mr-2 h-4 w-4" />
+            Print
+          </Button>
+          <Button variant="outline" onClick={handleExport} disabled={filteredData.length === 0}>
+            <Download className="mr-2 h-4 w-4" />
+            Export Excel
+          </Button>
+        </div>
       }
       summary={filteredSummary && summaryFormatter ? summaryFormatter(filteredSummary) : null}
     >

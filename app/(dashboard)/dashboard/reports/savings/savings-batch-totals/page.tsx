@@ -8,6 +8,7 @@ import { Download, Printer, RefreshCw, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
+import { printReport } from "@/lib/reports/print-report";
 import { useReportLiveRefresh } from "@/lib/hooks/useReportLiveRefresh";
 import { SaccoReportHeader } from "@/components/reports/SaccoReportHeader";
 import { Button } from "@/components/ui/button";
@@ -178,6 +179,36 @@ export default function SavingsBatchTotalsPage() {
   const batches = report?.data.batches || [];
   const totals = report?.summary || {};
 
+  const handlePrint = useCallback(() => {
+    if (!report) {
+      toast.error("Generate the report first before printing.");
+      return;
+    }
+    const groupBy = batches.map((batch) => ({
+      key: 0,
+      label: `Batch ${batch.batchNumber} - ${batch.processedDate}`,
+      subHeaders: ["A/C No.", "Member", "Phone", "Ref No", "Balance", "Amount", "Teller"],
+      subRows: batch.members.map((m) => [
+        m.accountNumber,
+        m.memberName,
+        m.phone,
+        m.refNo,
+        m.balance,
+        m.transactionAmount,
+        m.teller,
+      ]),
+      subTotals: ["Total", String(batch.totalTransactions), "", "", "", batch.totalAmount, ""],
+    }));
+    printReport({
+      title: "Savings Batch Totals",
+      subtitle: `${activeBranchName} • ${filters.dateFrom} to ${filters.dateTo}`,
+      period: `${filters.dateFrom} to ${filters.dateTo}`,
+      headers: ["A/C No.", "Member", "Phone", "Ref No", "Balance", "Amount", "Teller"],
+      rows: [],
+      groupBy,
+    });
+  }, [report, batches, activeBranchName, filters.dateFrom, filters.dateTo]);
+
   return (
     <ReportPageLayout
       title="Savings Batch Totals Report"
@@ -234,7 +265,7 @@ export default function SavingsBatchTotalsPage() {
               {exporting ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
               Export
             </Button>
-            <Button variant="outline" className="flex-1" onClick={() => window.print()} disabled={!report}>
+            <Button variant="outline" className="flex-1" onClick={handlePrint} disabled={!report}>
               <Printer className="mr-2 h-4 w-4" />
               Print
             </Button>

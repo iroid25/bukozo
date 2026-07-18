@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { format, parseISO } from "date-fns";
-import { Download, Loader2, RefreshCw, Search, ArrowUpDown } from "lucide-react";
+import { Download, Loader2, Printer, RefreshCw, Search, ArrowUpDown } from "lucide-react";
 import { toast } from "sonner";
 import { useReportLiveRefresh } from "@/lib/hooks/useReportLiveRefresh";
+import { printReport } from "@/lib/reports/print-report";
 
 type BranchOption = { id: string; name: string };
 type ShareProductOption = { id: string; name: string; code: string };
@@ -217,6 +218,39 @@ export default function ShareAccountsListingPage() {
     }
   }, [isAdmin, userBranchId]);
 
+  const handlePrint = useCallback(() => {
+    if (!report) {
+      toast.error("No report data to print");
+      return;
+    }
+
+    const groupBy = report.products.map((product) => ({
+      key: 0,
+      label: `${product.product_code} - ${product.product_name}`,
+      subHeaders: ["A/C No.", "Name", "BVN/TIN", "Ref. No.", "Last Trx Date", "Days Inactive", "Date Opened", "Status", "Balance"],
+      subRows: product.accounts.map((account) => [
+        account.account_number,
+        account.member_name,
+        account.bvn_tin || "",
+        account.ref_no == null ? "" : String(account.ref_no),
+        account.last_trx_date,
+        String(account.days_without_activity),
+        account.date_opened,
+        account.status,
+        account.current_balance,
+      ]),
+      subTotals: ["Subtotal", String(product.subtotal.count), "", "", "", "", "", "", product.subtotal.total_balance],
+    }));
+
+    printReport({
+      title: "Share Accounts Listing",
+      subtitle: `${report.branch} — ${report.report_date}`,
+      headers: [],
+      rows: [],
+      groupBy,
+    });
+  }, [report]);
+
   const sections = useMemo(() => {
     const compareDates = (a: string, b: string) => {
       const left = parseISO(a).getTime();
@@ -391,6 +425,15 @@ export default function ShareAccountsListingPage() {
           >
             <Download className={`h-4 w-4 ${exporting ? "animate-spin" : ""}`} />
             Excel
+          </button>
+          <button
+            type="button"
+            className="inline-flex items-center gap-2 rounded-md border border-input bg-background px-4 py-2 text-xs font-semibold md:text-sm"
+            onClick={() => void handlePrint()}
+            disabled={!report}
+          >
+            <Printer className="h-4 w-4" />
+            Print
           </button>
         </div>
       </div>

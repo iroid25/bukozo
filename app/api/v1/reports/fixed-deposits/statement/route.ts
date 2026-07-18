@@ -62,14 +62,24 @@ export async function GET(request: NextRequest) {
           orderBy: { transactionDate: "asc" },
         });
 
-    const txnRecords = txnRows.map((txn) => ({
-      date: txn.transactionDate.toISOString().split("T")[0],
-      transactionRef: txn.transactionRef,
-      description: txn.description || txn.type,
-      amount: Number(txn.amount),
-      type: txn.type,
-      status: txn.status,
-    }));
+    let runningBalance = Number(fd.principalAmount);
+    const txnRecords = txnRows.map((txn) => {
+      const amt = Number(txn.amount);
+      const isCredit = txn.amount > 0;
+      const debit = isCredit ? 0 : amt;
+      const credit = isCredit ? amt : 0;
+      runningBalance += credit - debit;
+      return {
+        date: txn.transactionDate.toISOString().split("T")[0],
+        transactionRef: txn.transactionRef,
+        description: txn.description || txn.type,
+        debit,
+        credit,
+        balance: runningBalance,
+        type: txn.type,
+        status: txn.status,
+      };
+    });
 
     return NextResponse.json({
       accountInfo: {

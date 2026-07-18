@@ -12,6 +12,7 @@ import DataTable, { Column } from "@/components/ui/data-table/data-table";
 import { Users, ArrowUpRight, ArrowDownRight, Wallet, Download } from "lucide-react";
 import { DateRange } from "react-day-picker";
 import { useReportLiveRefresh } from "@/lib/hooks/useReportLiveRefresh";
+import { printReport } from "@/lib/reports/print-report";
 
 interface AgentPerformanceRow {
   id: string;
@@ -162,6 +163,68 @@ export default function AgentPerformanceReportPage() {
     [summary],
   );
 
+  const handlePrint = useCallback(() => {
+    if (!records.length) {
+      toast.error("No data to print");
+      return;
+    }
+
+    const period =
+      reportPeriod ||
+      (dateRange?.from && dateRange?.to
+        ? `${format(dateRange.from, "dd MMM yyyy")} - ${format(dateRange.to, "dd MMM yyyy")}`
+        : undefined);
+
+    printReport({
+      title: "Agent Performance Report",
+      period,
+      headers: [
+        "Agent",
+        "Branch",
+        "Rank",
+        "Transactions",
+        "Amount",
+        "Deposits",
+        "Deposit Amt",
+        "Withdrawals",
+        "Withdrawal Amt",
+        "Float Bal",
+        "Net Cash",
+      ],
+      rows: records.map((r) => [
+        r.agentName,
+        r.branch,
+        r.rank,
+        r.transactionsCount,
+        r.transactionAmount,
+        r.depositCount,
+        r.depositAmount,
+        r.withdrawalCount,
+        r.withdrawalAmount,
+        r.floatBalance,
+        r.netCashFlow,
+      ]),
+      totals: [
+        "TOTAL",
+        "",
+        "",
+        summary.totalTransactions,
+        summary.totalDeposits,
+        summary.totalWithdrawals,
+        summary.totalFloatBalance,
+        summary.totalNetCashFlow,
+      ],
+      summary: {
+        "Total Agents": summary.totalAgents,
+        "Total Transactions": summary.totalTransactions,
+        "Total Deposits": summary.totalDeposits,
+        "Total Withdrawals": summary.totalWithdrawals,
+        "Total Float Balance": summary.totalFloatBalance,
+        "Total Net Cash Flow": summary.totalNetCashFlow,
+      },
+    });
+  }, [records, reportPeriod, dateRange?.from, dateRange?.to, summary]);
+
   return (
     <ReportPageLayout
       title="Agent Performance Report"
@@ -173,6 +236,7 @@ export default function AgentPerformanceReportPage() {
           : undefined)
       }
       generatedAt={generatedAt || undefined}
+      onPrint={handlePrint}
       filters={
         <div className="flex flex-wrap items-center gap-4">
           <DatePickerWithRange date={dateRange} onDateChange={setDateRange} />

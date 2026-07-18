@@ -6,6 +6,7 @@ import { addDays, format } from "date-fns";
 import { Bell, CalendarDays, Download, Loader2, Printer, RefreshCw, Search, ShieldAlert, ArrowRightCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useReportLiveRefresh } from "@/lib/hooks/useReportLiveRefresh";
+import { printReport } from "@/lib/reports/print-report";
 
 type BranchOption = { id: string; name: string };
 
@@ -256,133 +257,55 @@ export default function UpcomingMaturingFixedDepositsPage() {
       return;
     }
 
-    const escapeHtml = (value: string) =>
-      value
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
+    const printHeaders = ["A/C No.", "Member", "FD No", "Trx Date", "Deposit", "Interest", "Maturity", "Maturity Date", "At Maturity", "Days", "Urgency"];
 
-    const currencyValue = (value: number) =>
-      new Intl.NumberFormat("en-UG", {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-      }).format(Number(value || 0));
+    const groupBy = report.products.map((section) => ({
+      key: 0,
+      label: `${section.productCode} - ${section.productName}`,
+      subHeaders: printHeaders,
+      subRows: section.records.map((record) => [
+        record.accountNumber,
+        record.memberName,
+        record.fdNumber,
+        displayDate(record.trxDate),
+        record.depositAmount,
+        record.totalInterest,
+        record.maturityValue,
+        displayDate(record.maturityDate),
+        record.atMaturityLabel,
+        record.daysToMaturity,
+        record.urgency,
+      ]),
+      subTotals: [
+        "Subtotal",
+        String(section.subtotal.count),
+        "", "", "",
+        section.subtotal.depositAmount,
+        section.subtotal.totalInterest,
+        section.subtotal.maturityValue,
+        "", "", "",
+      ],
+    }));
 
-    const sectionHtml = report.products
-      .map((section) => {
-        const rows = section.records
-          .map(
-            (record) => `
-              <tr>
-                <td>${escapeHtml(record.accountNumber)}</td>
-                <td>${escapeHtml(record.memberName)}</td>
-                <td>${escapeHtml(record.fdNumber)}</td>
-                <td>${escapeHtml(displayDate(record.trxDate))}</td>
-                <td>${currencyValue(record.depositAmount)}</td>
-                <td>${currencyValue(record.totalInterest)}</td>
-                <td>${currencyValue(record.maturityValue)}</td>
-                <td>${escapeHtml(displayDate(record.maturityDate))}</td>
-                <td>${escapeHtml(record.atMaturityLabel)}</td>
-                <td>${record.daysToMaturity.toLocaleString()}</td>
-                <td>${escapeHtml(record.urgency)}</td>
-              </tr>`,
-          )
-          .join("");
-
-        return `
-          <section class="section">
-            <h2>${escapeHtml(section.productCode)} - ${escapeHtml(section.productName)}</h2>
-            <table>
-              <thead>
-                <tr>
-                  <th>Account</th>
-                  <th>Member</th>
-                  <th>FD No</th>
-                  <th>Trx Date</th>
-                  <th>Deposit</th>
-                  <th>Interest</th>
-                  <th>Maturity</th>
-                  <th>Maturity Date</th>
-                  <th>At Maturity</th>
-                  <th>Days</th>
-                  <th>Urgency</th>
-                </tr>
-              </thead>
-              <tbody>${rows}</tbody>
-            </table>
-            <div class="subtotal">
-              Subtotal: ${section.subtotal.count.toLocaleString()} records | Deposit UGX ${currencyValue(section.subtotal.depositAmount)} | Interest UGX ${currencyValue(section.subtotal.totalInterest)} | Maturity UGX ${currencyValue(section.subtotal.maturityValue)}
-            </div>
-          </section>`;
-      })
-      .join("");
-
-    const legendHtml = (report.legend || [])
-      .map((item) => `<li>${escapeHtml(item)}</li>`)
-      .join("");
-
-    const win = window.open("", "_blank", "noopener,noreferrer,width=1400,height=900");
-    if (!win) {
-      toast.error("Popup blocked. Please allow popups to print the report.");
-      return;
-    }
-
-    win.document.open();
-    win.document.write(`<!doctype html>
-      <html>
-        <head>
-          <title>${escapeHtml(report.reportTitle)}</title>
-          <style>
-            body { font-family: Arial, sans-serif; color: #0f172a; margin: 24px; }
-            .letterhead { display: flex; align-items: center; gap: 16px; border-bottom: 3px solid #1e1b4b; padding-bottom: 12px; margin-bottom: 12px; }
-            .letterhead img { height: 64px; width: 64px; object-fit: contain; border-radius: 50%; }
-            .letterhead-text { flex: 1; }
-            .letterhead-name { font-size: 18px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.08em; color: #1e1b4b; margin: 0; }
-            .letterhead-sub { font-size: 11px; color: #475569; margin: 2px 0 0; }
-            h1 { margin: 8px 0 4px; font-size: 20px; text-align: center; }
-            .meta { color: #475569; font-size: 12px; margin-bottom: 18px; line-height: 1.5; }
-            .summary, .grand { font-weight: 700; margin-bottom: 12px; }
-            .section { margin-bottom: 24px; page-break-inside: avoid; }
-            .section h2 { font-size: 16px; margin: 0 0 10px; }
-            table { width: 100%; border-collapse: collapse; font-size: 11px; }
-            th, td { border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; vertical-align: top; }
-            th { background: #e2e8f0; }
-            .subtotal { margin-top: 8px; font-weight: 700; }
-            ul { margin: 8px 0 0 18px; }
-          </style>
-        </head>
-        <body>
-          <div class="letterhead">
-            <img src="${window.location.origin}/images/logo.jpg" alt="Logo" onerror="this.style.display='none'" />
-            <div class="letterhead-text">
-              <p class="letterhead-name">${escapeHtml(report.saccoName)}</p>
-              <p class="letterhead-sub">${escapeHtml(report.branch)} &bull; ${escapeHtml(report.branchLocation || "")}</p>
-            </div>
-          </div>
-          <h1>${escapeHtml(report.reportTitle)}</h1>
-          <div class="meta">
-            <div>Sacco: ${escapeHtml(report.saccoName)}</div>
-            <div>Branch: ${escapeHtml(report.branch)}</div>
-            <div>${escapeHtml(report.branchLocation || "")}</div>
-            <div>${escapeHtml(reportRangeLabel)}</div>
-            <div>Generated: ${escapeHtml(report.generatedAt ? format(new Date(report.generatedAt), "dd/MM/yyyy HH:mm:ss") : "")}</div>
-          </div>
-          <div class="summary">
-            Total Records: ${Number(report.summary?.total_count || 0).toLocaleString()} | Deposit UGX ${currencyValue(report.summary?.total_deposit || 0)} | Interest UGX ${currencyValue(report.summary?.total_interest || 0)} | Maturity UGX ${currencyValue(report.summary?.total_maturity_value || 0)}
-          </div>
-          ${sectionHtml}
-          <div class="grand">
-            GRAND TOTAL: ${Number(report.grand_total?.count || 0).toLocaleString()} records | Deposit UGX ${currencyValue(report.grand_total?.deposit || 0)} | Interest UGX ${currencyValue(report.grand_total?.interest || 0)} | Maturity UGX ${currencyValue(report.grand_total?.maturity_value || 0)}
-          </div>
-          ${legendHtml ? `<div class="section"><h2>Legend</h2><ul>${legendHtml}</ul></div>` : ""}
-        </body>
-      </html>`);
-    win.document.close();
-    win.focus();
-    setTimeout(() => win.print(), 300);
-  }, [report, reportRangeLabel]);
+    printReport({
+      title: "Upcoming Maturing Fixed Deposits",
+      subtitle: `${report.saccoName} | ${report.branch}`,
+      period: reportRangeLabel,
+      filters: { Branch: branchLabel },
+      headers: printHeaders,
+      rows: [],
+      groupBy,
+      totals: [
+        "Grand Total",
+        String(report.grand_total?.count || 0),
+        "", "", "",
+        report.grand_total?.deposit || 0,
+        report.grand_total?.interest || 0,
+        report.grand_total?.maturity_value || 0,
+        "", "", "",
+      ],
+    });
+  }, [report, reportRangeLabel, branchLabel]);
 
   const applyQuickRange = (days: number) => {
     const next = {

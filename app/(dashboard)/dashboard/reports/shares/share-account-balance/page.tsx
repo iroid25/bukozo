@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
 import { useReportLiveRefresh } from "@/lib/hooks/useReportLiveRefresh";
 import { SaccoReportHeader } from "@/components/reports/SaccoReportHeader";
+import { printReport } from "@/lib/reports/print-report";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -147,6 +148,31 @@ export default function ShareAccountBalancePage() {
     }
   }, [filters.branchId, filters.status, isAdmin, userBranchId]);
 
+  const handlePrint = useCallback(() => {
+    if (!report) return toast.error("No report to print");
+    printReport({
+      title: "Share Account Balance",
+      subtitle: `Branch: ${activeBranchName}`,
+      headers: [],
+      rows: [],
+      groupBy: report.data.products.map((product, idx) => ({
+        key: idx,
+        label: product.name,
+        subHeaders: ["A/C No.", "Name", "Address", "Ref No.", "Blocked", "Balance", "DR/CR"],
+        subRows: product.accounts.map((account) => [
+          account.accountNumber,
+          account.memberName,
+          account.physicalPostalAddress,
+          account.refNo,
+          account.amountBlocked,
+          account.balance,
+          account.drCr,
+        ]),
+        subTotals: ["Subtotal", String(product.accountCount), "", "", product.totalBlocked, product.totalValue, ""],
+      })),
+    });
+  }, [report, activeBranchName]);
+
   const products = report?.data.products || [];
   const summary = report?.summary || {};
   const rows = report?.data.accounts || [];
@@ -199,7 +225,7 @@ export default function ShareAccountBalancePage() {
               {exporting ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
               Export to Excel
             </Button>
-            <Button variant="outline" className="flex-1" onClick={() => window.print()} disabled={!report}>
+            <Button variant="outline" className="flex-1" onClick={handlePrint} disabled={!report}>
               <Printer className="mr-2 h-4 w-4" />
               Print / PDF
             </Button>

@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
-import { Loader2, RefreshCw, AlertTriangle } from "lucide-react";
+import { Loader2, RefreshCw, AlertTriangle, Printer } from "lucide-react";
 import { toast } from "sonner";
 import { useReportLiveRefresh } from "@/lib/hooks/useReportLiveRefresh";
 import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
+import { printReport } from "@/lib/reports/print-report";
 import { ReportSummaryCard } from "@/components/reports/ReportSummaryCard";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -87,6 +88,31 @@ export default function OnHoldClosedPage() {
     }
   }, [liveRefreshVersion, fetchReport]);
 
+  const handlePrint = useCallback(() => {
+    if (!data) {
+      toast.error("No report data to print");
+      return;
+    }
+
+    const headers = ["Account No.", "Member", "Type", "Branch", "Balance", "Status"];
+    const rows = (data.accounts || []).map((account) => [
+      account.accountNumber,
+      account.memberName,
+      account.accountType,
+      account.branch,
+      currency(account.balance),
+      account.hasActiveHold ? "ON HOLD" : account.status,
+    ]);
+
+    printReport({
+      title: "On Hold / Closed Share Accounts",
+      subtitle: `Generated: ${new Date().toLocaleDateString()}`,
+      headers,
+      rows,
+      totals: [`Total Accounts`, String(data.summary?.totalAccounts || rows.length)],
+    });
+  }, [data]);
+
   return (
     <ReportPageLayout
       title="Accounts On Hold / Closed"
@@ -96,6 +122,10 @@ export default function OnHoldClosedPage() {
         <Button onClick={fetchReport} disabled={loading}>
           {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
           Generate
+        </Button>
+        <Button variant="outline" onClick={handlePrint} disabled={!data}>
+          <Printer className="mr-2 h-4 w-4" />
+          Print
         </Button>
       </div>
 

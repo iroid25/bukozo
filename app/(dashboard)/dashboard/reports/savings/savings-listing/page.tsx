@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
-import { Download, RefreshCw, Search, Users, PiggyBank, ShieldCheck, AlertTriangle } from "lucide-react";
+import { Download, Printer, RefreshCw, Search, Users, PiggyBank, ShieldCheck, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
+import { printReport } from "@/lib/reports/print-report";
 import type { SavingsListingAccountRow, SavingsListingProduct, SavingsListingReport, SavingsMemberDetail } from "@/lib/reports/savings-listing-types";
 import { useReportLiveRefresh } from "@/lib/hooks/useReportLiveRefresh";
 
@@ -220,6 +221,44 @@ export default function SavingsListingPage() {
     }
   }
 
+  const handlePrint = useCallback(() => {
+    if (!report.data) {
+      toast.error("Generate the report first before printing.");
+      return;
+    }
+    const groupBy = report.data.products.map((product) => ({
+      key: 0,
+      label: `${product.code} - ${product.name}`,
+      subHeaders: ["A/C No.", "Member", "BVN/TIN", "Ref No", "Last Trx", "Days Inactive", "Opened", "Balance", "Status"],
+      subRows: product.accounts.map((a) => [
+        a.accountNumber,
+        a.memberName,
+        a.bankVerificationNo || "",
+        a.passbookCount !== null ? String(a.passbookCount) : "",
+        a.lastTrxDate ? format(new Date(a.lastTrxDate), "dd/MM/yyyy") : "-",
+        `${a.daysWithoutActivity} days`,
+        format(new Date(a.dateOpened), "dd/MM/yyyy"),
+        a.balance,
+        a.status,
+      ]),
+      subTotals: ["Total", String(product.memberCount), "", "", "", "", "", product.productTotal, ""],
+    }));
+    printReport({
+      title: "Savings Accounts Listing",
+      subtitle: `As at ${filters.asAtDate}`,
+      period: `As at ${filters.asAtDate}`,
+      filters: {
+        Product: filters.productCode === "all" ? "All Products" : filters.productCode,
+        Status: filters.status === "all" ? "All Statuses" : filters.status,
+        Inactivity: filters.minDaysInactive === "all" ? "All Days" : `> ${filters.minDaysInactive} days`,
+      },
+      headers: ["A/C No.", "Member", "BVN/TIN", "Ref No", "Last Trx", "Days Inactive", "Opened", "Balance", "Status"],
+      rows: [],
+      groupBy,
+      totals: ["GRAND TOTAL", String(report.data.grand_total.total_members), "", "", "", "", "", report.data.grand_total.total_balance, ""],
+    });
+  }, [report.data, filters]);
+
   async function openMemberDetail(accountNumber: string) {
     setSelectedAccountNumber(accountNumber);
     setMemberSheetOpen(true);
@@ -355,6 +394,14 @@ export default function SavingsListingPage() {
 
   const actions = (
     <div className="flex flex-wrap items-center gap-2">
+      <Button
+        variant="outline"
+        onClick={handlePrint}
+        disabled={report.loading || !report.data}
+      >
+        <Printer className="mr-2 h-4 w-4" />
+        Print
+      </Button>
       <Button
         variant="outline"
         onClick={() => loadReport()}
