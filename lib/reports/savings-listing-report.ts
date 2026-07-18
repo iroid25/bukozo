@@ -248,7 +248,7 @@ export async function buildSavingsListingReport(input: SavingsListingFilters, us
   const asAtDate = requestedAsAt;
   const branchFilter = await getBranchFilterForService(user, input.branchId || undefined);
 
-  const [accounts, fixedDeposits] = await Promise.all([
+  const [accounts, fixedDeposits, fdAccountRecords] = await Promise.all([
     db.account.findMany({
       where: {
         accountType: { isShareAccount: false, hasFixedPeriod: false },
@@ -360,6 +360,40 @@ export async function buildSavingsListingReport(input: SavingsListingFilters, us
       },
       orderBy: { accountNumber: "asc" },
     }),
+    // Fixed Deposit accounts in the Account model (created via POST /api/v1/accounts)
+    db.account.findMany({
+      where: {
+        accountType: { hasFixedPeriod: true, isShareAccount: false },
+        openedAt: { lte: asAtDate },
+        ...(branchFilter.branchId ? { branchId: branchFilter.branchId } : {}),
+        ...(input.status && input.status !== "all" ? { status: input.status as any } : {}),
+      },
+      include: {
+        member: {
+          include: {
+            user: { select: { name: true, nationalId: true } },
+          },
+        },
+        institution: {
+          include: {
+            user: { select: { name: true, nationalId: true } },
+          },
+        },
+        accountType: {
+          include: {
+            ledgerAccount: { select: { accountCode: true, accountName: true } },
+          },
+        },
+        branch: { select: { id: true, name: true } },
+        transactions: {
+          where: { transactionDate: { lte: asAtDate }, status: { not: "REVERSED" } },
+          orderBy: { transactionDate: "desc" },
+          take: 1,
+          select: { transactionDate: true, amount: true, fee: true, type: true, status: true, description: true, transactionRef: true },
+        },
+      },
+      orderBy: [{ accountNumber: "asc" }],
+    }),
   ]);
 
   // Map FixedDeposit records into AccountListingRecord-compatible shape
@@ -399,7 +433,7 @@ export async function buildSavingsListingReport(input: SavingsListingFilters, us
     transactions: [],
   }));
 
-  const allRecords = [...accounts, ...fdAsAccounts as any[]];
+  const allRecords = [...accounts, ...fdAsAccounts as any[], ...fdAccountRecords as any[]];
 
   const normalized = allRecords
     .map((account) => {

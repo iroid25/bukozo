@@ -10,16 +10,52 @@ export async function GET(request: NextRequest) {
 
     const officerUserId = (session.user as any).id;
 
-    const apps = await db.loanApplication.findMany({
-      where: {
-        applicantId: officerUserId,
-        stage: { in: ["SUBMITTED", "IN_ANALYSIS", "FORWARDED_TO_MANAGER"] },
-      },
-      orderBy: { applicationDate: "desc" },
-      include: { member: { include: { user: true } }, loanProduct: true },
-    });
+    const [memberApps, institutionApps] = await Promise.all([
+      db.loanApplication.findMany({
+        where: {
+          applicantId: officerUserId,
+          stage: { in: ["SUBMITTED", "IN_ANALYSIS", "FORWARDED_TO_MANAGER"] },
+        },
+        orderBy: { applicationDate: "desc" },
+        include: { member: { include: { user: true } }, loanProduct: true },
+      }),
+      db.institutionLoanApplication.findMany({
+        where: {
+          OR: [
+            { loanOfficerId: officerUserId },
+            { applicantUserId: officerUserId },
+          ],
+          stage: { in: ["SUBMITTED", "IN_ANALYSIS", "FORWARDED_TO_MANAGER"] },
+        },
+        orderBy: { applicationDate: "desc" },
+        include: {
+          institution: {
+            include: { user: true },
+          },
+          loanProduct: true,
+        },
+      }),
+    ]);
 
-    return NextResponse.json({ success: true, data: apps });
+    const normalizedInstitutionApps = institutionApps.map((app) => ({
+      ...app,
+      isInstitution: true,
+      member: {
+        id: app.institutionId,
+        memberNumber: app.institution.institutionNumber,
+        user: {
+          name: app.institution.institutionName,
+          email: app.institution.user?.email,
+          phone: app.institution.user?.phone,
+        },
+      },
+    }));
+
+    const allApps = [...memberApps, ...normalizedInstitutionApps].sort(
+      (a, b) => new Date(b.applicationDate).getTime() - new Date(a.applicationDate).getTime()
+    );
+
+    return NextResponse.json({ success: true, data: allApps });
   } catch (error) {
     console.error("Error fetching officer queue:", error);
     return NextResponse.json({ error: "Failed to fetch officer queue" }, { status: 500 });

@@ -1755,7 +1755,7 @@ export class LoanService {
           const branchVault = await tx.vault.findFirst({
             where: { branchId: account.branchId, isActive: true },
           });
-          if (!branchVault || branchVault.balance < amountGranted) {
+          if (!branchVault || branchVault.balance < netDisbursement) {
             throw new Error("Insufficient SACCO reserves in branch vault.");
           }
 
@@ -2054,7 +2054,7 @@ export class LoanService {
           // --- 4. Finalize ---
           await tx.vault.update({
             where: { id: branchVault.id },
-            data: { balance: { decrement: amountGranted } },
+            data: { balance: { decrement: netDisbursement } },
           });
           await tx.account.update({
             where: { id: account.id },
@@ -3488,11 +3488,14 @@ export class LoanService {
                   allocatedTellerId: filters.allocatedTellerId,
                 }),
                 ...(filters.branchId && {
-                  institution: { user: { branchId: filters.branchId } },
+                  OR: [
+                    { institution: { user: { branchId: filters.branchId } } },
+                    { institution: { accounts: { some: { branchId: filters.branchId } } } },
+                  ],
                 }),
               },
               include: {
-                institution: { include: { user: true } },
+                institution: { include: { user: true, accounts: { select: { id: true, branchId: true, status: true, accountType: { select: { name: true, isShareAccount: true } } } } } },
                 application: {
                   include: {
                     loanProduct: true,
@@ -3540,6 +3543,7 @@ export class LoanService {
               email: loan.institution.user?.email,
               phone: loan.institution.user?.phone,
             },
+            accounts: loan.institution.accounts || [],
           },
           loanApplication: loan.application,
           loanApplicationId: loan.applicationId,

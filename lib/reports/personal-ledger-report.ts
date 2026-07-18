@@ -834,6 +834,84 @@ async function buildShareSection(account: any, fromDate: Date, toDate: Date): Pr
   };
 }
 
+const ACCOUNT_NAME_TO_PRODUCT: Record<string, string> = {
+  "affiliate shares": "300501",
+  "ordinary shares": "300502",
+  "associate shares": "300503",
+};
+
+function resolveShareProductCode(typeName: string): string {
+  const key = typeName.toLowerCase().trim();
+  return ACCOUNT_NAME_TO_PRODUCT[key] || "";
+}
+
+async function buildInstitutionShareSection(account: any, fromDate: Date, toDate: Date): Promise<PersonalLedgerAccountSection> {
+  const transactions = sortByDateThenId(
+    await db.transaction.findMany({
+      where: {
+        accountId: account.id,
+        type: { in: ["SHARES_PURCHASE" as any, "DEPOSIT" as any] },
+        status: "COMPLETED" as any,
+        transactionDate: { lte: toDate },
+      },
+      include: {
+        processedByUser: {
+          select: { name: true, firstName: true, lastName: true },
+        },
+      },
+    }),
+  );
+
+  const openingBalance = latestBalanceBeforeShares(transactions, fromDate);
+  let runningBalance = openingBalance;
+  const periodTransactions = transactions.filter((tx) => {
+    const date = new Date(tx.transactionDate);
+    return date.getTime() >= fromDate.getTime() && date.getTime() <= toDate.getTime();
+  });
+
+  const rows = periodTransactions.map((tx: any) => {
+    const delta = toNumber(tx.amount);
+    runningBalance += delta;
+    const credit = delta;
+    const debit = 0;
+    const trxCode = "SD";
+
+    return toTransactionRow({
+      transactionDate: tx.transactionDate,
+      sessionDate: tx.valueDate || tx.transactionDate,
+      trxNumber: (tx.transactionRef || tx.id || "").slice(0, 18),
+      trxCode,
+      voucherNo: tx.transactionRef || "",
+      voucherText: tx.description || tx.transactionRef || "",
+      debit,
+      credit,
+      runningBalance,
+      userName: tx.processedByUser?.name || [tx.processedByUser?.firstName, tx.processedByUser?.lastName].filter(Boolean).join(" ").trim() || "System",
+      descriptionOverride: tx.description || null,
+    });
+  });
+
+  const typeName = account.accountType?.name || "";
+  const productCode = resolveShareProductCode(typeName) || account.accountNumber.split(".")[0] || "300502";
+
+  return {
+    account_no: account.accountNumber,
+    product_code: productCode,
+    product_name: account.accountType?.name || "SHARES",
+    date_opened: formatDate(account.openedAt),
+    status: account.status,
+    account_type: "shares",
+    opening_balance: openingBalance,
+    transactions: rows,
+    summary: {
+      transaction_count: rows.length,
+      total_debit: rows.reduce((sum: number, row) => sum + row.debit, 0),
+      total_credit: rows.reduce((sum: number, row) => sum + row.credit, 0),
+      closing_balance: rows.length ? rows[rows.length - 1].running_balance : openingBalance,
+    },
+  };
+}
+
 async function buildFixedDepositSection(account: any, fromDate: Date, toDate: Date): Promise<PersonalLedgerAccountSection> {
   const openingDate = new Date(account.startDate);
   const rows: PersonalLedgerTransaction[] = [];
@@ -1637,8 +1715,23 @@ export async function buildPersonalLedgerReport(filters: PersonalLedgerFilters):
       accounts.push(await buildInstitutionLoanSection(loan, fromDate, toDate));
     }
 
-    // Institution share accounts are not currently modeled separately, so we only
-    // render savings, fixed deposits, and institution loans here.
+    // Institution share accounts live in Account model (ShareAccount requires memberId)
+    const institutionShareAccounts = await db.account.findMany({
+      where: {
+        institutionId: institution.id,
+        accountType: { isShareAccount: true },
+      },
+      include: {
+        accountType: true,
+        branch: true,
+      },
+    });
+    for (const account of institutionShareAccounts) {
+      if (effectiveBranchId && effectiveBranchId !== "all" && account.branchId !== effectiveBranchId) continue;
+      if (!matchesAccountType("shares", filters.accountType)) continue;
+      if (!filters.includeClosed && !OPEN_SHARE_STATUSES.has(String(account.status))) continue;
+      accounts.push(await buildInstitutionShareSection(account, fromDate, toDate));
+    }
   }
 
   const memberProfile = subject.kind === "member" ? buildProfile(subject.member, accounts) : undefined;

@@ -157,14 +157,23 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    const institutionLoanAgg = await db.institutionLoan.aggregate({
+      _sum: { outstandingBalance: true },
+      _count: { _all: true },
+      where: {
+        outstandingBalance: { gt: 0 },
+        status: { not: "WRITTEN_OFF" },
+      },
+    });
+
     const loansNode: AssetCategoryNode = {
       source: "LOAN_ASSET_BUCKET",
       key: "loans",
       id: "LOAN_ASSET_BUCKET:loans",
       isManualLedger: false,
       label: "Loans",
-      amount: Number(loanAgg._sum.outstandingBalance || 0),
-      count: Number(loanAgg._count._all || 0),
+      amount: Number(loanAgg._sum.outstandingBalance || 0) + Number(institutionLoanAgg._sum.outstandingBalance || 0),
+      count: Number(loanAgg._count._all || 0) + Number(institutionLoanAgg._count._all || 0),
     };
 
     const repaymentWhere = scopedBranchId
@@ -177,9 +186,14 @@ export async function GET(request: NextRequest) {
       _count: { _all: true },
     });
 
+    const institutionRepaymentAgg = await db.institutionLoanRepayment.aggregate({
+      _sum: { principalPaid: true },
+      _count: { _all: true },
+    });
+
     const cashAtHand = {
-      amount: Number(repaymentAgg._sum.principalPaid || 0),
-      count: Number(repaymentAgg._count._all || 0),
+      amount: Number(repaymentAgg._sum.principalPaid || 0) + Number(institutionRepaymentAgg._sum.principalPaid || 0),
+      count: Number(repaymentAgg._count._all || 0) + Number(institutionRepaymentAgg._count._all || 0),
       label: "Cash at Hand (modeled from loan repayments)",
       isModeled: true as const,
     };

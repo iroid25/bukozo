@@ -90,7 +90,7 @@ async function getDirectAssets(asOfDate: Date, branchId?: string): Promise<Direc
   // Vault = Vault.balance WHERE isActive=true
   // Float = UserFloat.balance WHERE isActiveForDay=true
 
-  const [fixedAssetGroups, currentAssetGroups, loanAgg, repaymentAgg, vaultAgg, floatAgg] = await Promise.all([
+  const [fixedAssetGroups, currentAssetGroups, loanAgg, institutionLoanAgg, repaymentAgg, institutionRepaymentAgg, vaultAgg, floatAgg] = await Promise.all([
     db.fixedAsset.groupBy({
       by: ["category"],
       where: {
@@ -117,8 +117,18 @@ async function getDirectAssets(asOfDate: Date, branchId?: string): Promise<Direc
       },
       _sum: { outstandingBalance: true },
     }),
+    db.institutionLoan.aggregate({
+      where: {
+        outstandingBalance: { gt: 0 },
+        status: { not: "WRITTEN_OFF" },
+      },
+      _sum: { outstandingBalance: true },
+    }),
     db.loanRepayment.aggregate({
       where: branchId ? { loan: { branchId } } : {},
+      _sum: { principalPaid: true },
+    }),
+    db.institutionLoanRepayment.aggregate({
       _sum: { principalPaid: true },
     }),
     db.vault.aggregate({
@@ -137,8 +147,8 @@ async function getDirectAssets(asOfDate: Date, branchId?: string): Promise<Direc
   const currentAssetsTotal = currentAssetGroups.reduce(
     (sum, row) => sum + Number(row._sum.currentValue || 0), 0,
   );
-  const loanPortfolio = Number(loanAgg._sum.outstandingBalance || 0);
-  const cashAtHand = Number(repaymentAgg._sum.principalPaid || 0);
+  const loanPortfolio = Number(loanAgg._sum.outstandingBalance || 0) + Number(institutionLoanAgg._sum.outstandingBalance || 0);
+  const cashAtHand = Number(repaymentAgg._sum.principalPaid || 0) + Number(institutionRepaymentAgg._sum.principalPaid || 0);
   const vaultBalance = Number(vaultAgg._sum.balance || 0);
   const floatBalance = Number(floatAgg._sum.balance || 0);
 
