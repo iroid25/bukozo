@@ -40,6 +40,8 @@ yarn-error.log*
 # local bridge/runtime artifacts
 /fingerprint-bridge/node_modules/
 /fingerprint-bridge/nul
+bukozo_ssh_key
+bukozo_ssh_key.pub
 
 
 # vercel
