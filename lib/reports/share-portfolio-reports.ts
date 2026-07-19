@@ -216,57 +216,7 @@ async function fetchShareAccounts(branchId: string | null, reportDate: Date) {
     orderBy: [{ accountNumber: "asc" }],
   });
 
-  // Institution share accounts (from Account model, since ShareAccount requires memberId)
-  const institutionAccounts = await db.account.findMany({
-    where: {
-      openedAt: { lte: reportDate },
-      institutionId: { not: null },
-      accountType: { isShareAccount: true },
-      ...(branchId ? { branchId } : {}),
-    },
-    include: {
-      institution: {
-        select: {
-          institutionName: true,
-          institutionNumber: true,
-          user: { select: { name: true, phone: true, nationalId: true } },
-        },
-      },
-      accountType: true,
-      branch: {
-        select: {
-          name: true,
-          location: true,
-        },
-      },
-    },
-    orderBy: [{ accountNumber: "asc" }],
-  });
-
-  // Normalize institution accounts to match ShareAccount shape for downstream code
-  const normalizedInstitution = institutionAccounts.map((a) => ({
-    id: a.id,
-    accountNumber: a.accountNumber,
-    memberId: "",
-    accountTypeId: a.accountTypeId,
-    branchId: a.branchId,
-    numberOfShares: a.sharesCount || 0,
-    shareValue: a.accountType?.sharePrice || 0,
-    totalValue: a.balance,
-    status: a.status,
-    openedDate: a.openedAt,
-    closedDate: a.closedAt,
-    lastTransactionDate: null,
-    createdAt: a.openedAt,
-    updatedAt: a.openedAt,
-    batchNumber: null,
-    member: null,
-    institution: a.institution,
-    accountType: a.accountType,
-    branch: a.branch,
-  }));
-
-  return [...memberAccounts, ...normalizedInstitution] as any[];
+  return [...memberAccounts] as any[];
 }
 
 async function resolveLastTransactionDates(accountIds: string[], reportDate: Date) {

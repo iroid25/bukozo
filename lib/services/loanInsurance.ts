@@ -305,6 +305,21 @@ export async function recordInsuranceSettlement(
     },
   });
 
+  // Create Transaction record for audit trail (balance adjustments tracked separately)
+  const transactionRef = `INS-PAYOUT-${Date.now()}`;
+  await tx.transaction.create({
+    data: {
+      transactionRef,
+      type: "FEE" as any,
+      amount,
+      status: "COMPLETED" as any,
+      description,
+      processedByUserId: createdById,
+      channel: "SYSTEM",
+      accountId: insurancePoolAccount.id,
+    },
+  });
+
   await tx.account.update({
     where: { id: insurancePoolAccount.id },
     data: {

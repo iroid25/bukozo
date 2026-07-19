@@ -232,7 +232,7 @@ export async function getSharesTransactionReport(
     },
     select: { id: true },
   });
-  const instAcctIds = institutionAccountIds.map((a) => a.id);
+  const instAcctIds: string[] = [];
 
   const genericRows: TransactionRow[] = [];
 

@@ -824,6 +824,7 @@ export class LoanService {
           }
 
           // Insurance Premium → Centralized Loan Insurance Pool
+          // createJournalEntry: false because comprehensive JE already credits insurance
           if (deductions.insurance > 0) {
             await recordLoanInsuranceCollection({
               tx,
@@ -834,7 +835,7 @@ export class LoanService {
               loanApplicationId: applicationId,
               description: `Insurance from loan disbursement - ${app.member.user.name} - Loan ${loan.id.slice(0, 8)}`,
               reference: `INS-POOL-${loan.id.slice(0, 8)}`,
-              createJournalEntry: true,
+              createJournalEntry: false,
               debitAccountCode: CASH_AT_HAND_CODE,
               operationalTransaction: {
                 transactionRef: `INS-${Date.now()}`,
@@ -1094,16 +1095,8 @@ export class LoanService {
                   },
                 });
 
-                // GL journal entry: Dr Cash, Cr Interest Income
-                const interestGl = await tx.chartOfAccount.findFirst({ where: { accountCode: "401001", isActive: true } });
-                const cashGl = await tx.chartOfAccount.findFirst({ where: { accountCode: CASH_AT_HAND_CODE, isActive: true } });
-                  if (interestGl && cashGl) {
-                    const jeNum = `JE-LRCV-${Date.now()}`;
-                    await tx.journalEntry.create({ data: { entryNumber: jeNum, accountId: cashGl.id, debitAmount: recoveryInterest, creditAmount: 0, description: `Recovery interest - ${existingLoan.id.slice(0, 8)}`, entryDate: new Date(), reference: `LRCV-${existingLoan.id.slice(0, 8)}`, branchId: loan.branchId || undefined, createdByUserId: officerId } });
-                    await tx.journalEntry.create({ data: { entryNumber: jeNum, accountId: interestGl.id, debitAmount: 0, creditAmount: recoveryInterest, description: `Recovery interest - ${existingLoan.id.slice(0, 8)}`, entryDate: new Date(), reference: `LRCV-${existingLoan.id.slice(0, 8)}`, branchId: loan.branchId || undefined, createdByUserId: officerId } });
-                  await tx.chartOfAccount.update({ where: { id: cashGl.id }, data: buildAccountBalanceUpdate(cashGl, { debitAmount: recoveryInterest }) });
-                  await tx.chartOfAccount.update({ where: { id: interestGl.id }, data: buildAccountBalanceUpdate(interestGl, { creditAmount: recoveryInterest }) });
-                }
+                // GL journal entry for recovery interest is handled inside
+                // createComprehensiveLoanDisbursementJournalEntry — no duplicate here.
               }
             }
           }
@@ -1339,16 +1332,8 @@ export class LoanService {
                 },
               });
 
-              // GL journal entry: Dr Cash, Cr Processing Fee Income
-              const feeGl = await tx.chartOfAccount.findFirst({ where: { accountCode: "401002", isActive: true } });
-              const feeCashGl = await tx.chartOfAccount.findFirst({ where: { accountCode: CASH_AT_HAND_CODE, isActive: true } });
-              if (feeGl && feeCashGl) {
-                const jeNum = `JE-LPF-${Date.now()}`;
-                await tx.journalEntry.create({ data: { entryNumber: jeNum, accountId: feeCashGl.id, debitAmount: deductions.processingFee, creditAmount: 0, description: `Processing fee - ${updatedLoan.id.slice(0, 8)}`, entryDate: new Date(), reference: `LPF-${updatedLoan.id.slice(0, 8)}`, branchId: loan.branchId || undefined, createdByUserId: officerId } });
-                await tx.journalEntry.create({ data: { entryNumber: jeNum, accountId: feeGl.id, debitAmount: 0, creditAmount: deductions.processingFee, description: `Processing fee - ${updatedLoan.id.slice(0, 8)}`, entryDate: new Date(), reference: `LPF-${updatedLoan.id.slice(0, 8)}`, branchId: loan.branchId || undefined, createdByUserId: officerId } });
-                await tx.chartOfAccount.update({ where: { id: feeCashGl.id }, data: buildAccountBalanceUpdate(feeCashGl, { debitAmount: deductions.processingFee }) });
-                await tx.chartOfAccount.update({ where: { id: feeGl.id }, data: buildAccountBalanceUpdate(feeGl, { creditAmount: deductions.processingFee }) });
-              }
+              // GL journal entry for processing fee is handled inside
+              // createComprehensiveLoanDisbursementJournalEntry — no duplicate here.
             }
 
           }
@@ -1827,6 +1812,7 @@ export class LoanService {
           }
 
           if (deductions.insurance > 0) {
+            // createJournalEntry: false because comprehensive JE already credits insurance
             await recordLoanInsuranceCollection({
               tx,
               amount: deductions.insurance,
@@ -1834,7 +1820,7 @@ export class LoanService {
               branchId: account.branchId || null,
               description: `Insurance from institution loan disbursement - ${app.institution.institutionName} - Loan ${loan.id.slice(0, 8)}`,
               reference: `INS-INST-${loan.id.slice(0, 8)}`,
-              createJournalEntry: true,
+              createJournalEntry: false,
               debitAccountCode: CASH_AT_HAND_CODE,
               operationalTransaction: {
                 transactionRef: `INS-INST-${Date.now()}`,
@@ -1985,16 +1971,8 @@ export class LoanService {
                 },
               });
 
-              // GL journal entry: Dr Cash, Cr Interest Income
-              const instIntGl = await tx.chartOfAccount.findFirst({ where: { accountCode: "401001", isActive: true } });
-              const instIntCashGl = await tx.chartOfAccount.findFirst({ where: { accountCode: CASH_AT_HAND_CODE, isActive: true } });
-              if (instIntGl && instIntCashGl) {
-                const jeNum = `JE-ILRI-${Date.now()}`;
-                await tx.journalEntry.create({ data: { entryNumber: jeNum, accountId: instIntCashGl.id, debitAmount: recoveryInterest, creditAmount: 0, description: `Inst recovery interest - ${existingLoan.id.slice(0, 8)}`, entryDate: new Date(), reference: `ILRI-${existingLoan.id.slice(0, 8)}`, branchId: account.branchId || undefined, createdByUserId: officerId } });
-                await tx.journalEntry.create({ data: { entryNumber: jeNum, accountId: instIntGl.id, debitAmount: 0, creditAmount: recoveryInterest, description: `Inst recovery interest - ${existingLoan.id.slice(0, 8)}`, entryDate: new Date(), reference: `ILRI-${existingLoan.id.slice(0, 8)}`, branchId: account.branchId || undefined, createdByUserId: officerId } });
-                await tx.chartOfAccount.update({ where: { id: instIntCashGl.id }, data: buildAccountBalanceUpdate(instIntCashGl, { debitAmount: recoveryInterest }) });
-                await tx.chartOfAccount.update({ where: { id: instIntGl.id }, data: buildAccountBalanceUpdate(instIntGl, { creditAmount: recoveryInterest }) });
-              }
+              // GL journal entry for institution recovery interest is handled inside
+              // createComprehensiveLoanDisbursementJournalEntry — no duplicate here.
             }
 
             if (recoveryPenalty > 0) {
@@ -2229,16 +2207,8 @@ export class LoanService {
                 },
               });
 
-              // GL journal entry: Dr Cash, Cr Processing Fee Income
-              const instFeeGl = await tx.chartOfAccount.findFirst({ where: { accountCode: "401002", isActive: true } });
-              const instFeeCashGl = await tx.chartOfAccount.findFirst({ where: { accountCode: CASH_AT_HAND_CODE, isActive: true } });
-              if (instFeeGl && instFeeCashGl) {
-                const jeNum = `JE-IPF-${Date.now()}`;
-                await tx.journalEntry.create({ data: { entryNumber: jeNum, accountId: instFeeCashGl.id, debitAmount: deductions.processingFee, creditAmount: 0, description: `Inst processing fee - ${updatedLoan.id.slice(0, 8)}`, entryDate: new Date(), reference: `IPF-${updatedLoan.id.slice(0, 8)}`, branchId: account.branchId || undefined, createdByUserId: officerId } });
-                await tx.journalEntry.create({ data: { entryNumber: jeNum, accountId: instFeeGl.id, debitAmount: 0, creditAmount: deductions.processingFee, description: `Inst processing fee - ${updatedLoan.id.slice(0, 8)}`, entryDate: new Date(), reference: `IPF-${updatedLoan.id.slice(0, 8)}`, branchId: account.branchId || undefined, createdByUserId: officerId } });
-                await tx.chartOfAccount.update({ where: { id: instFeeCashGl.id }, data: buildAccountBalanceUpdate(instFeeCashGl, { debitAmount: deductions.processingFee }) });
-                await tx.chartOfAccount.update({ where: { id: instFeeGl.id }, data: buildAccountBalanceUpdate(instFeeGl, { creditAmount: deductions.processingFee }) });
-              }
+              // GL journal entry for institution processing fee is handled inside
+              // createComprehensiveLoanDisbursementJournalEntry — no duplicate here.
             }
 
           }

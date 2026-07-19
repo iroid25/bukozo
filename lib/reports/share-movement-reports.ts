@@ -143,38 +143,7 @@ async function fetchShareAccounts(branchId: string | null) {
     orderBy: [{ accountNumber: "asc" }],
   });
 
-  const institutionAccounts = await db.account.findMany({
-    where: {
-      accountType: { isShareAccount: true },
-      institutionId: { not: null },
-      ...(branchId ? { branchId } : {}),
-    },
-    include: {
-      institution: {
-        select: {
-          institutionName: true,
-          institutionPhone: true,
-        },
-      },
-      accountType: true,
-      branch: {
-        select: {
-          name: true,
-          location: true,
-        },
-      },
-    },
-    orderBy: [{ accountNumber: "asc" }],
-  });
-
-  const normalizedInstitution = institutionAccounts.map((acc) => ({
-    ...acc,
-    totalValue: acc.balance,
-    openedDate: acc.openedAt,
-    member: null,
-  }));
-
-  return [...memberAccounts, ...normalizedInstitution];
+  return [...memberAccounts];
 }
 
 const ACCOUNT_NAME_TO_PRODUCT: Record<string, string> = {

@@ -323,66 +323,8 @@ async function findShareAccount(filters: ShareStatementFilters, branchId: string
   }
 
   // Fallback: search institution share accounts from Account model
-  if (accountNumber) {
-    const instAccount = await db.account.findFirst({
-      where: {
-        accountType: { isShareAccount: true },
-        institutionId: { not: null },
-        accountNumber,
-        ...(branchId ? { branchId } : {}),
-      },
-      include: {
-        institution: {
-          include: {
-            user: { select: { name: true, phone: true, email: true, address: true, nationalId: true } },
-          },
-        },
-        accountType: true,
-        branch: { select: { id: true, name: true } },
-      },
-    });
-    if (instAccount) {
-      return {
-        ...instAccount,
-        totalValue: instAccount.balance,
-        sharesCount: instAccount.sharesCount || 0,
-        member: null,
-        transactions: [],
-      } as any;
-    }
-  }
-
   if (search) {
-    const instFound = await db.account.findFirst({
-      where: {
-        accountType: { isShareAccount: true },
-        institutionId: { not: null },
-        ...(branchId ? { branchId } : {}),
-        OR: [
-          { accountNumber: { contains: search, mode: "insensitive" } },
-          { institution: { institutionName: { contains: search, mode: "insensitive" } } },
-        ],
-      },
-      include: {
-        institution: {
-          include: {
-            user: { select: { name: true, phone: true, email: true, address: true, nationalId: true } },
-          },
-        },
-        accountType: true,
-        branch: { select: { id: true, name: true } },
-      },
-      orderBy: { accountNumber: "asc" },
-    });
-    if (instFound) {
-      return {
-        ...instFound,
-        totalValue: instFound.balance,
-        sharesCount: instFound.sharesCount || 0,
-        member: null,
-        transactions: [],
-      } as any;
-    }
+    return null;
   }
 
   return null;
@@ -417,18 +359,6 @@ async function ledgerBalanceForAccount(account: ShareAccountRecord, asOfDate: Da
     (tx) => !tx.isReversed && tx.transactionDate <= endOfDay,
   );
 
-  // For institution accounts (no ShareTransaction records), query Transaction model
-  if ((account as any).institutionId && txns.length === 0) {
-    const institutionTxns = await db.transaction.findMany({
-      where: {
-        accountId: account.id,
-        status: "COMPLETED",
-        transactionDate: { lte: endOfDay },
-      },
-    });
-    txns = institutionTxns as any[];
-  }
-
   let balance = 0;
   for (const tx of txns) {
     const txnType = (tx as any).transactionType || (tx as any).type;
@@ -454,18 +384,6 @@ export async function buildShareAccountStatementReport(filters: ShareStatementFi
   }
 
   let accountTransactions = account.transactions as any[];
-
-  // For institution accounts (which have no ShareTransaction records), query Transaction model
-  if (account.institutionId && accountTransactions.length === 0) {
-    accountTransactions = await db.transaction.findMany({
-      where: {
-        accountId: account.id,
-        status: "COMPLETED",
-        transactionDate: { lte: dateTo },
-      },
-      orderBy: { transactionDate: "asc" },
-    });
-  }
 
   const allTransactions = accountTransactions
     .filter((txn: any) => !txn.isReversed && txn.transactionDate <= dateTo)
@@ -564,12 +482,12 @@ export async function buildShareAccountStatementReport(filters: ShareStatementFi
       to: formatDate(dateTo),
     },
     member: {
-      accountTitle: account.member?.user?.name || account.institution?.institutionName || "N/A",
+      accountTitle: account.member?.user?.name || "N/A",
       accountNumber: account.accountNumber,
       product: productName,
       nubanCode: account.member?.savingsAccountNumber || account.accountNumber,
       passbookCount: 1,
-      phone: account.member?.user?.phone || account.institution?.institutionPhone || "",
+      phone: account.member?.user?.phone || "",
       idCardType: account.member?.typeOfId || (account.member?.user?.nationalId ? "EC" : "N/A"),
       address: account.member?.postalAddress || account.member?.village || account.member?.user?.address || "",
       status: account.status,
@@ -654,32 +572,6 @@ export async function searchShareAccounts(filters: ShareStatementFilters) {
     take: 25,
   });
 
-  // Also search institution share accounts
-  const instAndClauses: any[] = [
-    { accountType: { isShareAccount: true } },
-    { institutionId: { not: null } },
-  ];
-  if (branchId) instAndClauses.push({ branchId });
-  if (search) {
-    instAndClauses.push({
-      OR: [
-        { accountNumber: { contains: search, mode: "insensitive" } },
-        { institution: { institutionName: { contains: search, mode: "insensitive" } } },
-      ],
-    });
-  }
-
-  const instAccounts = await db.account.findMany({
-    where: { AND: instAndClauses },
-    include: {
-      institution: { select: { institutionName: true, institutionPhone: true } },
-      accountType: true,
-      branch: { select: { name: true } },
-    },
-    orderBy: { accountNumber: "asc" },
-    take: 25,
-  });
-
   const memberResults = accounts.map((account) => ({
     accountNumber: account.accountNumber,
     accountTitle: account.member.user.name,
@@ -691,18 +583,7 @@ export async function searchShareAccounts(filters: ShareStatementFilters) {
     branchName: account.branch?.name || null,
   }));
 
-  const instResults = instAccounts.map((account) => ({
-    accountNumber: account.accountNumber,
-    accountTitle: account.institution?.institutionName || "N/A",
-    product: account.accountType.name || "SHARES",
-    nubanCode: account.accountNumber,
-    phone: account.institution?.institutionPhone || "",
-    address: "",
-    status: account.status,
-    branchName: account.branch?.name || null,
-  }));
-
-  return [...memberResults, ...instResults].slice(0, 25);
+  return memberResults.slice(0, 25);
 }
 
 export async function buildShareAccountStatementWorkbook(report: ShareStatementReport) {

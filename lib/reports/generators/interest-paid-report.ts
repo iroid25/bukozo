@@ -29,6 +29,7 @@ export class InterestPaidReportGenerator extends BaseReportGenerator {
         where: {
           transactionType: 'INTEREST',
           transactionDate: dateFilter,
+          isReversed: false,
         },
         include: {
           account: {

@@ -51,18 +51,17 @@ export class ShareAccountStatementGenerator extends BaseReportGenerator {
         },
         transactions: {
           where: {
-            status: {
-              in: ['COMPLETED', 'APPROVED'],
-            },
             transactionDate: {
+              gte: startDate,
               lte: endDate,
             },
+            isReversed: false,
           },
           orderBy: {
             transactionDate: 'asc',
           },
           include: {
-            processedByUser: {
+            teller: {
               select: {
                 name: true,
               },
@@ -81,14 +80,14 @@ export class ShareAccountStatementGenerator extends BaseReportGenerator {
 
     // Map and compute running shares count over all transactions up to endDate
     const allFormattedTransactions = account.transactions.map((txn: any) => {
-      const isCredit = txn.type === 'DEPOSIT' || txn.type === 'SHARES_PURCHASE';
-      const isDebit = txn.type === 'WITHDRAWAL' || txn.type === 'FEE' || txn.type === 'LOAN_DISBURSEMENT';
-      
+      const isCredit = txn.transactionType === 'PURCHASE' || txn.transactionType === 'TRANSFER_IN' || txn.transactionType === 'DIVIDEND';
+      const isDebit = txn.transactionType === 'SALE' || txn.transactionType === 'TRANSFER_OUT' || txn.transactionType === 'REVERSAL';
+
       const shares = txn.amount / sharePrice;
       const sharesBefore = runningShares;
       if (isCredit) {
         runningShares += shares;
-      } else {
+      } else if (isDebit) {
         runningShares -= shares;
       }
       const sharesAfter = runningShares;
@@ -96,15 +95,15 @@ export class ShareAccountStatementGenerator extends BaseReportGenerator {
       return {
         rawDate: txn.transactionDate,
         date: this.formatDate(txn.transactionDate),
-        type: txn.type === 'SHARES_PURCHASE' ? 'PURCHASE' : txn.type,
-        reference: txn.transactionRef || 'N/A',
+        type: txn.transactionType,
+        reference: txn.reference || 'N/A',
         description: txn.description || 'N/A',
         shares,
         pricePerShare: this.formatCurrency(sharePrice),
         amount: this.formatCurrency(txn.amount),
         sharesBefore,
         sharesAfter,
-        teller: txn.processedByUser?.name || 'System',
+        teller: txn.teller?.name || 'System',
         isCredit,
         rawAmount: txn.amount,
       };

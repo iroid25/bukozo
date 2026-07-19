@@ -179,7 +179,9 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Deduct teller/agent float for cash withdrawals so cashier reports reflect this withdrawal
+      // Deduct teller/agent float for cash withdrawals so cashier reports reflect this withdrawal.
+      // TELLER: float decrements (cash leaves drawer). AGENT: float increments (SACCO owes agent more).
+      // Fee is included because member pays amount + fee out of the float.
       if (
         verification.channel?.toLowerCase() === "cash" &&
         ["TELLER", "AGENT"].includes(user.role)
@@ -189,17 +191,20 @@ export async function POST(request: NextRequest) {
         });
 
         if (userFloat) {
+          const totalCash = verification.amount + fee;
+          const isAgent = user.role === "AGENT";
+
           await tx.userFloat.update({
             where: { id: userFloat.id },
-            data: { balance: { decrement: verification.amount } },
+            data: { balance: { [isAgent ? "increment" : "decrement"]: totalCash } },
           });
 
           await tx.floatTransaction.create({
             data: {
               floatId: userFloat.id,
               type: TransactionType.WITHDRAWAL,
-              amount: -verification.amount,
-              description: `Withdrawal: ${transactionRef}`,
+              amount: isAgent ? totalCash : -totalCash,
+              description: `Withdrawal: ${transactionRef}${fee > 0 ? ` (incl. fee ${fee})` : ""}`,
               performedByUserId: user.id,
               relatedTransactionId: transaction.id,
             },

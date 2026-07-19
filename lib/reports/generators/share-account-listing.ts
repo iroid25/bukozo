@@ -34,10 +34,31 @@ export class ShareAccountListingGenerator extends BaseReportGenerator {
             },
           },
         },
+        accountType: {
+          select: { name: true, sharePrice: true },
+        },
+        branch: {
+          select: { name: true },
+        },
+      },
+      orderBy: { accountNumber: 'asc' },
+    });
+
+    // Institution accounts are in the Account model, not ShareAccount.
+    // Query them separately and merge.
+    const instWhere: any = {
+      accountType: { isShareAccount: true },
+      institutionId: { not: null },
+    };
+    if (params.branchId) instWhere.branchId = params.branchId;
+    if (params.status) instWhere.status = params.status;
+    if (params.accountTypeId) instWhere.accountTypeId = params.accountTypeId;
+
+    const institutionAccounts = await db.account.findMany({
+      where: instWhere,
+      include: {
         institution: {
-          select: {
-            institutionName: true,
-          },
+          select: { institutionName: true, user: { select: { name: true } } },
         },
         accountType: {
           select: { name: true, sharePrice: true },
@@ -49,13 +70,16 @@ export class ShareAccountListingGenerator extends BaseReportGenerator {
       orderBy: { accountNumber: 'asc' },
     });
 
-    const reportData = accounts.map(account => {
+    const allAccounts = [...accounts, ...institutionAccounts];
+
+    const reportData = allAccounts.map((account: any) => {
       const sharesCount = account.numberOfShares || 0;
       const sharePrice = account.accountType.sharePrice || 10000;
+      const ownerName = account.member?.user?.name || account.institution?.institutionName || account.institution?.user?.name || 'N/A';
       
       return {
         accountNumber: account.accountNumber,
-        memberName: account.member?.user?.name || 'N/A',
+        memberName: ownerName,
         memberPhone: account.member?.user?.phone || 'N/A',
         accountType: account.accountType.name,
         branch: account.branch?.name || 'N/A',
@@ -63,21 +87,21 @@ export class ShareAccountListingGenerator extends BaseReportGenerator {
         shareValue: this.formatCurrency(sharePrice),
         totalValue: this.formatCurrency(account.totalValue),
         status: account.status,
-        openedDate: this.formatDate(account.openedDate),
-        lastTransactionDate: this.formatDate(account.lastTransactionDate || account.openedDate),
+        openedDate: this.formatDate(account.openedDate || (account as any).createdAt),
+        lastTransactionDate: this.formatDate(account.lastTransactionDate || account.openedDate || (account as any).createdAt),
       };
     });
 
     const summary = {
-      totalAccounts: accounts.length,
-      totalShares: accounts.reduce((sum, acc) => sum + (acc.numberOfShares || 0), 0),
-      totalValue: accounts.reduce((sum, acc) => sum + acc.totalValue, 0),
-      activeAccounts: accounts.filter(acc => acc.status === 'ACTIVE').length,
-      averageShares: accounts.length > 0
-        ? accounts.reduce((sum, acc) => sum + (acc.numberOfShares || 0), 0) / accounts.length
+      totalAccounts: allAccounts.length,
+      totalShares: allAccounts.reduce((sum: number, acc: any) => sum + (acc.numberOfShares || 0), 0),
+      totalValue: allAccounts.reduce((sum: number, acc: any) => sum + (acc.totalValue || 0), 0),
+      activeAccounts: allAccounts.filter((acc: any) => acc.status === 'ACTIVE').length,
+      averageShares: allAccounts.length > 0
+        ? allAccounts.reduce((sum: number, acc: any) => sum + (acc.numberOfShares || 0), 0) / allAccounts.length
         : 0,
-      averageValue: accounts.length > 0
-        ? accounts.reduce((sum, acc) => sum + acc.totalValue, 0) / accounts.length
+      averageValue: allAccounts.length > 0
+        ? allAccounts.reduce((sum: number, acc: any) => sum + (acc.totalValue || 0), 0) / allAccounts.length
         : 0,
     };
 

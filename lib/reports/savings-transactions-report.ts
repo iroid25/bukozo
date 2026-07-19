@@ -427,6 +427,7 @@ function buildTransactionWhere(filters: SavingsTransactionReportFilters, branchI
         gte: dateRange.from,
         lte: dateRange.to,
       },
+      isReversed: false,
     },
   ];
 
@@ -932,6 +933,7 @@ async function fetchTransactions(filters: SavingsTransactionReportFilters, user:
       gte: resolveDateRange(filters).from,
       lte: resolveDateRange(filters).to,
     },
+    status: { not: "REVERSED" },
     type: { in: [TransactionType.DEPOSIT, TransactionType.WITHDRAWAL, TransactionType.FEE, TransactionType.TRANSFER] },
     ...(branchId
       ? {
