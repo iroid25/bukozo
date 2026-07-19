@@ -87,67 +87,69 @@ export async function GET(request: NextRequest) {
         newStatus = 'PENDING';
     }
 
-    // Update the transaction
-    const updatedTransaction = await db.transaction.update({
-      where: { id: transaction.id },
-      data: {
-        status: newStatus,
-        description: `${transaction.description} - ${status.payment_status_description}`,
-      },
-    });
+    // Wrap status update + balance changes in a transaction for idempotency.
+    // Conditional updateMany prevents double-credit on duplicate webhook calls.
+    const updatedTransaction = await db.$transaction(async (tx) => {
+      const flipped = await tx.transaction.updateMany({
+        where: {
+          id: transaction.id,
+          status: { not: newStatus },
+        },
+        data: {
+          status: newStatus,
+          description: `${transaction.description} - ${status.payment_status_description}`,
+        },
+      });
 
-    // If completed, update account/loan balance
-    if (newStatus === 'COMPLETED') {
-      if (transaction.type === 'DEPOSIT' && transaction.accountId) {
-        await db.account.update({
-          where: { id: transaction.accountId },
-          data: {
-            balance: {
-              increment: transaction.amount,
-            },
-          },
-        });
-      } else if (transaction.type === 'WITHDRAWAL' && transaction.accountId) {
-        await db.account.update({
-          where: { id: transaction.accountId },
-          data: {
-            balance: {
-              decrement: transaction.amount,
-            },
-          },
-        });
-      } else if (transaction.type === 'LOAN_REPAYMENT' && transaction.loanId) {
-        // Update loan balance
-        await db.loan.update({
-          where: { id: transaction.loanId },
-          data: {
-            outstandingBalance: {
-              decrement: transaction.amount,
-            },
-            amountPaid: {
-              increment: transaction.amount,
-            },
-          },
-        });
+      // If already in target status, skip balance changes (idempotent)
+      if (flipped.count === 0) return transaction;
 
-        // Create loan repayment record
-        if (transaction.memberId && transaction.member?.userId) {
-          await db.loanRepayment.create({
-            data: {
-              loanId: transaction.loanId,
-              memberId: transaction.memberId,
-              amount: transaction.amount,
-              repaymentDate: new Date(),
-              handlerUserId: transaction.member.userId, // Self-service
-              channel: 'MOBILE_MONEY',
-              mobileMoneyRef: transaction.transactionRef,
-            },
+      if (newStatus === 'COMPLETED') {
+        if (transaction.type === 'DEPOSIT' && transaction.accountId) {
+          await tx.account.update({
+            where: { id: transaction.accountId },
+            data: { balance: { increment: transaction.amount } },
           });
-        } else {
-          console.warn('âš ï¸ Could not create loan repayment record: Missing memberId or userId');
+        } else if (transaction.type === 'WITHDRAWAL' && transaction.accountId) {
+          await tx.account.update({
+            where: { id: transaction.accountId },
+            data: { balance: { decrement: transaction.amount } },
+          });
+        } else if (transaction.type === 'LOAN_REPAYMENT' && transaction.loanId) {
+          // Idempotent loan balance update — only decrement if sufficient balance
+          const loan = await tx.loan.findUnique({ where: { id: transaction.loanId } });
+          if (loan && loan.outstandingBalance >= transaction.amount) {
+            await tx.loan.update({
+              where: { id: transaction.loanId },
+              data: {
+                outstandingBalance: { decrement: transaction.amount },
+                amountPaid: { increment: transaction.amount },
+              },
+            });
+          }
+
+          // Create loan repayment record (skip if one already exists for this ref)
+          const existingRepayment = await tx.loanRepayment.findFirst({
+            where: { mobileMoneyRef: transaction.transactionRef },
+          });
+          if (!existingRepayment && transaction.memberId && transaction.member?.userId) {
+            await tx.loanRepayment.create({
+              data: {
+                loanId: transaction.loanId,
+                memberId: transaction.memberId,
+                amount: transaction.amount,
+                repaymentDate: new Date(),
+                handlerUserId: transaction.member.userId,
+                channel: 'MOBILE_MONEY',
+                mobileMoneyRef: transaction.transactionRef,
+              },
+            });
+          }
         }
       }
-    }
+
+      return await tx.transaction.findUnique({ where: { id: transaction.id } }) || transaction;
+    });
 
     // Create notification
     if (newStatus === 'COMPLETED' || newStatus === 'FAILED') {

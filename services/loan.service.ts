@@ -2644,7 +2644,6 @@ export class LoanService {
               schedules: {
                 where: { status: { not: "PAID" } },
                 orderBy: { period: "asc" },
-                take: 1,
               },
             },
           });
@@ -2664,7 +2663,6 @@ export class LoanService {
                 schedules: {
                   where: { status: { not: "PAID" } },
                   orderBy: { period: "asc" },
-                  take: 1,
                 },
               },
             });
@@ -2971,22 +2969,23 @@ export class LoanService {
           });
 
           if (!isInstitution) {
-            const newBalance = Math.max(
-              0,
-              individualLoan!.outstandingBalance - data.amount,
-            );
-
+            // Atomic decrement — prevents concurrent repayments from corrupting balance
             await tx.loan.update({
               where: { id: data.loanId },
               data: {
-                outstandingBalance: newBalance,
+                outstandingBalance: { decrement: data.amount },
                 amountPaid: { increment: data.amount },
                 interestPaid: { increment: interestPortion },
                 penaltyPaid: { increment: penaltyPortion },
                 principalPaid: { increment: principalPortion },
-                status: newBalance <= 0.01 ? LoanStatus.REPAID : undefined,
               },
             });
+
+            // Check status after atomic decrement
+            const refreshedLoan = await tx.loan.findUnique({ where: { id: data.loanId }, select: { outstandingBalance: true } });
+            if (refreshedLoan && refreshedLoan.outstandingBalance <= 0.01) {
+              await tx.loan.update({ where: { id: data.loanId }, data: { status: LoanStatus.REPAID } });
+            }
 
             const repayment = await tx.loanRepayment.create({
               data: {
@@ -3095,6 +3094,7 @@ export class LoanService {
               tx,
             );
           } else {
+            // Atomic decrement for institution loans
             await tx.institutionLoan.update({
               where: { id: data.loanId },
               data: {
@@ -3103,12 +3103,14 @@ export class LoanService {
                 interestPaid: { increment: interestPortion },
                 penaltyPaid: { increment: penaltyPortion },
                 principalPaid: { increment: principalPortion },
-                status:
-                  institutionLoan!.outstandingBalance - data.amount <= 0.01
-                    ? LoanStatus.REPAID
-                    : undefined,
               },
             });
+
+            // Check status after atomic decrement
+            const refreshedInstLoan = await tx.institutionLoan.findUnique({ where: { id: data.loanId }, select: { outstandingBalance: true } });
+            if (refreshedInstLoan && refreshedInstLoan.outstandingBalance <= 0.01) {
+              await tx.institutionLoan.update({ where: { id: data.loanId }, data: { status: LoanStatus.REPAID } });
+            }
 
             await tx.institutionLoanRepayment.create({
               data: {

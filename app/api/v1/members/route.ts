@@ -373,50 +373,48 @@ export async function POST(req: NextRequest) {
       isVerified: true,
     };
 
-    // Create user in database
-    const newUser = await db.user.create({
-      data: userData,
-    });
-
-    // If user is a MEMBER, create Member record and send welcome email
+    // If user is a MEMBER, create user + member atomically
     if (userData.role === "MEMBER") {
       try {
-        // Generate unique member number
         const memberNumber = await generateMemberNumber();
         const parsedRegistrationDate = data.registrationDate
           ? new Date(data.registrationDate)
           : new Date();
 
-        // Create Member record
-        const newMember = await db.member.create({
-          data: {
-            userId: newUser.id,
-            memberNumber,
-            registrationDate: Number.isNaN(parsedRegistrationDate.getTime())
-              ? new Date()
-              : parsedRegistrationDate,
-            nin: memberNin || "",
-            surname: data.firstName,
-            otherNames: data.lastName,
-            typeOfId: memberNin ? "National Identity Card" : null,
-            additionalDocs: [],
-            occupation: data.jobTitle,
-            village: data.village || null,
-            parish: data.parish || null,
-            subCounty: data.subCounty || null,
-            postalAddress: data.postalAddress || null,
-            nokName: data.nokName || null,
-            nokRelationship: data.nokRelationship || null,
-            nokPhone: data.nokPhone || null,
-            approvalStatus: "PENDING", // Requires admin approval
-          },
+        // Wrap user + member creation in a single transaction for atomicity
+        const { newUser, newMember } = await db.$transaction(async (tx) => {
+          const user = await tx.user.create({ data: userData });
+          const member = await tx.member.create({
+            data: {
+              userId: user.id,
+              memberNumber,
+              registrationDate: Number.isNaN(parsedRegistrationDate.getTime())
+                ? new Date()
+                : parsedRegistrationDate,
+              nin: memberNin || "",
+              surname: data.firstName,
+              otherNames: data.lastName,
+              typeOfId: memberNin ? "National Identity Card" : null,
+              additionalDocs: [],
+              occupation: data.jobTitle,
+              village: data.village || null,
+              parish: data.parish || null,
+              subCounty: data.subCounty || null,
+              postalAddress: data.postalAddress || null,
+              nokName: data.nokName || null,
+              nokRelationship: data.nokRelationship || null,
+              nokPhone: data.nokPhone || null,
+              approvalStatus: "PENDING",
+            },
+          });
+          return { newUser: user, newMember: member };
         });
 
-        // Send welcome email
+        // Send welcome email (outside transaction — I/O operation)
         const emailResult = await sendWelcomeEmail({
           memberName: newUser.name,
           email: newUser.email!,
-          password: data.password, // Send the plain password in email
+          password: data.password,
           memberNumber: newMember.memberNumber,
         });
 
@@ -443,7 +441,6 @@ export async function POST(req: NextRequest) {
           console.error("Welcome notification error:", notifError);
         }
 
-        // Return structured data similar to what frontend might expect
         return NextResponse.json(
           {
             user: newUser,
@@ -454,8 +451,7 @@ export async function POST(req: NextRequest) {
           { status: 201 },
         );
       } catch (error) {
-        // If member creation fails, we should clean up the user
-        await db.user.delete({ where: { id: newUser.id } });
+        // Transaction automatically rolls back — no manual cleanup needed
         console.error("Error creating member record:", error);
         return NextResponse.json(
           {
@@ -465,6 +461,9 @@ export async function POST(req: NextRequest) {
         );
       }
     }
+
+    // Non-MEMBER roles: create user directly (not wrapped in transaction since there's no member record)
+    const newUser = await db.user.create({ data: userData });
 
     return NextResponse.json(
       { user: newUser, message: "User created successfully" },

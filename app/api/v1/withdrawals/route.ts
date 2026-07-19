@@ -190,6 +190,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Active account hold check
+    const activeHold = await db.accountHold.findFirst({
+      where: { accountId, isActive: true },
+    });
+    if (activeHold) {
+      return NextResponse.json(
+        {
+          error: `Account has an active hold (${activeHold.reasonText || activeHold.reason}). Withdrawals are blocked until the hold is lifted.`,
+        },
+        { status: 400 },
+      );
+    }
+
     const requiresFingerprint = Boolean(account.member?.fingerprintTemplate);
     const fingerprintMemberId = memberId || account.memberId || undefined;
     const fingerprintIp =

@@ -102,17 +102,20 @@ export async function POST(request: NextRequest) {
 
     // Execute transaction
     const result = await db.$transaction(async (tx) => {
-      // 1. Update source vault
-      await tx.vault.update({
-        where: { id: sourceVault.id },
+      // 1. Atomic decrement on source vault with balance guard — prevents TOCTOU race
+      const sourceUpdate = await tx.vault.updateMany({
+        where: { id: sourceVault.id, balance: { gte: totalToMove } },
         data: {
           balance: { decrement: totalToMove },
           physicalCash: { decrement: totalToMove }
         }
       });
+      if (sourceUpdate.count === 0) {
+        throw new Error("Insufficient funds in source vault (concurrent allocation detected)");
+      }
 
-      // 2. Update target vault
-      await tx.vault.update({
+      // 2. Atomic increment on target vault
+      await tx.vault.updateMany({
         where: { id: targetVault.id },
         data: {
           balance: { increment: totalToMove },

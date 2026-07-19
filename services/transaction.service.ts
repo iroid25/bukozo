@@ -301,6 +301,17 @@ export class TransactionService {
         };
       }
 
+      // 1e2. Active account hold check
+      const activeHold = await db.accountHold.findFirst({
+        where: { accountId: data.accountId, isActive: true },
+      });
+      if (activeHold) {
+        return {
+          ok: false,
+          error: `Account has an active hold (${activeHold.reasonText || activeHold.reason}). Withdrawals are blocked until the hold is lifted.`,
+        };
+      }
+
       // 1f. Withdrawal frequency check (e.g. Junior Savings: once per 4 months)
       if (account.accountType.withdrawalFrequencyDays && account.accountType.withdrawalFrequencyDays > 0) {
         const lastWithdrawal = await db.withdrawal.findFirst({

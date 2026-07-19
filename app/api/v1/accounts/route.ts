@@ -205,12 +205,29 @@ export async function POST(request: NextRequest) {
 
     // ── Main transaction ──────────────────────────────────────────────────────
     const account = await db.$transaction(async (tx) => {
+      // Duplicate account check — inside transaction to prevent race condition
+      const existingAccountInsideTx = await tx.account.findFirst({
+        where: {
+          ...(data.memberId ? { memberId: data.memberId } : {}),
+          ...(data.institutionId ? { institutionId: data.institutionId } : {}),
+          accountTypeId: data.accountTypeId,
+          status: { not: AccountStatus.CLOSED },
+        },
+      });
+      if (existingAccountInsideTx && !accountType.isShareAccount && !accountType.hasFixedPeriod) {
+        throw new Error(
+          data.memberId
+            ? "Member already has an active account of this type. Please use Deposit to add funds."
+            : "Institution already has an active account of this type"
+        );
+      }
+
       let targetAccount: any;
 
-      if (existingAccount && accountType.isShareAccount) {
+      if (existingAccountInsideTx && accountType.isShareAccount) {
         // Top-up existing share account
         targetAccount = await tx.account.update({
-          where: { id: existingAccount.id },
+          where: { id: existingAccountInsideTx.id },
           data: {
             balance: { increment: initialDeposit },
             sharesCount: { increment: data.sharesCount || 0 },
@@ -227,7 +244,7 @@ export async function POST(request: NextRequest) {
               status: TransactionStatus.COMPLETED,
               description: "Additional Share Purchase",
               transactionDate: new Date(),
-              accountId: existingAccount.id,
+              accountId: existingAccountInsideTx.id,
               memberId: data.memberId ?? null,
               institutionId: data.institutionId ?? null,
               processedByUserId: user.id,
@@ -238,7 +255,7 @@ export async function POST(request: NextRequest) {
           await tx.deposit.create({
             data: {
               transactionId: txnRecord.id,
-              accountId: existingAccount.id,
+              accountId: existingAccountInsideTx.id,
               amount: initialDeposit,
               depositDate: new Date(),
               handlerUserId: user.id,
@@ -276,11 +293,11 @@ export async function POST(request: NextRequest) {
               },
             });
           } else {
-            const priorBalance = Number(existingAccount.balance);
-            const priorShares = Number((existingAccount as any).sharesCount || 0);
+            const priorBalance = Number(existingAccountInsideTx.balance);
+            const priorShares = Number((existingAccountInsideTx as any).sharesCount || 0);
             const newShareAcct = await tx.shareAccount.create({
               data: {
-                accountNumber: existingAccount.accountNumber, memberId: data.memberId,
+                accountNumber: existingAccountInsideTx.accountNumber, memberId: data.memberId,
                 accountTypeId: data.accountTypeId, branchId: finalBranchId,
                 shareValue: sharePrice, totalValue: priorBalance + initialDeposit,
                 numberOfShares: priorShares + additionalShares, lastTransactionDate: new Date(),
@@ -303,8 +320,8 @@ export async function POST(request: NextRequest) {
           ]);
           if (shareCapAcct && cashAcct) {
             const glRef = `SHR-GL-ADD-${Date.now()}`;
-            await tx.journalEntry.create({ data: { entryNumber: glRef, accountId: cashAcct.id, debitAmount: initialDeposit, creditAmount: 0, entryDate: new Date(), branchId: finalBranchId, description: `Share purchase - ${existingAccount.accountNumber}`, reference: glRef, createdByUserId: user.id } });
-            await tx.journalEntry.create({ data: { entryNumber: glRef, accountId: shareCapAcct.id, debitAmount: 0, creditAmount: initialDeposit, entryDate: new Date(), branchId: finalBranchId, description: `Share purchase - ${existingAccount.accountNumber}`, reference: glRef, createdByUserId: user.id } });
+            await tx.journalEntry.create({ data: { entryNumber: glRef, accountId: cashAcct.id, debitAmount: initialDeposit, creditAmount: 0, entryDate: new Date(), branchId: finalBranchId, description: `Share purchase - ${existingAccountInsideTx.accountNumber}`, reference: glRef, createdByUserId: user.id } });
+            await tx.journalEntry.create({ data: { entryNumber: glRef, accountId: shareCapAcct.id, debitAmount: 0, creditAmount: initialDeposit, entryDate: new Date(), branchId: finalBranchId, description: `Share purchase - ${existingAccountInsideTx.accountNumber}`, reference: glRef, createdByUserId: user.id } });
             await tx.chartOfAccount.update({ where: { id: cashAcct.id }, data: buildAccountBalanceUpdate(cashAcct, { debitAmount: initialDeposit }) });
             await tx.chartOfAccount.update({ where: { id: shareCapAcct.id }, data: buildAccountBalanceUpdate(shareCapAcct, { creditAmount: initialDeposit }) });
           }

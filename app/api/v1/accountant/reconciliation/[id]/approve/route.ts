@@ -202,13 +202,12 @@ export async function PUT(
           },
         });
 
-        await tx.vault.update({
+        // Atomic increment — prevents concurrent reconciliations from corrupting vault balance
+        await tx.vault.updateMany({
           where: { id: vault.id },
           data: {
-            balance: vaultBalanceAfter,
-            physicalCash: {
-              increment: totalPhysical,
-            },
+            balance: { increment: totalPhysical },
+            physicalCash: { increment: totalPhysical },
           },
         });
 

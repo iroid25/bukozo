@@ -118,6 +118,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Active account hold check
+    const activeHold = await db.accountHold.findFirst({
+      where: { accountId: verification.accountId, isActive: true },
+    });
+    if (activeHold) {
+      return NextResponse.json(
+        {
+          error: `Account has an active hold (${activeHold.reasonText || activeHold.reason}). Withdrawals are blocked until the hold is lifted.`,
+        },
+        { status: 400 }
+      );
+    }
+
     // 3. Process Transaction (Atomic)
     const result = await db.$transaction(async (tx) => {
       // Mark verification as used

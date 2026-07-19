@@ -53,6 +53,17 @@ export async function POST(
         data: { status: "APPROVED", approvedByUserId: user.id, approvedAt: new Date(), dateWrittenOff: new Date() },
       });
       await tx.loan.update({ where: { id: writeOff.loanId }, data: { status: "WRITTEN_OFF", outstandingBalance: 0 } });
+
+      // Mark all remaining non-PAID repayment schedules as WRITTEN_OFF
+      await tx.loanRepaymentSchedule.updateMany({
+        where: {
+          loanId: writeOff.loanId,
+          status: { not: "PAID" },
+        },
+        data: {
+          status: "WRITTEN_OFF",
+        },
+      });
       if (accountIdToUse) {
         await tx.transaction.create({
           data: {

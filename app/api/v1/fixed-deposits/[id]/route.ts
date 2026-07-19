@@ -200,15 +200,41 @@ export async function DELETE(
       );
     }
 
-    // Mark as reversed instead of deleting
-    const reversedDeposit = await db.fixedDeposit.update({
-      where: { id },
-      data: {
-        isReversed: true,
-        reversedDate: new Date(),
-        reversalReason,
-        status: "REVERSED",
-      },
+    // Mark as reversed and restore funds to funding source
+    const reversedDeposit = await db.$transaction(async (tx) => {
+      const updated = await tx.fixedDeposit.update({
+        where: { id },
+        data: {
+          isReversed: true,
+          reversedDate: new Date(),
+          reversalReason,
+          status: "REVERSED",
+        },
+      });
+
+      // Restore funds to the funding source account if one exists
+      if (existingDeposit.fundingSourceAccountId && existingDeposit.principalAmount > 0) {
+        await tx.account.update({
+          where: { id: existingDeposit.fundingSourceAccountId },
+          data: { balance: { increment: existingDeposit.principalAmount } },
+        });
+
+        // Create reversal transaction record
+        await tx.transaction.create({
+          data: {
+            transactionRef: `FD-REV-${Date.now()}`,
+            type: "TRANSFER",
+            amount: existingDeposit.principalAmount,
+            status: "COMPLETED",
+            description: `Fixed deposit reversal - ${reversalReason}`,
+            accountId: existingDeposit.fundingSourceAccountId,
+            transactionDate: new Date(),
+            processedByUserId: session.user.id,
+          },
+        });
+      }
+
+      return updated;
     });
 
     return NextResponse.json({

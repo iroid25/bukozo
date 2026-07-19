@@ -221,17 +221,20 @@ export async function POST(request: NextRequest) {
       });
 
       const vaultBalanceBefore = Number(vault.balance) || 0;
-      const vaultBalanceAfter = vaultBalanceBefore - amount;
 
-      await tx.vault.update({
-        where: { id: vault.id },
+      // Atomic decrement — prevents concurrent allocations from driving vault negative
+      const vaultUpdate = await tx.vault.updateMany({
+        where: { id: vault.id, balance: { gte: amount } },
         data: {
-          balance: vaultBalanceAfter,
-          physicalCash: {
-            decrement: amount,
-          },
+          balance: { decrement: amount },
+          physicalCash: { decrement: amount },
         },
       });
+      if (vaultUpdate.count === 0) {
+        throw new Error("Insufficient vault balance (concurrent allocation detected)");
+      }
+
+      const vaultBalanceAfter = vaultBalanceBefore - amount;
 
       await tx.vaultTransaction.create({
         data: {

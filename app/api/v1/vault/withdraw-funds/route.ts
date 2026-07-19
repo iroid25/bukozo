@@ -30,11 +30,20 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await db.$transaction(async (tx) => {
-      const newBalance = vault.balance - amount;
-      await tx.vault.update({
-        where: { id: vaultId },
-        data: { balance: { decrement: amount }, physicalCash: { decrement: amount }, lastVerified: new Date() },
+      // Atomic decrement with balance guard — prevents TOCTOU race
+      const vaultUpdate = await tx.vault.updateMany({
+        where: { id: vaultId, balance: { gte: amount } },
+        data: {
+          balance: { decrement: amount },
+          physicalCash: { decrement: amount },
+          lastVerified: new Date(),
+        },
       });
+      if (vaultUpdate.count === 0) {
+        throw new Error("Insufficient vault balance (concurrent withdrawal detected)");
+      }
+
+      const newBalance = vault.balance - amount;
 
       const transaction = await tx.vaultTransaction.create({
         data: {

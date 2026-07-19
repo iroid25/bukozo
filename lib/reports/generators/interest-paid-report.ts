@@ -93,6 +93,7 @@ export class InterestPaidReportGenerator extends BaseReportGenerator {
 
     const byAccount: Record<string, any> = {};
 
+    // Process SavingsTransaction records first (authoritative source)
     for (const txn of savingsTransactions) {
       const accountNumber = txn.account.accountNumber;
       if (!byAccount[accountNumber]) {
@@ -105,6 +106,7 @@ export class InterestPaidReportGenerator extends BaseReportGenerator {
           totalInterest: 0,
           paymentCount: 0,
           payments: [],
+          source: 'SavingsTransaction',
         };
       }
       byAccount[accountNumber].totalInterest += txn.amount;
@@ -116,23 +118,27 @@ export class InterestPaidReportGenerator extends BaseReportGenerator {
       });
     }
 
+    // Process generic Transaction records — skip if account already has SavingsTransaction records
+    // to prevent double-counting from the same account appearing in both tables
     for (const txn of genericTransactions) {
       const accountNumber = txn.account.accountNumber;
-      if (!byAccount[accountNumber]) {
-        const inst = txn.account.institution;
-        byAccount[accountNumber] = {
-          accountNumber,
-          ownerName: inst
-            ? inst.institutionName || inst.user?.name || 'N/A'
-            : txn.account.member?.user?.name || 'N/A',
-          accountType: txn.account.accountType.name,
-          interestRate: txn.account.accountType.interestRate,
-          branch: txn.account.branch?.name || 'N/A',
-          totalInterest: 0,
-          paymentCount: 0,
-          payments: [],
-        };
+      if (byAccount[accountNumber]) {
+        // Account already counted from SavingsTransaction — skip to prevent double-counting
+        continue;
       }
+      const inst = txn.account.institution;
+      byAccount[accountNumber] = {
+        accountNumber,
+        ownerName: inst
+          ? inst.institutionName || inst.user?.name || 'N/A'
+          : txn.account.member?.user?.name || 'N/A',
+        accountType: txn.account.accountType.name,
+        interestRate: txn.account.accountType.interestRate,
+        branch: txn.account.branch?.name || 'N/A',
+        totalInterest: 0,
+        paymentCount: 0,
+        payments: [],
+      };
       byAccount[accountNumber].totalInterest += txn.amount;
       byAccount[accountNumber].paymentCount++;
       byAccount[accountNumber].payments.push({

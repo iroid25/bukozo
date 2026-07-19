@@ -70,8 +70,14 @@ export class DormantAccountsGenerator extends BaseReportGenerator {
 
     // Calculate days since last transaction
     const today = new Date();
-    const reportData = accounts.map(account => {
-      const lastActivity = account.openedAt;
+    const reportData = await Promise.all(accounts.map(async (account) => {
+      // Query actual last transaction date from Transaction model
+      const lastTxn = await db.transaction.findFirst({
+        where: { accountId: account.id, status: 'COMPLETED' },
+        orderBy: { transactionDate: 'desc' },
+        select: { transactionDate: true },
+      });
+      const lastActivity = lastTxn?.transactionDate || account.openedAt;
       const daysSinceActivity = Math.floor(
         (today.getTime() - lastActivity.getTime()) / (1000 * 60 * 60 * 24)
       );
@@ -84,12 +90,21 @@ export class DormantAccountsGenerator extends BaseReportGenerator {
         branch: account.branch?.name || 'N/A',
         balance: this.formatCurrency(account.balance),
         isDormant: 'Yes',
-        lastTransactionDate: this.formatDate(account.openedAt),
+        lastTransactionDate: this.formatDate(lastActivity),
         daysSinceActivity,
         openedDate: this.formatDate(account.openedAt),
         status: account.status,
       };
+    }));
+
+    // Count accounts that have never transacted
+    const accountIds = accounts.map(a => a.id);
+    const txnCounts = await db.transaction.groupBy({
+      by: ['accountId'],
+      where: { accountId: { in: accountIds }, status: 'COMPLETED' },
+      _count: { id: true },
     });
+    const accountsWithTxns = new Set(txnCounts.map(tc => tc.accountId));
 
     // Calculate summary
     const summary = {
@@ -99,7 +114,7 @@ export class DormantAccountsGenerator extends BaseReportGenerator {
         ? accounts.reduce((sum, acc) => sum + acc.balance, 0) / accounts.length
         : 0,
       dormancyThresholdDays: dormancyMonths * 30,
-      accountsNeverTransacted: accounts.length,
+      accountsNeverTransacted: accounts.filter(a => !accountsWithTxns.has(a.id)).length,
     };
 
     // Format summary

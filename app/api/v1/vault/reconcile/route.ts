@@ -34,9 +34,9 @@ export async function POST(request: NextRequest) {
           difference: variance,
           isBalanced,
           reconciledByUserId: user.id,
-          status: "APPROVED",
-          approvedByUserId: user.id,
-          approvalDate: new Date(),
+          status: isBalanced ? "APPROVED" : "PENDING",
+          approvedByUserId: isBalanced ? user.id : null,
+          approvalDate: isBalanced ? new Date() : null,
           notes: notes || null,
         },
       });

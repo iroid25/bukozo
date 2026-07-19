@@ -23,20 +23,6 @@ export async function POST(req: NextRequest) {
       status,
     });
 
-    // Find the transaction by externalId (our reference)
-    const transaction = await db.transaction.findUnique({
-      where: { transactionRef: externalId },
-    });
-
-    if (!transaction) {
-      console.error("Transaction not found for externalId:", externalId);
-      return NextResponse.json(
-        { message: "Transaction not found" },
-        { status: 404 },
-      );
-    }
-
-    // Update transaction status based on MoMo response
     const newStatus =
       status === "SUCCESSFUL"
         ? TransactionStatus.COMPLETED
@@ -44,48 +30,71 @@ export async function POST(req: NextRequest) {
           ? TransactionStatus.FAILED
           : TransactionStatus.PENDING;
 
-    await db.transaction.update({
-      where: { id: transaction.id },
-      data: {
-        status: newStatus,
-      },
+    // Use a transaction with conditional update to prevent double-credit.
+    // The conditional flip (WHERE status != newStatus) ensures that even if
+    // the callback fires multiple times, only the first one actually changes
+    // the status and increments the balance.
+    const result = await db.$transaction(async (tx) => {
+      // Atomically flip status only if not already in the target status
+      const flipped = await tx.transaction.updateMany({
+        where: {
+          transactionRef: externalId,
+          status: { not: newStatus },
+        },
+        data: { status: newStatus },
+      });
+
+      if (flipped.count === 0) {
+        // Already in target status (or transaction not found) — idempotent no-op
+        const existing = await tx.transaction.findUnique({
+          where: { transactionRef: externalId },
+        });
+        return { alreadyProcessed: true, transaction: existing };
+      }
+
+      const transaction = await tx.transaction.findUnique({
+        where: { transactionRef: externalId },
+      });
+
+      if (!transaction) {
+        return { alreadyProcessed: false, notFound: true };
+      }
+
+      // If successful deposit, increment account balance exactly once
+      if (status === "SUCCESSFUL" && transaction.type === "DEPOSIT" && transaction.accountId) {
+        const deposit = await tx.deposit.findFirst({
+          where: { transactionId: transaction.id },
+        });
+
+        if (deposit) {
+          await tx.account.update({
+            where: { id: transaction.accountId },
+            data: { balance: { increment: Number(amount) } },
+          });
+        }
+      }
+
+      if (status === "FAILED") {
+        console.error("MoMo transaction failed:", { externalId, reason });
+      }
+
+      return { alreadyProcessed: false, transaction };
     });
 
-    // If successful and this is a deposit, update member account balance.
-    // Idempotency guard: this callback may fire more than once (retries) or
-    // the underlying deposit may already have been applied/confirmed via the
-    // main deposit flow, so only increment the balance the first time we see
-    // this transaction move into COMPLETED status.
-    if (status === "SUCCESSFUL" && transaction.type === "DEPOSIT") {
-      const deposit = await db.deposit.findFirst({
-        where: { transactionId: transaction.id },
-      });
-
-      if (deposit && transaction.status !== TransactionStatus.COMPLETED) {
-        await db.account.update({
-          where: { id: transaction.accountId },
-          data: {
-            balance: { increment: Number(amount) },
-          },
-        });
-      } else if (deposit) {
-        console.log(
-          "MoMo callback: transaction already COMPLETED, skipping duplicate balance increment for externalId:",
-          externalId,
-        );
-      }
-    }
-
-    // Handle failed transactions - could trigger notifications
-    if (status === "FAILED") {
-      console.error("MoMo transaction failed:", {
-        externalId,
-        reason,
-      });
+    if (result.notFound) {
+      console.error("Transaction not found for externalId:", externalId);
+      return NextResponse.json(
+        { message: "Transaction not found" },
+        { status: 404 },
+      );
     }
 
     return NextResponse.json(
-      { message: "Callback processed successfully" },
+      {
+        message: result.alreadyProcessed
+          ? "Callback already processed (idempotent)"
+          : "Callback processed successfully",
+      },
       { status: 200 },
     );
   } catch (error) {

@@ -69,10 +69,17 @@ export class OverdrawnAccountsGenerator extends BaseReportGenerator {
       },
     });
 
-    // Format data
-    const reportData = accounts.map(account => {
+    // Format data — query actual last transaction date from Transaction model
+    const reportData = await Promise.all(accounts.map(async (account) => {
       const overdrawnAmount = Math.abs(account.balance);
-      
+
+      const lastTxn = await db.transaction.findFirst({
+        where: { accountId: account.id, status: 'COMPLETED' },
+        orderBy: { transactionDate: 'desc' },
+        select: { transactionDate: true },
+      });
+      const lastActivity = lastTxn?.transactionDate || account.openedAt;
+
       return {
         accountNumber: account.accountNumber,
         memberName: account.member?.user?.name || account.institution?.institutionName || 'N/A',
@@ -84,9 +91,9 @@ export class OverdrawnAccountsGenerator extends BaseReportGenerator {
         overdrawnAmount: this.formatCurrency(overdrawnAmount),
         status: account.status,
         openedDate: this.formatDate(account.openedAt),
-        lastTransactionDate: this.formatDate(account.openedAt), // fallback to openedAt
+        lastTransactionDate: this.formatDate(lastActivity),
       };
-    });
+    }));
 
     // Calculate summary
     const totalOverdrawn = accounts.reduce((sum, acc) => sum + Math.abs(acc.balance), 0);
