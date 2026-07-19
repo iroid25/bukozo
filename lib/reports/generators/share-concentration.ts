@@ -7,16 +7,37 @@ export class ShareConcentrationGenerator extends BaseReportGenerator {
   }
 
   async generateData(params: Record<string, any>): Promise<ReportData> {
-    const accounts = await db.shareAccount.findMany({
-      where: {
-        status: 'ACTIVE',
-      },
-      include: {
-        member: { include: { user: { select: { name: true } } } },
-        accountType: { select: { sharePrice: true } },
-      },
-      orderBy: { numberOfShares: 'desc' },
-    });
+    const [memberAccounts, institutionAccounts] = await Promise.all([
+      db.shareAccount.findMany({
+        where: {
+          status: 'ACTIVE',
+        },
+        include: {
+          member: { include: { user: { select: { name: true } } } },
+          accountType: { select: { sharePrice: true } },
+        },
+        orderBy: { numberOfShares: 'desc' },
+      }),
+      db.account.findMany({
+        where: {
+          institutionId: { not: null },
+          accountType: { isShareAccount: true },
+          status: 'ACTIVE',
+        },
+        include: {
+          institution: { include: { user: { select: { name: true } } } },
+          accountType: { select: { sharePrice: true } },
+        },
+        orderBy: { balance: 'desc' },
+      }),
+    ]);
+
+    const accounts = [...memberAccounts, ...institutionAccounts.map((a) => ({
+      ...a,
+      totalValue: a.balance,
+      numberOfShares: (a as any).sharesCount || 0,
+    }))] as any[];
+    accounts.sort((a, b) => (b.numberOfShares || 0) - (a.numberOfShares || 0));
 
     const totalShares = accounts.reduce((sum, acc) => sum + (acc.numberOfShares || 0), 0);
     
@@ -28,7 +49,7 @@ export class ShareConcentrationGenerator extends BaseReportGenerator {
       return {
         rank: index + 1,
         accountNumber: account.accountNumber,
-        memberName: account.member?.user?.name || 'N/A',
+        memberName: account.member?.user?.name || (account as any).institution?.institutionName || 'N/A',
         numberOfShares: sharesCount,
         shareValue: this.formatCurrency(sharePrice),
         totalValue: this.formatCurrency(account.totalValue),

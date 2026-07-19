@@ -22,7 +22,7 @@ export class ShareAccountStatementGenerator extends BaseReportGenerator {
     const endDate = new Date(params.endDate);
 
     // Fetch account details and transactions up to endDate
-    const account = await db.shareAccount.findUnique({
+    let account = await db.shareAccount.findUnique({
       where: { id: accountId },
       include: {
         member: {
@@ -71,6 +71,49 @@ export class ShareAccountStatementGenerator extends BaseReportGenerator {
       },
     });
 
+    let isInstitution = false;
+    if (!account) {
+      const instAccount = await db.account.findUnique({
+        where: { id: accountId },
+        include: {
+          institution: {
+            include: {
+              user: {
+                select: {
+                  name: true,
+                  email: true,
+                  phone: true,
+                  address: true,
+                },
+              },
+            },
+          },
+          accountType: {
+            select: {
+              name: true,
+              sharePrice: true,
+            },
+          },
+          branch: {
+            select: {
+              name: true,
+              location: true,
+            },
+          },
+        },
+      });
+      if (instAccount && instAccount.institutionId && (instAccount as any).accountType?.name) {
+        account = {
+          ...instAccount,
+          totalValue: instAccount.balance,
+          numberOfShares: (instAccount as any).sharesCount || 0,
+          openedDate: instAccount.openedAt,
+          member: null,
+        } as any;
+        isInstitution = true;
+      }
+    }
+
     if (!account) {
       throw new Error('Account not found');
     }
@@ -118,10 +161,10 @@ export class ShareAccountStatementGenerator extends BaseReportGenerator {
     const accountInfo = {
       accountNumber: account.accountNumber,
       accountType: account.accountType.name,
-      memberName: account.member?.user?.name || 'N/A',
-      memberPhone: account.member?.user?.phone || 'N/A',
-      memberEmail: account.member?.user?.email || 'N/A',
-      memberAddress: account.member?.user?.address || 'N/A',
+      memberName: account.member?.user?.name || (account as any).institution?.institutionName || 'N/A',
+      memberPhone: account.member?.user?.phone || (account as any).institution?.user?.phone || 'N/A',
+      memberEmail: account.member?.user?.email || (account as any).institution?.user?.email || 'N/A',
+      memberAddress: account.member?.user?.address || (account as any).institution?.user?.address || 'N/A',
       branch: account.branch?.name || 'N/A',
       currentShares: account.numberOfShares || 0,
       currentValue: this.formatCurrency(account.totalValue),

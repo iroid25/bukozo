@@ -116,34 +116,73 @@ async function resolveBranchScope(user: AuthUserLike, requestedBranchId?: string
 }
 
 async function fetchShareAccounts(branchId: string | null) {
-  const memberAccounts = await db.shareAccount.findMany({
-    where: {
-      ...(branchId ? { branchId } : {}),
-    },
-    include: {
-      member: {
-        include: {
-          user: {
-            select: {
-              name: true,
-              phone: true,
-              nationalId: true,
+  const [memberAccounts, institutionAccounts] = await Promise.all([
+    db.shareAccount.findMany({
+      where: {
+        ...(branchId ? { branchId } : {}),
+      },
+      include: {
+        member: {
+          include: {
+            user: {
+              select: {
+                name: true,
+                phone: true,
+                nationalId: true,
+              },
             },
           },
         },
-      },
-      accountType: true,
-      branch: {
-        select: {
-          name: true,
-          location: true,
+        accountType: true,
+        branch: {
+          select: {
+            name: true,
+            location: true,
+          },
         },
       },
-    },
-    orderBy: [{ accountNumber: "asc" }],
-  });
+      orderBy: [{ accountNumber: "asc" }],
+    }),
+    db.account.findMany({
+      where: {
+        institutionId: { not: null },
+        accountType: { isShareAccount: true },
+        ...(branchId ? { branchId } : {}),
+      },
+      include: {
+        institution: {
+          include: {
+            user: {
+              select: {
+                name: true,
+                phone: true,
+                nationalId: true,
+              },
+            },
+          },
+        },
+        accountType: true,
+        branch: {
+          select: {
+            name: true,
+            location: true,
+          },
+        },
+      },
+      orderBy: [{ accountNumber: "asc" }],
+    }),
+  ]);
 
-  return [...memberAccounts];
+  const normalized = institutionAccounts.map((a) => ({
+    ...a,
+    totalValue: a.balance,
+    numberOfShares: 0,
+    openedDate: a.openedAt,
+    lastTransactionDate: null as Date | null,
+    batchNumber: null as number | null,
+  }));
+
+  return [...memberAccounts, ...normalized];
 }
 
 const ACCOUNT_NAME_TO_PRODUCT: Record<string, string> = {

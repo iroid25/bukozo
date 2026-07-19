@@ -53,6 +53,7 @@ async function handler(request: NextRequest) {
     const [
       savingsAgg,
       sharesAgg,
+      institutionSharesAgg,
       fixedDepositsAgg,
       totalMembers,
       activeMembers,
@@ -79,6 +80,18 @@ async function handler(request: NextRequest) {
         _sum: { totalValue: true, numberOfShares: true },
         _count: { id: true },
         where: {
+          status: "ACTIVE",
+          ...(branchId ? { branchId } : {}),
+        },
+      }),
+
+      // Institution share accounts (stored in Account table)
+      db.account.aggregate({
+        _sum: { balance: true },
+        _count: { id: true },
+        where: {
+          institutionId: { not: null },
+          accountType: { isShareAccount: true },
           status: "ACTIVE",
           ...(branchId ? { branchId } : {}),
         },
@@ -168,6 +181,9 @@ async function handler(request: NextRequest) {
         },
       }),
     ]);
+
+    sharesAgg._sum.totalValue = Number(sharesAgg._sum.totalValue || 0) + Number(institutionSharesAgg._sum.balance || 0);
+    sharesAgg._count.id += institutionSharesAgg._count.id;
 
     return NextResponse.json({
       success: true,

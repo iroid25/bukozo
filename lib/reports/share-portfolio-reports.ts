@@ -216,7 +216,45 @@ async function fetchShareAccounts(branchId: string | null, reportDate: Date) {
     orderBy: [{ accountNumber: "asc" }],
   });
 
-  return [...memberAccounts] as any[];
+  const institutionAccounts = await db.account.findMany({
+    where: {
+      institutionId: { not: null },
+      accountType: { isShareAccount: true },
+      openedAt: { lte: reportDate },
+      ...(branchId ? { branchId } : {}),
+    },
+    include: {
+      institution: {
+        include: {
+          user: {
+            select: {
+              name: true,
+              phone: true,
+              nationalId: true,
+            },
+          },
+        },
+      },
+      accountType: true,
+      branch: {
+        select: {
+          name: true,
+          location: true,
+        },
+      },
+    },
+    orderBy: [{ accountNumber: "asc" }],
+  });
+
+  const normalizedInstitution = institutionAccounts.map((a) => ({
+    ...a,
+    totalValue: a.balance,
+    openedDate: a.openedAt,
+    lastTransactionDate: null as Date | null,
+    batchNumber: null as number | null,
+  }));
+
+  return [...memberAccounts, ...normalizedInstitution] as any[];
 }
 
 async function resolveLastTransactionDates(accountIds: string[], reportDate: Date) {

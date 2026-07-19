@@ -284,6 +284,43 @@ async function findShareAccount(filters: ShareStatementFilters, branchId: string
     });
 
     if (exact) return exact;
+
+    const instExact = await db.account.findFirst({
+      where: {
+        institutionId: { not: null },
+        accountType: { isShareAccount: true },
+        accountNumber,
+        ...(branchId ? { branchId } : {}),
+      },
+      include: {
+        institution: {
+          include: {
+            user: {
+              select: {
+                name: true,
+                phone: true,
+                email: true,
+                address: true,
+                nationalId: true,
+              },
+            },
+          },
+        },
+        accountType: true,
+        branch: { select: { id: true, name: true } },
+      },
+    });
+
+    if (instExact) {
+      return {
+        ...instExact,
+        totalValue: instExact.balance,
+        numberOfShares: (instExact as any).sharesCount || 0,
+        openedDate: instExact.openedAt,
+        transactions: [],
+        member: null,
+      } as any;
+    }
   }
 
   if (search) {
@@ -320,11 +357,50 @@ async function findShareAccount(filters: ShareStatementFilters, branchId: string
     });
 
     if (found) return found;
-  }
 
-  // Fallback: search institution share accounts from Account model
-  if (search) {
-    return null;
+    const instFound = await db.account.findFirst({
+      where: {
+        institutionId: { not: null },
+        accountType: { isShareAccount: true },
+        ...(branchId ? { branchId } : {}),
+        OR: [
+          { accountNumber: { contains: search, mode: "insensitive" } },
+          { institution: { institutionName: { contains: search, mode: "insensitive" } } },
+          { institution: { institutionNumber: { contains: search, mode: "insensitive" } } },
+          { institution: { user: { name: { contains: search, mode: "insensitive" } } } },
+          { institution: { user: { phone: { contains: search, mode: "insensitive" } } } },
+        ],
+      },
+      include: {
+        institution: {
+          include: {
+            user: {
+              select: {
+                name: true,
+                phone: true,
+                email: true,
+                address: true,
+                nationalId: true,
+              },
+            },
+          },
+        },
+        accountType: true,
+        branch: { select: { id: true, name: true } },
+      },
+      orderBy: { accountNumber: "asc" },
+    });
+
+    if (instFound) {
+      return {
+        ...instFound,
+        totalValue: instFound.balance,
+        numberOfShares: (instFound as any).sharesCount || 0,
+        openedDate: instFound.openedAt,
+        transactions: [],
+        member: null,
+      } as any;
+    }
   }
 
   return null;
@@ -551,26 +627,63 @@ export async function searchShareAccounts(filters: ShareStatementFilters) {
     });
   }
 
-  const accounts = await db.shareAccount.findMany({
-    where: andClauses.length > 0 ? { AND: andClauses } : {},
-    include: {
-      member: {
-        include: {
-          user: {
-            select: {
-              name: true,
-              phone: true,
-              address: true,
+  const [accounts, institutionAccounts] = await Promise.all([
+    db.shareAccount.findMany({
+      where: andClauses.length > 0 ? { AND: andClauses } : {},
+      include: {
+        member: {
+          include: {
+            user: {
+              select: {
+                name: true,
+                phone: true,
+                address: true,
+              },
             },
           },
         },
+        accountType: true,
+        branch: { select: { name: true } },
       },
-      accountType: true,
-      branch: { select: { name: true } },
-    },
-    orderBy: { accountNumber: "asc" },
-    take: 25,
-  });
+      orderBy: { accountNumber: "asc" },
+      take: 25,
+    }),
+    db.account.findMany({
+      where: {
+        institutionId: { not: null },
+        accountType: { isShareAccount: true },
+        ...(branchId ? { branchId } : {}),
+        ...(search
+          ? {
+              OR: [
+                { accountNumber: { contains: search, mode: "insensitive" } },
+                { institution: { institutionName: { contains: search, mode: "insensitive" } } },
+                { institution: { institutionNumber: { contains: search, mode: "insensitive" } } },
+                { institution: { user: { name: { contains: search, mode: "insensitive" } } } },
+                { institution: { user: { phone: { contains: search, mode: "insensitive" } } } },
+              ],
+            }
+          : {}),
+      },
+      include: {
+        institution: {
+          include: {
+            user: {
+              select: {
+                name: true,
+                phone: true,
+                address: true,
+              },
+            },
+          },
+        },
+        accountType: true,
+        branch: { select: { name: true } },
+      },
+      orderBy: { accountNumber: "asc" },
+      take: 25,
+    }),
+  ]);
 
   const memberResults = accounts.map((account) => ({
     accountNumber: account.accountNumber,
@@ -583,7 +696,18 @@ export async function searchShareAccounts(filters: ShareStatementFilters) {
     branchName: account.branch?.name || null,
   }));
 
-  return memberResults.slice(0, 25);
+  const instResults = institutionAccounts.map((account) => ({
+    accountNumber: account.accountNumber,
+    accountTitle: (account as any).institution?.institutionName || "Unknown",
+    product: account.accountType.name || "ORDINARY MEMBERS",
+    nubanCode: account.accountNumber,
+    phone: (account as any).institution?.user?.phone || "",
+    address: (account as any).institution?.user?.address || "",
+    status: account.status,
+    branchName: account.branch?.name || null,
+  }));
+
+  return [...memberResults, ...instResults].slice(0, 25);
 }
 
 export async function buildShareAccountStatementWorkbook(report: ShareStatementReport) {

@@ -80,18 +80,32 @@ export async function GET(request: NextRequest) {
     ]);
 
     const shareAccountTypeIds = shareAccountTypes.map((t) => t.id);
-    const shareBalanceRows = shareAccountTypeIds.length > 0
-      ? await db.shareAccount.groupBy({
-          by: ["accountTypeId"],
-          where: {
-            accountTypeId: { in: shareAccountTypeIds },
-            status: "ACTIVE",
-            ...(branchId ? { branchId } : {}),
-          },
-          _sum: { totalValue: true, numberOfShares: true },
-          _count: { _all: true },
-        })
-      : [];
+    const [shareBalanceRows, institutionShareBalanceRows] = shareAccountTypeIds.length > 0
+      ? await Promise.all([
+          db.shareAccount.groupBy({
+            by: ["accountTypeId"],
+            where: {
+              accountTypeId: { in: shareAccountTypeIds },
+              status: "ACTIVE",
+              ...(branchId ? { branchId } : {}),
+            },
+            _sum: { totalValue: true, numberOfShares: true },
+            _count: { _all: true },
+          }),
+          db.account.groupBy({
+            by: ["accountTypeId"],
+            where: {
+              institutionId: { not: null },
+              accountTypeId: { in: shareAccountTypeIds },
+              accountType: { isShareAccount: true },
+              status: "ACTIVE",
+              ...(branchId ? { branchId } : {}),
+            },
+            _sum: { balance: true },
+            _count: { _all: true },
+          }),
+        ])
+      : [[], []];
 
     const shareBalanceMap = new Map(
       shareBalanceRows.map((row) => [
@@ -103,6 +117,20 @@ export async function GET(request: NextRequest) {
         },
       ]),
     );
+
+    for (const instRow of institutionShareBalanceRows) {
+      const existing = shareBalanceMap.get(instRow.accountTypeId);
+      if (existing) {
+        existing.amount += Number(instRow._sum.balance || 0);
+        existing.count += Number(instRow._count._all || 0);
+      } else {
+        shareBalanceMap.set(instRow.accountTypeId, {
+          amount: Number(instRow._sum.balance || 0),
+          shares: 0,
+          count: Number(instRow._count._all || 0),
+        });
+      }
+    }
 
     const shareCapitalItems = shareAccountTypes.map((accountType) => {
       const agg = shareBalanceMap.get(accountType.id) || { amount: 0, shares: 0, count: 0 };

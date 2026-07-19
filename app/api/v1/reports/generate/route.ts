@@ -745,29 +745,50 @@ async function generateBranchPerformanceReport(startDate: Date, endDate: Date) {
 
 // ==================== NEW SHARE REPORTS ====================
 
+async function fetchAllShareAccounts(whereClause: any, includeClause: any, orderBy?: any) {
+  const institutionWhere: any = { institutionId: { not: null }, accountType: { isShareAccount: true } };
+  if (whereClause.status) institutionWhere.status = whereClause.status === "ON_HOLD" ? "SUSPENDED" : whereClause.status;
+  if (whereClause.branchId) institutionWhere.branchId = whereClause.branchId;
+  if (whereClause.numberOfShares !== undefined) institutionWhere.sharesCount = whereClause.numberOfShares;
+  if (whereClause.accountTypeId) institutionWhere.accountTypeId = whereClause.accountTypeId;
+
+  const [memberAccounts, institutionAccounts] = await Promise.all([
+    db.shareAccount.findMany({ where: whereClause, include: includeClause, ...(orderBy ? { orderBy } : {}) }),
+    db.account.findMany({ where: institutionWhere, include: includeClause, ...(orderBy ? { orderBy } : {}) }),
+  ]);
+  const normalized = institutionAccounts.map((a) => ({
+    ...a,
+    totalValue: a.balance,
+    numberOfShares: (a as any).sharesCount || 0,
+    openedDate: a.openedAt,
+    closedDate: a.closedAt,
+    member: null,
+    institution: (a as any).institution,
+    _isInstitution: true,
+  }));
+  return [...memberAccounts, ...normalized] as any[];
+}
+
 async function generateSharesStatementReport(branchId?: string) {
-  const accounts = await db.shareAccount.findMany({
-    where: {
-      status: "ACTIVE",
-      ...(branchId && { branchId }),
-    },
-    include: {
-      member: { include: { user: true } },
-      branch: true,
-      transactions: {
-        orderBy: { transactionDate: "desc" },
-        take: 10,
-      },
+  const accounts = await fetchAllShareAccounts({
+    status: "ACTIVE",
+    ...(branchId && { branchId }),
+  }, {
+    member: { include: { user: true } },
+    branch: true,
+    transactions: {
+      orderBy: { transactionDate: "desc" },
+      take: 10,
     },
   });
 
   const records = accounts.map((account) => ({
     accountNumber: account.accountNumber,
-    memberName: account.member?.user?.name || "Unknown",
+    memberName: account.member?.user?.name || (account as any).institution?.institutionName || "Unknown",
     numberOfShares: account.numberOfShares,
     totalValue: account.totalValue,
     openedDate: account.openedDate.toISOString().split("T")[0],
-    recentTransactions: account.transactions.length,
+    recentTransactions: account.transactions?.length || 0,
   }));
 
   const totalValue = records.reduce((sum, r) => sum + r.totalValue, 0);
@@ -783,21 +804,17 @@ async function generateSharesStatementReport(branchId?: string) {
 }
 
 async function generateShareAccountsBalanceReport(branchId?: string) {
-  const accounts = await db.shareAccount.findMany({
-    where: {
-      status: "ACTIVE",
-      ...(branchId && { branchId }),
-    },
-    include: {
-      member: { include: { user: true } },
-      branch: true,
-    },
-    orderBy: { totalValue: "desc" },
-  });
+  const accounts = await fetchAllShareAccounts({
+    status: "ACTIVE",
+    ...(branchId && { branchId }),
+  }, {
+    member: { include: { user: true } },
+    branch: true,
+  }, { totalValue: "desc" });
 
   const records = accounts.map((account) => ({
     accountNumber: account.accountNumber,
-    memberName: account.member?.user?.name || "Unknown",
+    memberName: account.member?.user?.name || (account as any).institution?.institutionName || "Unknown",
     numberOfShares: account.numberOfShares,
     shareBalance: account.totalValue,
     branch: account.branch?.name || "N/A",
@@ -817,18 +834,16 @@ async function generateShareAccountsBalanceReport(branchId?: string) {
 }
 
 async function generateSharesConcentrationReport() {
-  const accounts = await db.shareAccount.findMany({
-    where: { status: "ACTIVE" },
-    include: {
-      member: { include: { user: true } },
-    },
-  });
+  const accounts = await fetchAllShareAccounts(
+    { status: "ACTIVE" },
+    { member: { include: { user: true } } },
+  );
 
   const totalValue = accounts.reduce((sum, a) => sum + a.totalValue, 0);
 
   const records = accounts
     .map((account) => ({
-      memberName: account.member?.user?.name || "Unknown",
+      memberName: account.member?.user?.name || (account as any).institution?.institutionName || "Unknown",
       accountNumber: account.accountNumber,
       numberOfShares: account.numberOfShares,
       totalValue: account.totalValue,
@@ -846,18 +861,19 @@ async function generateSharesConcentrationReport() {
 }
 
 async function generateShareAccountsListingReport() {
-  const accounts = await db.shareAccount.findMany({
-    include: {
+  const accounts = await fetchAllShareAccounts(
+    {},
+    {
       member: { include: { user: true } },
       branch: true,
       accountType: true,
     },
-    orderBy: { accountNumber: "asc" },
-  });
+    { accountNumber: "asc" },
+  );
 
   const records = accounts.map((account) => ({
     accountNumber: account.accountNumber,
-    memberName: account.member?.user?.name || "Unknown",
+    memberName: account.member?.user?.name || (account as any).institution?.institutionName || "Unknown",
     numberOfShares: account.numberOfShares,
     shareValue: account.shareValue,
     totalValue: account.totalValue,
@@ -918,22 +934,19 @@ async function generateShareBatchTotalsReport(startDate: Date, endDate: Date) {
 }
 
 async function generateSharesOnHoldReport() {
-  const accounts = await db.shareAccount.findMany({
-    where: { status: { in: ["ON_HOLD", "CLOSED"] } },
-    include: {
-      member: { include: { user: true } },
-      branch: true,
-    },
-  });
+  const accounts = await fetchAllShareAccounts(
+    { status: { in: ["ON_HOLD", "CLOSED"] } },
+    { member: { include: { user: true } }, branch: true },
+  );
 
   const records = accounts.map((account) => ({
     accountNumber: account.accountNumber,
-    memberName: account.member?.user?.name || "Unknown",
+    memberName: account.member?.user?.name || (account as any).institution?.institutionName || "Unknown",
     numberOfShares: account.numberOfShares,
     totalValue: account.totalValue,
     status: account.status,
     branch: account.branch?.name || "N/A",
-    closedDate: account.closedDate?.toISOString().split("T")[0] || "N/A",
+    closedDate: (account.closedDate || (account as any).closedAt)?.toISOString().split("T")[0] || "N/A",
   }));
 
   const totalValue = records.reduce((sum, r) => sum + r.totalValue, 0);
@@ -948,17 +961,14 @@ async function generateSharesOnHoldReport() {
 }
 
 async function generateSharesZeroBalanceReport() {
-  const accounts = await db.shareAccount.findMany({
-    where: { numberOfShares: 0 },
-    include: {
-      member: { include: { user: true } },
-      branch: true,
-    },
-  });
+  const accounts = await fetchAllShareAccounts(
+    { numberOfShares: 0 },
+    { member: { include: { user: true } }, branch: true },
+  );
 
   const records = accounts.map((account) => ({
     accountNumber: account.accountNumber,
-    memberName: account.member?.user?.name || "Unknown",
+    memberName: account.member?.user?.name || (account as any).institution?.institutionName || "Unknown",
     status: account.status,
     branch: account.branch?.name || "N/A",
     openedDate: account.openedDate.toISOString().split("T")[0],
@@ -974,13 +984,11 @@ async function generateSharesZeroBalanceReport() {
 }
 
 async function generateTopBottomShareholdersReport() {
-  const allAccounts = await db.shareAccount.findMany({
-    where: { status: "ACTIVE" },
-    include: {
-      member: { include: { user: true } },
-    },
-    orderBy: { totalValue: "desc" },
-  });
+  const allAccounts = await fetchAllShareAccounts(
+    { status: "ACTIVE" },
+    { member: { include: { user: true } } },
+    { totalValue: "desc" },
+  );
 
   const top10 = allAccounts.slice(0, 10);
   const bottom10 = allAccounts.slice(-10).reverse();
@@ -989,7 +997,7 @@ async function generateTopBottomShareholdersReport() {
     ...top10.map((account, idx) => ({
       rank: idx + 1,
       category: "Top Shareholders",
-      memberName: account.member?.user?.name || "Unknown",
+      memberName: account.member?.user?.name || (account as any).institution?.institutionName || "Unknown",
       accountNumber: account.accountNumber,
       numberOfShares: account.numberOfShares,
       totalValue: account.totalValue,
@@ -997,7 +1005,7 @@ async function generateTopBottomShareholdersReport() {
     ...bottom10.map((account, idx) => ({
       rank: idx + 1,
       category: "Bottom Shareholders",
-      memberName: account.member?.user?.name || "Unknown",
+      memberName: account.member?.user?.name || (account as any).institution?.institutionName || "Unknown",
       accountNumber: account.accountNumber,
       numberOfShares: account.numberOfShares,
       totalValue: account.totalValue,

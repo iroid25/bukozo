@@ -200,7 +200,7 @@ function formatForExport(value: number | string | null, definition: KpiDefinitio
 async function loadSnapshots(asOfDate: Date, branchId?: string) {
   const branchFilter = branchId && branchId !== "all" ? { branchId } : {};
 
-  const [members, branches, loans, savingsAccounts, shareAccounts, repayments, writeOffs] = await Promise.all([
+  const [members, branches, loans, savingsAccounts, shareAccounts, institutionShareAccounts, repayments, writeOffs] = await Promise.all([
     db.member.findMany({
       where: {
         registrationDate: { lte: asOfDate },
@@ -316,6 +316,26 @@ async function loadSnapshots(asOfDate: Date, branchId?: string) {
         },
       },
     }),
+    db.account.findMany({
+      where: {
+        institutionId: { not: null },
+        accountType: { isShareAccount: true },
+        openedAt: { lte: asOfDate },
+        ...(branchFilter as any),
+      },
+      select: {
+        institutionId: true,
+        balance: true,
+        status: true,
+        openedAt: true,
+        accountType: {
+          select: {
+            name: true,
+            isShareAccount: true,
+          },
+        },
+      },
+    }),
     db.loanRepayment.findMany({
       where: {
         repaymentDate: { lte: asOfDate },
@@ -341,7 +361,15 @@ async function loadSnapshots(asOfDate: Date, branchId?: string) {
     }),
   ]);
 
-  return { members, branches, loans, savingsAccounts, shareAccounts, repayments, writeOffs };
+  const normalizedInstitutionShares = institutionShareAccounts.map((a) => ({
+    memberId: a.institutionId,
+    totalValue: a.balance,
+    status: a.status,
+    openedDate: a.openedAt,
+    accountType: a.accountType,
+  }));
+
+  return { members, branches, loans, savingsAccounts, shareAccounts: [...shareAccounts, ...normalizedInstitutionShares], repayments, writeOffs };
 }
 
 function loanIsActive(loan: any, asOfDate: Date) {

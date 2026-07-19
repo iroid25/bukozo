@@ -26,31 +26,71 @@ export class ShareAccountBalanceGenerator extends BaseReportGenerator {
     if (branchId) where.branchId = branchId;
     if (params.status) where.status = params.status;
 
-    const accounts = await db.shareAccount.findMany({
-      where,
-      include: {
-        accountType: {
-          select: {
-            name: true,
-            sharePrice: true,
+    const [memberAccounts, institutionAccounts] = await Promise.all([
+      db.shareAccount.findMany({
+        where,
+        include: {
+          accountType: {
+            select: {
+              name: true,
+              sharePrice: true,
+            },
           },
-        },
-        branch: { select: { id: true, name: true } },
-        member: {
-          select: {
-            memberNumber: true,
-            user: {
-              select: {
-                name: true,
-                phone: true,
-                address: true,
-                nationalId: true,
+          branch: { select: { id: true, name: true } },
+          member: {
+            select: {
+              memberNumber: true,
+              user: {
+                select: {
+                  name: true,
+                  phone: true,
+                  address: true,
+                  nationalId: true,
+                },
               },
             },
           },
         },
-      },
-    });
+      }),
+      db.account.findMany({
+        where: {
+          institutionId: { not: null },
+          accountType: { isShareAccount: true },
+          ...(branchId ? { branchId } : {}),
+          ...(params.status ? { status: params.status } : {}),
+        },
+        include: {
+          accountType: {
+            select: {
+              name: true,
+              sharePrice: true,
+            },
+          },
+          branch: { select: { id: true, name: true } },
+          institution: {
+            select: {
+              institutionNumber: true,
+              institutionName: true,
+              user: {
+                select: {
+                  name: true,
+                  phone: true,
+                  address: true,
+                  nationalId: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+    ]);
+
+    const accounts = [...memberAccounts, ...institutionAccounts.map((a) => ({
+      ...a,
+      totalValue: a.balance,
+      numberOfShares: (a as any).sharesCount || 0,
+      member: null,
+    }))];
 
     const byAccountType = accounts.reduce((acc, account) => {
       const typeName = account.accountType.name || "";
@@ -63,14 +103,14 @@ export class ShareAccountBalanceGenerator extends BaseReportGenerator {
       }
       const row = {
         accountNumber: account.accountNumber,
-        memberName: account.member?.user?.name || "N/A",
-        physicalPostalAddress: account.member?.user?.address || "",
-        refNo: account.member?.memberNumber || "N/A",
+        memberName: account.member?.user?.name || (account as any).institution?.institutionName || "N/A",
+        physicalPostalAddress: account.member?.user?.address || (account as any).institution?.user?.address || "",
+        refNo: account.member?.memberNumber || (account as any).institution?.institutionNumber || "N/A",
         amountBlocked: 0,
         balance: account.totalValue,
         drCr: account.totalValue >= 0 ? "CR" : "DR",
-        phone: account.member?.user?.phone || "",
-        bankVerificationNo: account.member?.user?.nationalId || null,
+        phone: account.member?.user?.phone || (account as any).institution?.user?.phone || "",
+        bankVerificationNo: account.member?.user?.nationalId || (account as any).institution?.user?.nationalId || null,
         sharesCount,
       };
       acc[code].accountCount++;
@@ -104,14 +144,14 @@ export class ShareAccountBalanceGenerator extends BaseReportGenerator {
       products: Object.values(byAccountType),
       accounts: accounts.map((account) => ({
         accountNumber: account.accountNumber,
-        memberName: account.member?.user?.name || "N/A",
-        physicalPostalAddress: account.member?.user?.address || "",
-        refNo: account.member?.memberNumber || "N/A",
+        memberName: account.member?.user?.name || (account as any).institution?.institutionName || "N/A",
+        physicalPostalAddress: account.member?.user?.address || (account as any).institution?.user?.address || "",
+        refNo: account.member?.memberNumber || (account as any).institution?.institutionNumber || "N/A",
         amountBlocked: 0,
         balance: account.totalValue,
         drCr: account.totalValue >= 0 ? "CR" : "DR",
-        phone: account.member?.user?.phone || "",
-        bankVerificationNo: account.member?.user?.nationalId || null,
+        phone: account.member?.user?.phone || (account as any).institution?.user?.phone || "",
+        bankVerificationNo: account.member?.user?.nationalId || (account as any).institution?.user?.nationalId || null,
         productCode: ACCOUNT_NAME_TO_PRODUCT[(account.accountType.name || "").toLowerCase().trim()] || account.accountTypeId || account.accountType.name,
         productName: account.accountType.name || "",
       })),

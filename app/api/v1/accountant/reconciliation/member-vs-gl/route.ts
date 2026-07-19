@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
     const [
       savingsByType,
       sharesByType,
+      institutionSharesByType,
       loanAgg,
       fdAgg,
       loanGL,
@@ -47,6 +48,17 @@ export async function GET(request: NextRequest) {
           ...(branchId ? { branchId } : {}),
         },
         _sum: { totalValue: true },
+        _count: true,
+      }),
+      db.account.groupBy({
+        by: ["accountTypeId"],
+        where: {
+          institutionId: { not: null },
+          accountType: { isShareAccount: true },
+          status: "ACTIVE",
+          ...(branchId ? { branchId } : {}),
+        },
+        _sum: { balance: true },
         _count: true,
       }),
       db.loan.aggregate({
@@ -77,7 +89,22 @@ export async function GET(request: NextRequest) {
     const accountTypeIds = [...new Set([
       ...savingsByType.map((s) => s.accountTypeId),
       ...sharesByType.map((s) => s.accountTypeId),
+      ...institutionSharesByType.map((s) => s.accountTypeId),
     ])];
+
+    const mergedSharesByType = [...sharesByType];
+    for (const instRow of institutionSharesByType) {
+      const existing = mergedSharesByType.find((s) => s.accountTypeId === instRow.accountTypeId);
+      if (existing) {
+        (existing._sum as any).totalValue = Number((existing._sum as any).totalValue || 0) + Number((instRow._sum as any).balance || 0);
+        existing._count += instRow._count;
+      } else {
+        mergedSharesByType.push({
+          ...instRow,
+          _sum: { totalValue: Number((instRow._sum as any).balance || 0) },
+        } as any);
+      }
+    }
 
     const accountTypes = await db.accountType.findMany({
       where: { id: { in: accountTypeIds } },
@@ -129,7 +156,7 @@ export async function GET(request: NextRequest) {
       status: string;
     }> = [];
 
-    for (const row of sharesByType) {
+    for (const row of mergedSharesByType) {
       const at = typeMap.get(row.accountTypeId);
       const operational = Number(row._sum.totalValue || 0);
       const glBalance = Number(at?.ledgerAccount?.balance || 0);
