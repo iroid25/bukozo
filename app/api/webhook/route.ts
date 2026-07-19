@@ -144,6 +144,27 @@ export async function GET(request: NextRequest) {
                 mobileMoneyRef: transaction.transactionRef,
               },
             });
+
+            // GL journal entry for Pesapal loan repayment
+            const { createSplitLoanRepaymentJournalEntry } = await import("@/lib/journal-entries-extended");
+            const loan = await tx.loan.findUnique({ where: { id: transaction.loanId }, select: { id: true } });
+            if (loan) {
+              await createSplitLoanRepaymentJournalEntry(
+                {
+                  principalAmount: transaction.amount,
+                  interestAmount: 0,
+                  penaltyAmount: 0,
+                  description: `Loan Repayment - PESAPAL - ${transaction.transactionRef}`,
+                  reference: transaction.transactionRef,
+                  transactionId: transaction.id,
+                  userId: transaction.member.userId,
+                  entryDate: new Date(),
+                  branchId: transaction.processedByUserId || undefined,
+                  cashAccountCode: "102001",
+                },
+                tx,
+              );
+            }
           }
         }
       }

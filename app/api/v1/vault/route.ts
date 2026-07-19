@@ -93,6 +93,19 @@ export async function POST(request: NextRequest) {
         },
       });
 
+      // GL entry: Dr Vault (102005) / Cr Equity (301000)
+      const { createVaultJournalEntry, VAULT_GL_CODE } = await import("@/lib/journal-entries-extended");
+      await createVaultJournalEntry({
+        debitAccountCode: VAULT_GL_CODE,
+        creditAccountCode: "301000",
+        amount: INITIAL_BALANCE,
+        description: `Vault initialized - ${newVault.name}`,
+        reference: `VAULT-INIT-${newVault.id.slice(0, 8)}`,
+        branchId: user.branchId!,
+        userId: user.id,
+        entryDate: new Date(),
+      }, tx);
+
       return newVault;
     });
 

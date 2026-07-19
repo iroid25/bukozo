@@ -182,6 +182,56 @@ export async function POST(
           },
         });
       }
+
+      // 6. GL journal entry: Dr FD Liability (201003) / Cr Destination Savings
+      const fdLiabilityAccount = await tx.chartOfAccount.findFirst({
+        where: { accountCode: "201003", isActive: true },
+      });
+      if (fdLiabilityAccount) {
+        const fdEntryNum = `JE-FD-${isEarlyWithdrawal ? "EWD" : "MAT"}-${Date.now()}`;
+        const destinationLiabilityAccount = destinationAccount.accountType?.ledgerAccountId
+          ? await tx.chartOfAccount.findUnique({ where: { id: destinationAccount.accountType.ledgerAccountId } })
+          : await tx.chartOfAccount.findFirst({
+              where: { ledgerType: "LIABILITIES", accountName: { contains: "SAVINGS", mode: "insensitive" }, isActive: true },
+            });
+
+        if (destinationLiabilityAccount) {
+          await tx.journalEntry.createMany({
+            data: [
+              {
+                entryNumber: fdEntryNum,
+                accountId: fdLiabilityAccount.id,
+                debitAmount: amountToReturn,
+                creditAmount: 0,
+                description: `${isEarlyWithdrawal ? "Early Withdrawal" : "Maturity Payout"} - FD ${fd.accountNumber}`,
+                entryDate: new Date(),
+                reference: transactionRef,
+                branchId: fd.branchId || undefined,
+                createdByUserId: (session.user as any).id,
+              },
+              {
+                entryNumber: fdEntryNum,
+                accountId: destinationLiabilityAccount.id,
+                debitAmount: 0,
+                creditAmount: amountToReturn,
+                description: `${isEarlyWithdrawal ? "Early Withdrawal" : "Maturity Payout"} - FD ${fd.accountNumber} credited to ${destinationAccount.accountNumber}`,
+                entryDate: new Date(),
+                reference: transactionRef,
+                branchId: fd.branchId || undefined,
+                createdByUserId: (session.user as any).id,
+              },
+            ],
+          });
+          await tx.chartOfAccount.update({
+            where: { id: fdLiabilityAccount.id },
+            data: { debitBalance: { increment: amountToReturn }, balance: { decrement: amountToReturn } },
+          });
+          await tx.chartOfAccount.update({
+            where: { id: destinationLiabilityAccount.id },
+            data: { creditBalance: { increment: amountToReturn }, balance: { increment: amountToReturn } },
+          });
+        }
+      }
     });
 
     return NextResponse.json({

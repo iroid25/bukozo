@@ -242,6 +242,33 @@ export default function SharesConcentrationPage() {
       };
     });
 
+    if (report.aggregate) {
+      const subHeaders = ["Band", "Accounts", "Account %", "Balance", "Balance %", "Avg Balance"];
+      const subRows: (string | number)[][] = report.aggregate.bands.map((band: any) => [
+        band.band_label,
+        String(band.account_count),
+        band.account_pct,
+        band.total_balance,
+        band.balance_pct,
+        band.avg_balance,
+      ]);
+      const subTotals: (string | number)[] = [
+        "Total",
+        String(report.aggregate.total.account_count),
+        "",
+        report.aggregate.total.total_balance,
+        "",
+        report.aggregate.total.avg_balance,
+      ];
+      groupBy.push({
+        key: 0,
+        label: "AGGREGATE",
+        subHeaders,
+        subRows,
+        subTotals,
+      });
+    }
+
     printReport({
       title: "Share Concentration Report",
       subtitle: `${branchLabel} — ${displayDate(filters.reportDate)}`,

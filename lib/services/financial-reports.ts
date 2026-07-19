@@ -1,8 +1,7 @@
 import { db } from "@/prisma/db";
 import { UserRole, TransactionStatus, CategoryKind, TransactionType } from "@prisma/client";
 import { getDirectBalanceSheetAccounts, getDirectTrialBalanceAccounts } from "@/lib/reports/direct-source";
-
-const CASH_AT_HAND_CODE = "101100";
+import { CASH_AT_HAND_CODE } from "@/lib/services/asset-structure";
 
 // ============================================================================
 // HELPER FUNCTIONS

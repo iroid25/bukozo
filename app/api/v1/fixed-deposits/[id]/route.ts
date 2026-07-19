@@ -184,6 +184,7 @@ export async function DELETE(
     // Check if fixed deposit exists
     const existingDeposit = await db.fixedDeposit.findUnique({
       where: { id },
+      include: { member: { include: { user: { select: { name: true } } } }, institution: { select: { institutionName: true } } },
     });
 
     if (!existingDeposit) {
@@ -232,6 +233,44 @@ export async function DELETE(
             processedByUserId: session.user.id,
           },
         });
+
+        // GL reversal entry: Dr FD Liability (201003) / Cr Source Account
+        const fdLiabilityAccount = await tx.chartOfAccount.findFirst({
+          where: { accountCode: "201003", isActive: true },
+        });
+        if (fdLiabilityAccount) {
+          const reversalEntryNum = `JE-FD-REV-${Date.now()}`;
+          await tx.journalEntry.createMany({
+            data: [
+              {
+                entryNumber: reversalEntryNum,
+                accountId: fdLiabilityAccount.id,
+                debitAmount: existingDeposit.principalAmount,
+                creditAmount: 0,
+                description: `FD Reversal - ${existingDeposit.member?.user?.name || existingDeposit.institution?.institutionName || "Unknown"}`,
+                entryDate: new Date(),
+                reference: `FD-REV-${Date.now()}`,
+                branchId: existingDeposit.branchId || undefined,
+                createdByUserId: session.user.id as string,
+              },
+              {
+                entryNumber: reversalEntryNum,
+                accountId: existingDeposit.fundingSourceAccountId,
+                debitAmount: 0,
+                creditAmount: existingDeposit.principalAmount,
+                description: `FD Reversal - funds returned to source`,
+                entryDate: new Date(),
+                reference: `FD-REV-${Date.now()}`,
+                branchId: existingDeposit.branchId || undefined,
+                createdByUserId: session.user.id as string,
+              },
+            ],
+          });
+          await tx.chartOfAccount.update({
+            where: { id: fdLiabilityAccount.id },
+            data: { debitBalance: { increment: existingDeposit.principalAmount }, balance: { decrement: existingDeposit.principalAmount } },
+          });
+        }
       }
 
       return updated;

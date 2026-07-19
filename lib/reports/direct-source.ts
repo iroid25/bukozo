@@ -86,11 +86,11 @@ async function getDirectAssets(asOfDate: Date, branchId?: string): Promise<Direc
   // Fixed Assets = FixedAsset.currentValue WHERE assetType=FIXED, status!=DISPOSED
   // Current Assets = FixedAsset.currentValue WHERE assetType=CURRENT, status!=DISPOSED
   // Loans = Loan.outstandingBalance WHERE outstandingBalance>0, status!=WRITTEN_OFF
-  // Cash at Hand = LoanRepayment.principalPaid (modeled)
-  // Vault = Vault.balance WHERE isActive=true
+  // Cash at Hand = ChartOfAccount.balance WHERE accountCode='101100'
+  // Vault = ChartOfAccount.balance WHERE accountCode='102005'
   // Float = UserFloat.balance WHERE isActiveForDay=true
 
-  const [fixedAssetGroups, currentAssetGroups, loanAgg, institutionLoanAgg, repaymentAgg, institutionRepaymentAgg, vaultAgg, floatAgg] = await Promise.all([
+  const [fixedAssetGroups, currentAssetGroups, loanAgg, institutionLoanAgg, cashAtHandAcct, vaultAcct, floatAgg] = await Promise.all([
     db.fixedAsset.groupBy({
       by: ["category"],
       where: {
@@ -124,16 +124,13 @@ async function getDirectAssets(asOfDate: Date, branchId?: string): Promise<Direc
       },
       _sum: { outstandingBalance: true },
     }),
-    db.loanRepayment.aggregate({
-      where: branchId ? { loan: { branchId } } : {},
-      _sum: { principalPaid: true },
+    db.chartOfAccount.findFirst({
+      where: { accountCode: "101100", isActive: true },
+      select: { balance: true },
     }),
-    db.institutionLoanRepayment.aggregate({
-      _sum: { principalPaid: true },
-    }),
-    db.vault.aggregate({
-      where: { isActive: true, ...bf(branchId) },
-      _sum: { balance: true },
+    db.chartOfAccount.findFirst({
+      where: { accountCode: "102005", isActive: true },
+      select: { balance: true },
     }),
     db.userFloat.aggregate({
       where: { isActiveForDay: true },
@@ -148,8 +145,8 @@ async function getDirectAssets(asOfDate: Date, branchId?: string): Promise<Direc
     (sum, row) => sum + Number(row._sum.currentValue || 0), 0,
   );
   const loanPortfolio = Number(loanAgg._sum.outstandingBalance || 0) + Number(institutionLoanAgg._sum.outstandingBalance || 0);
-  const cashAtHand = Number(repaymentAgg._sum.principalPaid || 0) + Number(institutionRepaymentAgg._sum.principalPaid || 0);
-  const vaultBalance = Number(vaultAgg._sum.balance || 0);
+  const cashAtHand = Number(cashAtHandAcct?.balance || 0);
+  const vaultBalance = Number(vaultAcct?.balance || 0);
   const floatBalance = Number(floatAgg._sum.balance || 0);
 
   const assets: DirectAccount[] = [
@@ -479,18 +476,6 @@ export async function getDirectTrialBalanceAccounts(
 }
 
 // ============================================================================
-// PUBLIC API — ALL ACCOUNTS (replaces COA findMany for listing)
-// ============================================================================
-
-export async function getAllDirectAccounts(
-  startDate: Date,
-  endDate: Date,
-  branchId?: string,
-): Promise<DirectAccount[]> {
-  return getDirectTrialBalanceAccounts(startDate, endDate, branchId);
-}
-
-// ============================================================================
 // PUBLIC API — ACCOUNTS BY CATEGORY (replaces COA findMany for GL perf)
 // ============================================================================
 
@@ -502,149 +487,6 @@ export async function getDirectAccountsByCategory(
 ): Promise<DirectAccount[]> {
   const all = await getDirectTrialBalanceAccounts(startDate, endDate, branchId);
   return all.filter((a) => a.ledgerType === ledgerType);
-}
-
-// ============================================================================
-// PUBLIC API — FY BALANCE SHEET (period + ytd balances)
-// ============================================================================
-
-export interface DirectPeriodBalances {
-  period: Map<string, { debit: number; credit: number }>;
-  ytd: Map<string, { debit: number; credit: number }>;
-}
-
-export async function getDirectFYBalances(
-  fyStart: Date,
-  toDate: Date,
-  branchId?: string,
-): Promise<DirectPeriodBalances> {
-  const accounts = await getDirectBalanceSheetAccounts(toDate, branchId);
-
-  const period = new Map<string, { debit: number; credit: number }>();
-  const ytd = new Map<string, { debit: number; credit: number }>();
-
-  for (const account of accounts) {
-    const isDebit = account.ledgerType === "ASSETS" || account.ledgerType === "EXPENDITURES";
-    const bal = account.balance;
-    const entry = isDebit
-      ? { debit: Math.max(bal, 0), credit: Math.max(-bal, 0) }
-      : { debit: Math.max(-bal, 0), credit: Math.max(bal, 0) };
-    ytd.set(account.id, entry);
-    period.set(account.id, { debit: 0, credit: 0 });
-  }
-
-  return { period, ytd };
-}
-
-// ============================================================================
-// PUBLIC API — OPERATIONAL BALANCES (extended from financial-reports.ts)
-// ============================================================================
-
-export async function getDirectOperationalBalances(
-  asOfDate: Date,
-  branchFilter: { branchId?: string },
-) {
-  const bf_ = branchFilter.branchId;
-
-  const settled = await Promise.allSettled([
-    db.vault.aggregate({
-      where: { isActive: true, ...(bf_ ? { branchId: bf_ } : {}) },
-      _sum: { balance: true },
-    }),
-    db.loan.aggregate({
-      where: {
-        status: { in: ["DISBURSED", "OVERDUE"] },
-        disbursementDate: { lte: asOfDate },
-        ...(bf_ ? { branchId: bf_ } : {}),
-      },
-      _sum: { outstandingBalance: true },
-    }),
-    db.account.aggregate({
-      where: {
-        status: { not: "CLOSED" },
-        openedAt: { lte: asOfDate },
-        accountType: { isShareAccount: false, hasFixedPeriod: false },
-        ...(bf_ ? { branchId: bf_ } : {}),
-      },
-      _sum: { balance: true },
-    }),
-    db.shareAccount.aggregate({
-      where: {
-        status: { in: ["ACTIVE", "DORMANT", "ON_HOLD", "FROZEN"] },
-        openedDate: { lte: asOfDate },
-        ...(bf_ ? { branchId: bf_ } : {}),
-      },
-      _sum: { totalValue: true },
-    }),
-    // Institution share accounts (from Account model)
-    db.account.aggregate({
-      where: {
-        status: { in: ["ACTIVE", "DORMANT"] },
-        openedAt: { lte: asOfDate },
-        institutionId: { not: null },
-        accountType: { isShareAccount: true },
-        ...(bf_ ? { branchId: bf_ } : {}),
-      },
-      _sum: { balance: true },
-    }),
-    db.fixedDeposit.aggregate({
-      where: {
-        status: { in: ["ACTIVE", "MATURED"] },
-        startDate: { lte: asOfDate },
-        ...(bf_ ? { branchId: bf_ } : {}),
-      },
-      _sum: { principalAmount: true },
-    }),
-    db.fixedAsset.aggregate({
-      where: {
-        status: "ACTIVE",
-        purchaseDate: { lte: asOfDate },
-        ...(bf_ ? { branchId: bf_ } : {}),
-      },
-      _sum: { currentValue: true, accumulatedDepreciation: true },
-    }),
-    db.incomeRecord.aggregate({
-      where: {
-        status: TransactionStatus.COMPLETED,
-        recordDate: { lte: asOfDate },
-        ...(bf_ ? { branchId: bf_ } : {}),
-      },
-      _sum: { amount: true },
-    }),
-    db.expenditureRecord.aggregate({
-      where: {
-        status: TransactionStatus.COMPLETED,
-        recordDate: { lte: asOfDate },
-        ...(bf_ ? { branchId: bf_ } : {}),
-      },
-      _sum: { amount: true },
-    }),
-    db.insuranceContribution.aggregate({
-      where: {
-        type: "CONTRIBUTION",
-        createdAt: { lte: asOfDate },
-        ...(bf_ ? { account: { branchId: bf_ } } : {}),
-      },
-      _sum: { amount: true },
-    }),
-  ]);
-
-  const val = <T,>(idx: number, pick: (r: any) => T, fallback: T): T => {
-    const r = settled[idx];
-    return r.status === "fulfilled" ? (pick(r.value) ?? fallback) : fallback;
-  };
-
-  return {
-    cashInVault: val(0, (r) => r._sum.balance, 0),
-    loanPortfolio: val(1, (r) => r._sum.outstandingBalance, 0),
-    memberSavingsDeposits: val(2, (r) => r._sum.balance, 0),
-    shareCapital: val(3, (r) => r._sum.totalValue, 0) + val(4, (r) => r._sum.balance, 0),
-    fixedTermDeposits: val(5, (r) => r._sum.principalAmount, 0),
-    fixedAssetsNet: val(6, (r) => r._sum.currentValue, 0),
-    accumulatedDepreciation: val(6, (r) => r._sum.accumulatedDepreciation, 0),
-    incomeTotal: val(7, (r) => r._sum.amount, 0) + val(9, (r) => r._sum.amount, 0),
-    expenditureTotal: val(8, (r) => r._sum.amount, 0),
-  };
 }
 
 // ============================================================================
@@ -906,12 +748,11 @@ async function getSourceBSDrilldown(
     return { accountCode: code, accountName: name, ledgerType, entries, totals: { debit: totalDebit, credit: 0 } };
   }
 
-  // Cash at hand (101100) — match Assets page: LoanRepayment.principalPaid
+  // Cash at hand (101100) — GL balance from ChartOfAccount
   if (code === "101100") {
-    const repaymentWhere = branchId ? { loan: { branchId } } : {};
-    const repaymentAgg = await db.loanRepayment.aggregate({ where: repaymentWhere, _sum: { principalPaid: true } });
-    const balance = Number(repaymentAgg._sum.principalPaid || 0);
-    return { accountCode: code, accountName: name, ledgerType, entries: [{ date: fmt(new Date()), reference: "Loan Repayments", description: "Cash at Hand (modeled from loan repayments)", debit: balance, credit: 0 }], totals: { debit: balance, credit: 0 } };
+    const acct = await db.chartOfAccount.findFirst({ where: { accountCode: "101100", isActive: true }, select: { balance: true, accountName: true } });
+    const balance = Number(acct?.balance || 0);
+    return { accountCode: code, accountName: name, ledgerType, entries: [{ date: fmt(new Date()), reference: "GL Balance", description: "Cash at Hand (GL account 101100)", debit: balance, credit: 0 }], totals: { debit: balance, credit: 0 } };
   }
 
   // Loans portfolio (107000) — match Assets page: outstandingBalance>0, status!=WRITTEN_OFF

@@ -364,11 +364,16 @@ export default function ShareAccountsListingPage() {
               onChange={(e) => setFilters((current) => ({ ...current, productId: e.target.value }))}
             >
               <option value="all">All Products</option>
-              {shareProducts.map((p) => (
-                <option key={p.id} value={p.code}>
-                  {p.code} - {p.name}
-                </option>
-              ))}
+              <option value="300501">300501 - Affiliate Members</option>
+              <option value="300502">300502 - Ordinary Members</option>
+              <option value="300503">300503 - Associate Members</option>
+              {shareProducts.length > 0 && shareProducts
+                .filter((p) => !["300501", "300502", "300503"].includes(p.code))
+                .map((p) => (
+                  <option key={p.id} value={p.code}>
+                    {p.code} - {p.name}
+                  </option>
+                ))}
             </select>
           </div>
 

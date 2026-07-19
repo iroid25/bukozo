@@ -36,6 +36,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
+    const typeFilter = searchParams.get("type");
 
     const start = startDate
       ? new Date(startDate)
@@ -43,12 +44,17 @@ export async function GET(request: NextRequest) {
     const end = endDate ? new Date(endDate) : new Date();
     end.setHours(23, 59, 59, 999);
 
+    const whereClause: any = {
+      transactionDate: { gte: start, lte: end },
+      status: { in: ["COMPLETED", "APPROVED", "REVERSED"] },
+    };
+    if (typeFilter) {
+      whereClause.type = typeFilter;
+    }
+
     // Filter by transactionDate — this is the session/posting date (defaults to now() on creation)
     const transactions = await db.transaction.findMany({
-      where: {
-        transactionDate: { gte: start, lte: end },
-        status: { in: ["COMPLETED", "APPROVED", "REVERSED"] },
-      },
+      where: whereClause,
       include: {
         account: {
           include: {

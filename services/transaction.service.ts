@@ -462,9 +462,10 @@ export class TransactionService {
         // uniformly against Cash-at-Hand, so the principal always reaches
         // the GL regardless of how the member was paid out.
         {
-          const savingsGl = await tx.chartOfAccount.findFirst({
-            where: { ledgerType: "LIABILITIES", accountName: { contains: "SAVINGS", mode: "insensitive" }, isActive: true },
-          });
+          const savingsAccountCode = account.accountType.ledgerAccount?.accountCode;
+          const savingsGl = savingsAccountCode
+            ? await tx.chartOfAccount.findFirst({ where: { accountCode: savingsAccountCode, isActive: true } })
+            : await tx.chartOfAccount.findFirst({ where: { ledgerType: "LIABILITIES", accountName: { contains: "SAVINGS", mode: "insensitive" }, isActive: true } });
           const cashGl = await tx.chartOfAccount.findFirst({
             where: { accountCode: CASH_AT_HAND_CODE, isActive: true },
           });
@@ -666,20 +667,26 @@ export class TransactionService {
             });
           }
 
-          await tx.incomeRecord.create({
-            data: {
-              amount: saccoShare,
-              description: `Withdrawal Fee - ${transactionRef}`,
-              receivedByUserId: handlerUserId,
-              branchId: handler?.branchId || account.branchId,
-              memberId: data.memberId,
-              accountId: data.accountId,
-              status: TransactionStatus.COMPLETED,
-              budgetCategoryId: feeCategory.id,
-              recordDate: new Date(),
-              date: new Date(),
-            },
+          const existingFeeIncome = await tx.incomeRecord.findFirst({
+            where: { externalRef: transactionRef },
           });
+          if (!existingFeeIncome) {
+            await tx.incomeRecord.create({
+              data: {
+                amount: saccoShare,
+                description: `Withdrawal Fee - ${transactionRef}`,
+                receivedByUserId: handlerUserId,
+                branchId: handler?.branchId || account.branchId,
+                memberId: data.memberId,
+                accountId: data.accountId,
+                status: TransactionStatus.COMPLETED,
+                budgetCategoryId: feeCategory.id,
+                recordDate: new Date(),
+                date: new Date(),
+                externalRef: transactionRef,
+              },
+            });
+          }
 
           // Create journal entry to update Chart of Accounts
           const { createWithdrawalFeeJournalEntry } =

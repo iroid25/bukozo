@@ -211,6 +211,19 @@ export async function PUT(
           },
         });
 
+        // GL entry: Dr Vault (102005) / Cr Cash at Hand (101100) — float returned to vault
+        const { createVaultJournalEntry, VAULT_GL_CODE } = await import("@/lib/journal-entries-extended");
+        await createVaultJournalEntry({
+          debitAccountCode: VAULT_GL_CODE,
+          creditAccountCode: "101100",
+          amount: totalPhysical,
+          description: `EOD Reconciliation - ${reconciliation.float.user.name}`,
+          reference: `EOD-${id.slice(0, 8)}`,
+          branchId: vault.branchId || undefined,
+          userId: currentUser.id,
+          entryDate: new Date(),
+        }, tx);
+
         if (hasOverage && branchId) {
           const suspenseAccount = await tx.suspenseAccount.findFirst({
             where: {

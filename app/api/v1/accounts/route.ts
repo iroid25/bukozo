@@ -223,6 +223,7 @@ export async function POST(request: NextRequest) {
       }
 
       let targetAccount: any;
+      let openingDepositTxnId: string | null = null;
 
       if (existingAccountInsideTx && accountType.isShareAccount) {
         // Top-up existing share account
@@ -464,6 +465,7 @@ export async function POST(request: NextRequest) {
               processedByUserId: user.id, branchId: finalBranchId, channel: "CASH",
             },
           });
+          openingDepositTxnId = txnRecord.id;
           await tx.deposit.create({
             data: {
               transactionId: txnRecord.id, accountId: targetAccount.id,
@@ -502,6 +504,7 @@ export async function POST(request: NextRequest) {
             floatId: creatorFloat.id, type: TransactionType.DEPOSIT, amount: initialDeposit,
             description: `Cash received for account opening deposit — ${targetAccount.accountNumber}`,
             performedByUserId: user.id,
+            ...(openingDepositTxnId ? { relatedTransactionId: openingDepositTxnId } : {}),
           },
         });
       }

@@ -908,17 +908,22 @@ export async function createMemberWithdrawalJournalEntry(data: {
   reference?: string;
   transactionId?: string;
   userId: string;
+  savingsLedgerAccountCode?: string;
   entryDate?: Date;
   branchId?: string;
 }) {
   const [savingsAccount, cashAccount] = await Promise.all([
-    db.chartOfAccount.findFirst({
-      where: {
-        ledgerType: "LIABILITIES",
-        accountName: { contains: "SAVINGS", mode: "insensitive" },
-        isActive: true,
-      },
-    }),
+    data.savingsLedgerAccountCode
+      ? db.chartOfAccount.findFirst({
+          where: { accountCode: data.savingsLedgerAccountCode, isActive: true },
+        })
+      : db.chartOfAccount.findFirst({
+          where: {
+            ledgerType: "LIABILITIES",
+            accountName: { contains: "SAVINGS", mode: "insensitive" },
+            isActive: true,
+          },
+        }),
     db.chartOfAccount.findFirst({
       where: { accountCode: CASH_AT_HAND_CODE, isActive: true },
     }),
@@ -1448,4 +1453,64 @@ export async function createMigrationOpeningBalanceEntry(data: {
   }
 
   return { success: true, entryNumber };
+}
+
+export const VAULT_GL_CODE = "102005";
+
+export async function createVaultJournalEntry(data: {
+  debitAccountCode: string;
+  creditAccountCode: string;
+  amount: number;
+  description: string;
+  reference?: string;
+  branchId?: string;
+  userId: string;
+  entryDate?: Date;
+}, tx: any = db) {
+  if (data.amount <= 0) return;
+
+  const [debitAccount, creditAccount] = await Promise.all([
+    tx.chartOfAccount.findFirst({ where: { accountCode: data.debitAccountCode, isActive: true } }),
+    tx.chartOfAccount.findFirst({ where: { accountCode: data.creditAccountCode, isActive: true } }),
+  ]);
+
+  if (!debitAccount || !creditAccount) {
+    console.error(`Vault journal skipped: accounts not found (Dr: ${data.debitAccountCode}, Cr: ${data.creditAccountCode})`);
+    return;
+  }
+
+  const entryNumber = `JE-VAULT-${Date.now()}`;
+
+  const operations = async (client: any) => {
+    await client.journalEntry.create({
+      data: {
+        entryNumber, accountId: debitAccount.id, debitAmount: data.amount, creditAmount: 0,
+        description: data.description, reference: data.reference || null,
+        entryDate: data.entryDate ?? new Date(), branchId: data.branchId || null,
+        createdByUserId: data.userId,
+      },
+    });
+    await client.journalEntry.create({
+      data: {
+        entryNumber, accountId: creditAccount.id, debitAmount: 0, creditAmount: data.amount,
+        description: data.description, reference: data.reference || null,
+        entryDate: data.entryDate ?? new Date(), branchId: data.branchId || null,
+        createdByUserId: data.userId,
+      },
+    });
+    await client.chartOfAccount.update({
+      where: { id: debitAccount.id },
+      data: buildAccountBalanceUpdate(debitAccount, { debitAmount: data.amount }),
+    });
+    await client.chartOfAccount.update({
+      where: { id: creditAccount.id },
+      data: buildAccountBalanceUpdate(creditAccount, { creditAmount: data.amount }),
+    });
+  };
+
+  if ((tx as any).$transaction) {
+    await (tx as any).$transaction(async (newTx: any) => { await operations(newTx); });
+  } else {
+    await operations(tx);
+  }
 }

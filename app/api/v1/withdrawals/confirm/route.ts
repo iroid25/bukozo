@@ -312,29 +312,35 @@ export async function POST(request: NextRequest) {
           },
         });
 
-        await tx.incomeRecord.create({
-          data: {
-            budgetCategoryId: feeCategory.id,
-            amount: fee,
-            date: new Date(),
-            recordDate: new Date(),
-            description: `Withdrawal Fee - ${transactionRef}`,
-            receivedByUserId: user.id,
-            branchId: verification.account.branchId || user.branchId,
-            memberId: verification.memberId,
-            accountId: verification.accountId,
-            status: TransactionStatus.COMPLETED,
-            paymentMethod:
-              verification.channel?.toUpperCase() === "CASH" ? "CASH" : "BANK",
-            referenceNumber: transactionRef,
-            receiptNo: transactionRef,
-            depositorName:
-              verification.member?.user?.name ||
-              verification.institution?.institutionName ||
-              "Withdrawal customer",
-            notes: `Auto-posted from withdrawal fee for transaction ${transactionRef}`,
-          },
+        const existingFeeIncome = await tx.incomeRecord.findFirst({
+          where: { externalRef: transactionRef },
         });
+        if (!existingFeeIncome) {
+          await tx.incomeRecord.create({
+            data: {
+              budgetCategoryId: feeCategory.id,
+              amount: fee,
+              date: new Date(),
+              recordDate: new Date(),
+              description: `Withdrawal Fee - ${transactionRef}`,
+              receivedByUserId: user.id,
+              branchId: verification.account.branchId || user.branchId,
+              memberId: verification.memberId,
+              accountId: verification.accountId,
+              status: TransactionStatus.COMPLETED,
+              paymentMethod:
+                verification.channel?.toUpperCase() === "CASH" ? "CASH" : "BANK",
+              referenceNumber: transactionRef,
+              receiptNo: transactionRef,
+              depositorName:
+                verification.member?.user?.name ||
+                verification.institution?.institutionName ||
+                "Withdrawal customer",
+              notes: `Auto-posted from withdrawal fee for transaction ${transactionRef}`,
+              externalRef: transactionRef,
+            },
+          });
+        }
 
         await createWithdrawalFeeJournalEntry(
           {

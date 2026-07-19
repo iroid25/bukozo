@@ -610,6 +610,24 @@ export class RelworxPaymentService {
             : undefined,
       },
     });
+
+    // GL journal entry for mobile money loan repayment
+    const { createSplitLoanRepaymentJournalEntry } = await import("@/lib/journal-entries-extended");
+    await createSplitLoanRepaymentJournalEntry(
+      {
+        principalAmount: principal,
+        interestAmount: interest,
+        penaltyAmount: penalty,
+        description: `Loan Repayment - MOBILE_MONEY - ${transaction.transactionRef}`,
+        reference: transaction.transactionRef,
+        transactionId: transaction.id,
+        userId: transaction.processedByUserId || loan.member.userId,
+        entryDate: new Date(),
+        branchId: loan.member?.branchId || undefined,
+        cashAccountCode: "102001",
+      },
+      tx,
+    );
   }
 
   public static async initiateDeposit(

@@ -161,15 +161,6 @@ async function resolveFinancialYear(input: BuildInput) {
   return null;
 }
 
-async function loadBalanceSummaries(accountIds: string[], fromDate: Date, toDate: Date, branchId?: string) {
-  // DEPRECATED: This function used to query JournalEntry. Kept for compatibility
-  // but the main report now uses direct source reads instead.
-  return {
-    period: new Map<string, { debit: number; credit: number }>(),
-    ytd: new Map<string, { debit: number; credit: number }>(),
-  };
-}
-
 export async function listFinancialYears() {
   const periods = await db.financialPeriod.findMany({
     orderBy: [{ startDate: "desc" }],

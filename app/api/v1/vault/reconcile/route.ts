@@ -34,30 +34,14 @@ export async function POST(request: NextRequest) {
           difference: variance,
           isBalanced,
           reconciledByUserId: user.id,
-          status: isBalanced ? "APPROVED" : "PENDING",
-          approvedByUserId: isBalanced ? user.id : null,
-          approvalDate: isBalanced ? new Date() : null,
+          status: "PENDING",
           notes: notes || null,
         },
       });
 
-      if (!isBalanced) {
-        await tx.vault.update({
-          where: { id: vaultId },
-          data: { balance: physicalCash, physicalCash, lastVerified: new Date() },
-        });
-        await tx.vaultTransaction.create({
-          data: {
-            vaultId,
-            type: VaultTransactionType.ADJUSTMENT,
-            amount: variance,
-            balanceBefore: vault.balance,
-            balanceAfter: physicalCash,
-            description: `Reconciliation - ${variance > 0 ? "Overage" : "Shortage"}: ${Math.abs(variance).toLocaleString()} UGX. ${notes || ""}`,
-            performedByUserId: user.id,
-          },
-        });
-
+      if (isBalanced) {
+        await tx.vault.update({ where: { id: vaultId }, data: { lastVerified: new Date() } });
+      } else {
         if (variance < 0) {
           await tx.cashShortage.create({
             data: {
@@ -70,8 +54,6 @@ export async function POST(request: NextRequest) {
             },
           });
         }
-      } else {
-        await tx.vault.update({ where: { id: vaultId }, data: { lastVerified: new Date() } });
       }
 
       await tx.auditLog.create({

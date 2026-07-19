@@ -796,6 +796,7 @@ export async function buildCashierCashStatusReport(input: {
     let accountNo = "-";
     let trxNumber = ft.id;
     let voucherNo = ft.relatedTransactionId || ft.id;
+    const trxDate = new Date(ft.transactionDate);
 
     if (type === "OTHER" && descLower.startsWith("asset purchase")) {
       // "Asset purchase using teller float - AssetName (assetCode) [...]"
@@ -808,7 +809,8 @@ export async function buildCashierCashStatusReport(input: {
       trxLabel = "Asset Purchase";
       isAssetPurchase = true;
       memberName = assetLabel;
-      voucherNo = ft.relatedTransactionId || ft.id;
+      trxNumber = `AST-${dateOnly(trxDate)}`;
+      voucherNo = ft.relatedTransactionId || `AST-${dateOnly(trxDate)}`;
 
     } else if (type === "OTHER" && descLower.startsWith("expenditure:")) {
       const detail = desc.replace(/^expenditure:\s*/i, "").trim();
@@ -818,6 +820,8 @@ export async function buildCashierCashStatusReport(input: {
       trxCode = "EXP";
       trxLabel = "Expense Payment";
       memberName = detail || "Expense";
+      trxNumber = `EXP-${dateOnly(trxDate)}`;
+      voucherNo = `EXP-${dateOnly(trxDate)}`;
 
     } else if (type === "DEPOSIT" && descLower.startsWith("income:")) {
       const detail = desc.replace(/^income:\s*/i, "").trim();
@@ -827,6 +831,8 @@ export async function buildCashierCashStatusReport(input: {
       trxCode = "INC";
       trxLabel = "Income Received";
       memberName = detail || "Income";
+      trxNumber = `INC-${dateOnly(trxDate)}`;
+      voucherNo = `INC-${dateOnly(trxDate)}`;
 
     } else {
       // Standard banking transaction — enrich display from related Transaction
@@ -853,9 +859,9 @@ export async function buildCashierCashStatusReport(input: {
     if (input.trxCode && trxCode.toLowerCase() !== input.trxCode.toLowerCase()) continue;
 
     const rawAmount = Number(ft.amount);
+
     // Asset purchases are stored with a positive amount but decrease the float
     const cashDelta = isAssetPurchase ? -Math.abs(rawAmount) : rawAmount;
-    const trxDate = new Date(ft.transactionDate);
 
     allItems.push({
       sortTs: trxDate.getTime(),

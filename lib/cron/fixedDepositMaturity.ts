@@ -438,7 +438,114 @@ export async function processMaturedFixedDeposits() {
             throw new Error(`No active savings account found for FD ${fd.accountNumber}`);
           }
 
-          // Mark FD as matured
+          // AUTO-RENEW: If autoRenew is enabled, create a new FD instead of paying out
+          if (fd.autoRenew) {
+            const newStartDate = new Date();
+            const newMaturityDate = new Date(newStartDate);
+            newMaturityDate.setMonth(newMaturityDate.getMonth() + fd.termMonths);
+            const newPrincipal = fd.maturityAmount; // Roll over principal + interest
+            const interest = newPrincipal * (fd.interestRate / 100) * (fd.termMonths / 12);
+            const newMaturityAmount = newPrincipal + interest;
+
+            const newFD = await tx.fixedDeposit.create({
+              data: {
+                accountNumber: `FD${Date.now()}`,
+                memberId: fd.memberId,
+                institutionId: fd.institutionId,
+                branchId: fd.branchId,
+                principalAmount: newPrincipal,
+                interestRate: fd.interestRate,
+                termMonths: fd.termMonths,
+                startDate: newStartDate,
+                maturityDate: newMaturityDate,
+                maturityAmount: newMaturityAmount,
+                status: "ACTIVE",
+                autoRenew: true,
+                fundingSourceAccountId: fd.fundingSourceAccountId,
+              },
+            });
+
+            // Mark old FD as matured and renewed
+            await tx.fixedDeposit.update({
+              where: { id: fd.id },
+              data: {
+                status: "MATURED",
+                isWithdrawn: true,
+                withdrawnDate: new Date(),
+                withdrawnAmount: fd.maturityAmount,
+                totalInterestRealized: interestEarned,
+                renewedToId: newFD.id,
+              },
+            });
+
+            // Post GL entries for renewal (Dr old FD Liability / Cr new FD Liability)
+            if (postingUser) {
+              const fdLiabilityAccount = await tx.chartOfAccount.findFirst({
+                where: {
+                  ledgerType: "LIABILITIES",
+                  isActive: true,
+                  OR: [
+                    { accountCode: "201003" },
+                    { accountName: { contains: "FIXED DEPOSIT", mode: "insensitive" } },
+                  ],
+                },
+              });
+              if (fdLiabilityAccount) {
+                const entryNumber = `JE-FD-RENEW-${Date.now()}`;
+                const entryDate = new Date();
+                // Dr old FD Liability (reduce old), Cr new FD Liability (increase new)
+                await tx.journalEntry.create({
+                  data: {
+                    entryNumber, accountId: fdLiabilityAccount.id,
+                    debitAmount: fd.maturityAmount, creditAmount: 0,
+                    description: `FD Auto-Renew: ${fd.accountNumber} -> ${newFD.accountNumber}`,
+                    reference: `FD-RENEW-${fd.accountNumber}`, entryDate,
+                    branchId: fd.branchId, createdByUserId: postingUser.id,
+                  },
+                });
+                await tx.journalEntry.create({
+                  data: {
+                    entryNumber, accountId: fdLiabilityAccount.id,
+                    debitAmount: 0, creditAmount: newMaturityAmount,
+                    description: `FD Auto-Renew: ${fd.accountNumber} -> ${newFD.accountNumber}`,
+                    reference: `FD-RENEW-${fd.accountNumber}`, entryDate,
+                    branchId: fd.branchId, createdByUserId: postingUser.id,
+                  },
+                });
+                await tx.chartOfAccount.update({
+                  where: { id: fdLiabilityAccount.id },
+                  data: buildAccountBalanceUpdate(fdLiabilityAccount, { debitAmount: fd.maturityAmount, creditAmount: newMaturityAmount }),
+                });
+              }
+            }
+
+            await tx.auditLog.create({
+              data: {
+                userId: "SYSTEM",
+                action: "AUTO_MATURITY_RENEW",
+                entityType: "FixedDeposit",
+                entityId: fd.id,
+                details: `Auto-renew FD ${fd.accountNumber} -> ${newFD.accountNumber}. Rolled over ${fd.maturityAmount.toLocaleString()} for ${fd.termMonths} months at ${fd.interestRate}%. New maturity: ${newMaturityAmount.toLocaleString()}`,
+              },
+            });
+
+            const notifyUserId = fd.member?.userId || fd.institution?.userId;
+            if (notifyUserId) {
+              await tx.notification.create({
+                data: {
+                  userId: notifyUserId,
+                  type: "IN_APP",
+                  subject: "Fixed Deposit Auto-Renewed",
+                  message: `Your fixed deposit ${fd.accountNumber} has matured and been auto-renewed as ${newFD.accountNumber}.\n\nRolled Over: ${fd.maturityAmount.toLocaleString()}\nNew Maturity Amount: ${newMaturityAmount.toLocaleString()}\nNew Maturity Date: ${newMaturityDate.toLocaleDateString()}`,
+                },
+              });
+            }
+
+            console.log(`✓ Auto-renewed FD ${fd.accountNumber} -> ${newFD.accountNumber}`);
+            return; // Skip normal payout
+          }
+
+          // Mark FD as matured (normal payout path)
           await tx.fixedDeposit.update({
             where: { id: fd.id },
             data: {

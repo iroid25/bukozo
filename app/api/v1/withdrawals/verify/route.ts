@@ -476,22 +476,28 @@ async function processWithdrawalInApi(params: {
         },
       });
 
-      // Income record for operational reporting
-      await tx.incomeRecord.create({
-        data: {
-          budgetCategoryId: feeCategory.id,
-          amount: fee,
-          date: new Date(),
-          description: `Withdrawal Fee - ${transactionRef}`,
-          paymentMethod: verification.channel?.toUpperCase() === "CASH" ? "CASH" : "OTHER",
-          receivedByUserId: user.id,
-          branchId: account.branchId || undefined,
-          memberId: verification.memberId || undefined,
-          accountId: verification.accountId || undefined,
-          status: "COMPLETED",
-          recordDate: new Date(),
-        },
+      // Income record for operational reporting (dedup by externalRef)
+      const existingFeeIncome = await tx.incomeRecord.findFirst({
+        where: { externalRef: transactionRef },
       });
+      if (!existingFeeIncome) {
+        await tx.incomeRecord.create({
+          data: {
+            budgetCategoryId: feeCategory.id,
+            amount: fee,
+            date: new Date(),
+            description: `Withdrawal Fee - ${transactionRef}`,
+            paymentMethod: verification.channel?.toUpperCase() === "CASH" ? "CASH" : "OTHER",
+            receivedByUserId: user.id,
+            branchId: account.branchId || undefined,
+            memberId: verification.memberId || undefined,
+            accountId: verification.accountId || undefined,
+            status: "COMPLETED",
+            recordDate: new Date(),
+            externalRef: transactionRef,
+          },
+        });
+      }
 
       // Double-entry GL for fee income
       await createWithdrawalFeeJournalEntry(

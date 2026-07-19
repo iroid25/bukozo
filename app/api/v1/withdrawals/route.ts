@@ -576,19 +576,25 @@ export async function POST(request: NextRequest) {
               data: buildAccountBalanceUpdate(feeIncomeAccount, { creditAmount: saccoShare }),
             });
 
-            await tx.incomeRecord.create({
-              data: {
-                amount: saccoShare,
-                description: `Withdrawal Fee (Sacco Share) - ${transactionRef}`,
-                receivedByUserId: handlerUserId!,
-                branchId: account.branchId,
-                memberId: memberId || account.memberId,
-                accountId: accountId,
-                status: TransactionStatus.COMPLETED,
-                recordDate: new Date(),
-                budgetCategoryId: feeBudgetCategory?.id,
-              },
+            const existingFeeIncome = await tx.incomeRecord.findFirst({
+              where: { externalRef: transactionRef },
             });
+            if (!existingFeeIncome) {
+              await tx.incomeRecord.create({
+                data: {
+                  amount: saccoShare,
+                  description: `Withdrawal Fee (Sacco Share) - ${transactionRef}`,
+                  receivedByUserId: handlerUserId!,
+                  branchId: account.branchId,
+                  memberId: memberId || account.memberId,
+                  accountId: accountId,
+                  status: TransactionStatus.COMPLETED,
+                  recordDate: new Date(),
+                  budgetCategoryId: feeBudgetCategory?.id,
+                  externalRef: transactionRef,
+                },
+              });
+            }
           }
         }
 

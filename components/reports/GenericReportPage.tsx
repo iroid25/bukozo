@@ -122,6 +122,9 @@ export function GenericReportPage<T>({
         if (isAdmin ? branchId !== "all" : userBranchId) {
           params.append("branchId", String(isAdmin ? branchId : userBranchId));
         }
+        if (typeField && typeFilter !== "all") {
+          params.append("type", typeFilter);
+        }
 
         Object.entries(extraParamsRef.current).forEach(([key, value]) => {
           params.append(key, String(value));
@@ -139,6 +142,7 @@ export function GenericReportPage<T>({
               ? undefined
               : branchId
             : userBranchId,
+          type: typeField && typeFilter !== "all" ? typeFilter : undefined,
           ...extraParamsRef.current,
         });
       }
@@ -204,6 +208,8 @@ export function GenericReportPage<T>({
     isAdmin,
     liveRefreshVersion,
     method,
+    typeFilter,
+    typeField,
     userBranchId,
   ]);
 

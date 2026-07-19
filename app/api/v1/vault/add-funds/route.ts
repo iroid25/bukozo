@@ -95,6 +95,19 @@ export async function POST(request: NextRequest) {
         },
       });
 
+      // GL entry: Dr Vault (102005) / Cr Bank (102002)
+      const { createVaultJournalEntry, VAULT_GL_CODE } = await import("@/lib/journal-entries-extended");
+      await createVaultJournalEntry({
+        debitAccountCode: VAULT_GL_CODE,
+        creditAccountCode: "102002",
+        amount,
+        description: description || "Funds added from bank",
+        reference: `VAULT-ADD-${Date.now()}`,
+        branchId: vault.branchId || undefined,
+        userId: persistedUser.id,
+        entryDate: new Date(),
+      }, tx);
+
       return { newBalance, transaction };
     });
 
