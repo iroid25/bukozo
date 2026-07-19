@@ -38,12 +38,13 @@ async function MonthlyDepositListingWithData() {
 
     const allDeposits = await depositsRes.json();
     const statistics = await statsRes.json();
+    const depositsList = allDeposits?.data || allDeposits || [];
 
     // Filter deposits for current month
     const today = new Date();
     const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 
-    const currentMonthDeposits = allDeposits.filter((deposit: any) => {
+    const currentMonthDeposits = depositsList.filter((deposit: any) => {
         const depositDate = new Date(deposit.depositDate);
         return depositDate >= startOfMonth;
     });

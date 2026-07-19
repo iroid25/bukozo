@@ -4,7 +4,7 @@
 import { db } from "@/prisma/db";
 import { getAuthUser } from "@/config/useAuth";
 import { revalidatePath } from "next/cache";
-import { Prisma, VaultTransactionType, TransactionType } from "@prisma/client";
+import { Prisma, TransactionType } from "@prisma/client";
 import { createSplitLoanRepaymentJournalEntry } from "@/lib/journal-entries-extended";
 import { sendTransactionAlertEmail } from "@/lib/email";
 
@@ -248,40 +248,16 @@ export async function createLoanRepayment(data: CreateLoanRepaymentData) {
       });
     }
 
-    // CREATE ACCOUNTING JOURNAL ENTRY (atomically with vault/float updates for cash)
+    // CREATE ACCOUNTING JOURNAL ENTRY (atomically with float update for cash;
+    // cash stays with the teller's float until EOD reconciliation moves it to the vault)
     if (data.paymentMethod === "CASH") {
-      const vault = loan.branchId
-        ? await db.vault.findFirst({ where: { branchId: loan.branchId, isActive: true } })
-        : null;
-      const userFloat = await db.userFloat.findUnique({ where: { userId: user.id } });
-
       await db.$transaction(async (tx) => {
-        if (vault) {
-          await tx.vault.update({
-            where: { id: vault.id },
-            data: {
-              balance: { increment: data.amount },
-              physicalCash: { increment: data.amount }
-            }
-          });
-          await tx.vaultTransaction.create({
-            data: {
-              vaultId: vault.id,
-              type: VaultTransactionType.ADJUSTMENT,
-              amount: data.amount,
-              balanceBefore: vault.balance,
-              balanceAfter: vault.balance + data.amount,
-              description: `Loan Repayment - ${loan.loanApplication.loanProduct.name} (${loan.member.user.name})`,
-              performedByUserId: user.id
-            }
-          });
-        }
+        const userFloat = await tx.userFloat.findUnique({ where: { userId: user.id } });
 
         if (userFloat) {
-          const newFloatBalance = userFloat.balance + data.amount;
           await tx.userFloat.update({
             where: { id: userFloat.id },
-            data: { balance: newFloatBalance }
+            data: { balance: { increment: data.amount } }
           });
           await tx.floatTransaction.create({
             data: {

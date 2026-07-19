@@ -16,54 +16,52 @@ export class TopBottomShareholdersGenerator extends BaseReportGenerator {
     };
     if (params.branchId) where.branchId = params.branchId;
 
-    const topShareholders = await db.account.findMany({
+    const topShareholders = await db.shareAccount.findMany({
       where,
       include: {
         member: { include: { user: { select: { name: true, phone: true } } } },
-        institution: { select: { institutionName: true, institutionPhone: true } },
         accountType: { select: { name: true } },
       },
-      orderBy: { sharesCount: 'desc' },
+      orderBy: { numberOfShares: 'desc' },
       take: limit,
     });
 
-    const bottomShareholders = await db.account.findMany({
+    const bottomShareholders = await db.shareAccount.findMany({
       where: {
         ...where,
-        sharesCount: { gt: 0 },
+        numberOfShares: { gt: 0 },
       },
       include: {
         member: { include: { user: { select: { name: true, phone: true } } } },
-        institution: { select: { institutionName: true, institutionPhone: true } },
         accountType: { select: { name: true } },
       },
-      orderBy: { sharesCount: 'asc' },
+      orderBy: { numberOfShares: 'asc' },
       take: limit,
     });
 
     const topData = topShareholders.map((acc, i) => ({
       rank: i + 1,
       accountNumber: acc.accountNumber,
-      memberName: acc.member?.user?.name || acc.institution?.institutionName || 'N/A',
-      memberPhone: acc.member?.user?.phone || acc.institution?.institutionPhone || 'N/A',
-      numberOfShares: acc.sharesCount || 0,
-      totalValue: this.formatCurrency(acc.balance),
+      memberName: acc.member?.user?.name || 'N/A',
+      memberPhone: acc.member?.user?.phone || 'N/A',
+      numberOfShares: acc.numberOfShares || 0,
+      totalValue: this.formatCurrency(acc.totalValue),
     }));
 
     const bottomData = bottomShareholders.map((acc, i) => ({
       rank: i + 1,
       accountNumber: acc.accountNumber,
-      memberName: acc.member?.user?.name || acc.institution?.institutionName || 'N/A',
-      memberPhone: acc.member?.user?.phone || acc.institution?.institutionPhone || 'N/A',
-      numberOfShares: acc.sharesCount || 0,
-      totalValue: this.formatCurrency(acc.balance),
+      memberName: acc.member?.user?.name || 'N/A',
+      memberPhone: acc.member?.user?.phone || 'N/A',
+      numberOfShares: acc.numberOfShares || 0,
+      totalValue: this.formatCurrency(acc.totalValue),
     }));
 
     const summary = {
       topShareholdersCount: topShareholders.length,
       bottomShareholdersCount: bottomShareholders.length,
-      highestShares: topShareholders[0]?.sharesCount || 0,
-      lowestShares: bottomShareholders[0]?.sharesCount || 0,
+      highestShares: topShareholders[0]?.numberOfShares || 0,
+      lowestShares: bottomShareholders[0]?.numberOfShares || 0,
     };
 
     return this.buildReportData(params, { topShareholders: topData, bottomShareholders: bottomData }, summary);

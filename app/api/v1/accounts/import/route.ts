@@ -70,6 +70,16 @@ export async function POST(request: NextRequest) {
         const existing = await db.account.findUnique({ where: { accountNumber: row.accountNumber } });
         if (existing) throw new Error(`Account Number '${row.accountNumber}' already exists`);
 
+        // Share accounts must be funded through the Shares Purchase flow, which
+        // records the ShareAccount/ShareTransaction and the 304000 Share Capital
+        // GL entry. Bulk import only touches the generic Account.balance and
+        // would silently miss that bookkeeping, so reject nonzero opening balances.
+        if (accType.isShareAccount && (Number(row.balance) || 0) > 0) {
+          throw new Error(
+            "Share accounts cannot be bulk-imported with a nonzero opening balance — use the Shares Purchase flow instead",
+          );
+        }
+
         await db.account.create({
           data: {
             accountNumber: row.accountNumber,
@@ -85,6 +95,42 @@ export async function POST(request: NextRequest) {
             customNumberApprovedAt: new Date(),
           },
         });
+
+        const balance = Number(row.balance) || 0;
+        if (balance > 0) {
+          const txRef = `IMP-OPEN-${Date.now()}-${i}`;
+          const openedAt = row.openedAt ? new Date(row.openedAt) : new Date();
+
+          const txn = await db.transaction.create({
+            data: {
+              transactionRef: txRef,
+              memberId: memberId || null,
+              institutionId: institutionId || null,
+              accountId: (await db.account.findUnique({ where: { accountNumber: row.accountNumber } }))!.id,
+              type: "DEPOSIT" as any,
+              amount: balance,
+              status: "COMPLETED" as any,
+              branchId,
+              description: `Opening balance from import`,
+              processedByUserId: user.id,
+              channel: "CASH",
+              transactionDate: openedAt,
+            },
+          });
+
+          await db.deposit.create({
+            data: {
+              transactionId: txn.id,
+              memberId: memberId || null,
+              institutionId: institutionId || null,
+              accountId: txn.accountId,
+              amount: balance,
+              depositDate: openedAt,
+              handlerUserId: user.id,
+              channel: "CASH",
+            },
+          });
+        }
 
         result.success++;
       } catch (error) {

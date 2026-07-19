@@ -3,7 +3,7 @@ import { db } from '@/prisma/db';
 
 /**
  * Interest Paid Report Generator
- * Shows interest payments made to savings accounts
+ * Shows interest payments made to savings accounts (members and institutions)
  */
 export class InterestPaidReportGenerator extends BaseReportGenerator {
   constructor() {
@@ -14,62 +14,90 @@ export class InterestPaidReportGenerator extends BaseReportGenerator {
   }
 
   async generateData(params: Record<string, any>): Promise<ReportData> {
-    // Validate required parameters
     this.validateParameters(params, ['startDate', 'endDate']);
 
     const startDate = new Date(params.startDate);
     const endDate = new Date(params.endDate);
 
-    // Build query for interest transactions
-    const where: any = {
-      transactionType: 'INTEREST',
-      transactionDate: {
-        gte: startDate,
-        lte: endDate,
-      },
+    const dateFilter = {
+      gte: startDate,
+      lte: endDate,
     };
 
-    // Fetch interest transactions
-    const transactions = await db.savingsTransaction.findMany({
-      where,
-      include: {
-        account: {
-          include: {
-            member: {
-              include: {
-                user: {
-                  select: {
-                    name: true,
+    const [savingsTransactions, genericTransactions] = await Promise.all([
+      db.savingsTransaction.findMany({
+        where: {
+          transactionType: 'INTEREST',
+          transactionDate: dateFilter,
+        },
+        include: {
+          account: {
+            include: {
+              member: {
+                include: {
+                  user: {
+                    select: { name: true },
                   },
                 },
               },
-            },
-            accountType: {
-              select: {
-                name: true,
-                interestRate: true,
+              accountType: {
+                select: { name: true, interestRate: true },
               },
-            },
-            branch: {
-              select: {
-                name: true,
+              branch: {
+                select: { name: true },
               },
             },
           },
         },
-      },
-      orderBy: {
-        transactionDate: 'desc',
-      },
-    });
+        orderBy: { transactionDate: 'desc' },
+      }),
+      db.transaction.findMany({
+        where: {
+          type: 'OTHER',
+          status: 'COMPLETED',
+          transactionDate: dateFilter,
+          description: { contains: 'interest', mode: 'insensitive' },
+        },
+        include: {
+          account: {
+            include: {
+              member: {
+                include: {
+                  user: {
+                    select: { name: true },
+                  },
+                },
+              },
+              institution: {
+                select: {
+                  id: true,
+                  institutionName: true,
+                  user: {
+                    select: { name: true },
+                  },
+                },
+              },
+              accountType: {
+                select: { name: true, interestRate: true },
+              },
+              branch: {
+                select: { name: true },
+              },
+            },
+          },
+        },
+        orderBy: { transactionDate: 'desc' },
+      }),
+    ]);
 
-    // Group by account
-    const byAccount = transactions.reduce((acc, txn) => {
+    const byAccount: Record<string, any> = {};
+
+    for (const txn of savingsTransactions) {
       const accountNumber = txn.account.accountNumber;
-      if (!acc[accountNumber]) {
-        acc[accountNumber] = {
+      if (!byAccount[accountNumber]) {
+        byAccount[accountNumber] = {
           accountNumber,
-          memberName: txn.account.member?.user?.name || 'N/A',
+          ownerName: txn.account.member?.user?.name || 'N/A',
           accountType: txn.account.accountType.name,
           interestRate: txn.account.accountType.interestRate,
           branch: txn.account.branch?.name || 'N/A',
@@ -78,20 +106,44 @@ export class InterestPaidReportGenerator extends BaseReportGenerator {
           payments: [],
         };
       }
-      acc[accountNumber].totalInterest += txn.amount;
-      acc[accountNumber].paymentCount++;
-      acc[accountNumber].payments.push({
+      byAccount[accountNumber].totalInterest += txn.amount;
+      byAccount[accountNumber].paymentCount++;
+      byAccount[accountNumber].payments.push({
         date: this.formatDate(txn.transactionDate),
         amount: this.formatCurrency(txn.amount),
         balance: this.formatCurrency(txn.balanceAfter),
       });
-      return acc;
-    }, {} as Record<string, any>);
+    }
 
-    // Format report data
+    for (const txn of genericTransactions) {
+      const accountNumber = txn.account.accountNumber;
+      if (!byAccount[accountNumber]) {
+        const inst = txn.account.institution;
+        byAccount[accountNumber] = {
+          accountNumber,
+          ownerName: inst
+            ? inst.institutionName || inst.user?.name || 'N/A'
+            : txn.account.member?.user?.name || 'N/A',
+          accountType: txn.account.accountType.name,
+          interestRate: txn.account.accountType.interestRate,
+          branch: txn.account.branch?.name || 'N/A',
+          totalInterest: 0,
+          paymentCount: 0,
+          payments: [],
+        };
+      }
+      byAccount[accountNumber].totalInterest += txn.amount;
+      byAccount[accountNumber].paymentCount++;
+      byAccount[accountNumber].payments.push({
+        date: this.formatDate(txn.transactionDate),
+        amount: this.formatCurrency(txn.amount),
+        balance: '-',
+      });
+    }
+
     const reportData = Object.values(byAccount).map((account: any) => ({
       accountNumber: account.accountNumber,
-      memberName: account.memberName,
+      memberName: account.ownerName,
       accountType: account.accountType,
       interestRate: `${account.interestRate}%`,
       branch: account.branch,
@@ -100,15 +152,22 @@ export class InterestPaidReportGenerator extends BaseReportGenerator {
       averagePayment: this.formatCurrency(account.totalInterest / account.paymentCount),
     }));
 
-    // Calculate summary
-    const totalInterestPaid = transactions.reduce((sum, txn) => sum + txn.amount, 0);
+    const totalInterestPaid = Object.values(byAccount).reduce(
+      (sum: number, account: any) => sum + account.totalInterest,
+      0,
+    );
+    const totalPayments = Object.values(byAccount).reduce(
+      (sum: number, account: any) => sum + account.paymentCount,
+      0,
+    );
+
     const summary = {
       periodStart: this.formatDate(startDate),
       periodEnd: this.formatDate(endDate),
       totalAccounts: Object.keys(byAccount).length,
       totalInterestPaid: this.formatCurrency(totalInterestPaid),
-      totalBalance: this.formatCurrency(totalInterestPaid), // alias for shared summary card
-      totalPayments: transactions.length,
+      totalBalance: this.formatCurrency(totalInterestPaid),
+      totalPayments,
       averageInterestPerAccount: this.formatCurrency(
         Object.keys(byAccount).length > 0
           ? totalInterestPaid / Object.keys(byAccount).length

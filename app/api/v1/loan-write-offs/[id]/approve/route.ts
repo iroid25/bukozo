@@ -23,7 +23,15 @@ export async function POST(
 
     const writeOff = await db.loanWriteOff.findUnique({
       where: { id: writeOffId },
-      include: { loan: { include: { member: { include: { user: true, accounts: true } } } }, requestedBy: true },
+      include: {
+        loan: {
+          include: {
+            member: { include: { user: true, accounts: true } },
+            loanApplication: { include: { loanProduct: { include: { ledgerAccount: true } } } },
+          },
+        },
+        requestedBy: true,
+      },
     });
 
     if (!writeOff) return NextResponse.json({ success: false, error: "Write-off request not found" }, { status: 404 });
@@ -57,14 +65,25 @@ export async function POST(
       }
 
       // GL journal entry: Dr Bad Debt Expense (Written Off Loans), Cr Loan Receivable
-      const [loanPortfolio, badDebtExpense] = await Promise.all([
-        tx.chartOfAccount.findFirst({
-          where: { accountCode: { startsWith: "107" }, isActive: true },
-        }),
+      // Prefer the loan's own product ledger account (its specific sub-portfolio)
+      // and only fall back to a generic 107-prefix match if the product has no
+      // ledger account configured, so we don't misbook against another product's
+      // sub-portfolio.
+      const productLedgerAccount = writeOff.loan.loanApplication?.loanProduct?.ledgerAccount;
+      const [loanPortfolioFallback, badDebtExpense] = await Promise.all([
+        productLedgerAccount && productLedgerAccount.isActive
+          ? Promise.resolve(null)
+          : tx.chartOfAccount.findFirst({
+              where: { accountCode: { startsWith: "107" }, isActive: true },
+            }),
         tx.chartOfAccount.findFirst({
           where: { accountCode: WRITTEN_OFF_LOANS_CODE, isActive: true },
         }),
       ]);
+      const loanPortfolio =
+        productLedgerAccount && productLedgerAccount.isActive
+          ? productLedgerAccount
+          : loanPortfolioFallback;
 
       if (loanPortfolio && badDebtExpense && writeOff.totalBalance > 0) {
         const entryNumber = `JE-WO-${Date.now()}`;

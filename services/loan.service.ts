@@ -1112,7 +1112,10 @@ export class LoanService {
           const vaultBalanceBefore = branchVault.balance;
           await tx.vault.update({
             where: { id: branchVault.id },
-            data: { balance: { decrement: netDisbursement } },
+            data: {
+              balance: { decrement: netDisbursement },
+              physicalCash: { decrement: netDisbursement },
+            },
           });
           await tx.vaultTransaction.create({
             data: {
@@ -1261,6 +1264,9 @@ export class LoanService {
               processingFee: deductions.processingFee,
               insuranceFee: deductions.insurance,
               shareCapital: deductions.shareCapital,
+              applicationFee: deductions.applicationFee,
+              stationeryFee: deductions.stationeryFee,
+              commitmentFee: deductions.commitmentFee,
               loanRecoveryPrincipal: recoveryPrincipal || 0,
               loanRecoveryInterest: recoveryInterest || 0,
               description: `Loan Disbursement - ${app.member.user.name} - ${app.loanProduct.name}`,
@@ -1392,15 +1398,9 @@ export class LoanService {
               },
             });
 
-            const appFeeGl = await tx.chartOfAccount.findFirst({ where: { accountCode: "401007", isActive: true } });
-            const appFeeCashGl = await tx.chartOfAccount.findFirst({ where: { accountCode: CASH_AT_HAND_CODE, isActive: true } });
-            if (appFeeGl && appFeeCashGl) {
-              const jeNum = `JE-APPFEE-${Date.now()}`;
-              await tx.journalEntry.create({ data: { entryNumber: jeNum, accountId: appFeeCashGl.id, debitAmount: deductions.applicationFee, creditAmount: 0, description: `Application fee - ${updatedLoan.id.slice(0, 8)}`, entryDate: new Date(), reference: `APPFEE-${updatedLoan.id.slice(0, 8)}`, branchId: loan.branchId || undefined, createdByUserId: officerId } });
-              await tx.journalEntry.create({ data: { entryNumber: jeNum, accountId: appFeeGl.id, debitAmount: 0, creditAmount: deductions.applicationFee, description: `Application fee - ${updatedLoan.id.slice(0, 8)}`, entryDate: new Date(), reference: `APPFEE-${updatedLoan.id.slice(0, 8)}`, branchId: loan.branchId || undefined, createdByUserId: officerId } });
-              await tx.chartOfAccount.update({ where: { id: appFeeCashGl.id }, data: buildAccountBalanceUpdate(appFeeCashGl, { debitAmount: deductions.applicationFee }) });
-              await tx.chartOfAccount.update({ where: { id: appFeeGl.id }, data: buildAccountBalanceUpdate(appFeeGl, { creditAmount: deductions.applicationFee }) });
-            }
+            // GL posting for this fee is handled inside
+            // createComprehensiveLoanDisbursementJournalEntry (Dr loan portfolio /
+            // Cr fee income, no cash leg — netDisbursement already accounts for it).
           }
 
           // Stationery Fee IncomeRecord + GL
@@ -1448,15 +1448,9 @@ export class LoanService {
               },
             });
 
-            const staFeeGl = await tx.chartOfAccount.findFirst({ where: { accountCode: "401008", isActive: true } });
-            const staFeeCashGl = await tx.chartOfAccount.findFirst({ where: { accountCode: CASH_AT_HAND_CODE, isActive: true } });
-            if (staFeeGl && staFeeCashGl) {
-              const jeNum = `JE-STAFEE-${Date.now()}`;
-              await tx.journalEntry.create({ data: { entryNumber: jeNum, accountId: staFeeCashGl.id, debitAmount: deductions.stationeryFee, creditAmount: 0, description: `Stationery fee - ${updatedLoan.id.slice(0, 8)}`, entryDate: new Date(), reference: `STAFEE-${updatedLoan.id.slice(0, 8)}`, branchId: loan.branchId || undefined, createdByUserId: officerId } });
-              await tx.journalEntry.create({ data: { entryNumber: jeNum, accountId: staFeeGl.id, debitAmount: 0, creditAmount: deductions.stationeryFee, description: `Stationery fee - ${updatedLoan.id.slice(0, 8)}`, entryDate: new Date(), reference: `STAFEE-${updatedLoan.id.slice(0, 8)}`, branchId: loan.branchId || undefined, createdByUserId: officerId } });
-              await tx.chartOfAccount.update({ where: { id: staFeeCashGl.id }, data: buildAccountBalanceUpdate(staFeeCashGl, { debitAmount: deductions.stationeryFee }) });
-              await tx.chartOfAccount.update({ where: { id: staFeeGl.id }, data: buildAccountBalanceUpdate(staFeeGl, { creditAmount: deductions.stationeryFee }) });
-            }
+            // GL posting for this fee is handled inside
+            // createComprehensiveLoanDisbursementJournalEntry (Dr loan portfolio /
+            // Cr fee income, no cash leg — netDisbursement already accounts for it).
           }
 
           // Commitment Fee IncomeRecord + GL
@@ -1504,15 +1498,9 @@ export class LoanService {
               },
             });
 
-            const comFeeGl = await tx.chartOfAccount.findFirst({ where: { accountCode: "401009", isActive: true } });
-            const comFeeCashGl = await tx.chartOfAccount.findFirst({ where: { accountCode: CASH_AT_HAND_CODE, isActive: true } });
-            if (comFeeGl && comFeeCashGl) {
-              const jeNum = `JE-COMFEE-${Date.now()}`;
-              await tx.journalEntry.create({ data: { entryNumber: jeNum, accountId: comFeeCashGl.id, debitAmount: deductions.commitmentFee, creditAmount: 0, description: `Commitment fee - ${updatedLoan.id.slice(0, 8)}`, entryDate: new Date(), reference: `COMFEE-${updatedLoan.id.slice(0, 8)}`, branchId: loan.branchId || undefined, createdByUserId: officerId } });
-              await tx.journalEntry.create({ data: { entryNumber: jeNum, accountId: comFeeGl.id, debitAmount: 0, creditAmount: deductions.commitmentFee, description: `Commitment fee - ${updatedLoan.id.slice(0, 8)}`, entryDate: new Date(), reference: `COMFEE-${updatedLoan.id.slice(0, 8)}`, branchId: loan.branchId || undefined, createdByUserId: officerId } });
-              await tx.chartOfAccount.update({ where: { id: comFeeCashGl.id }, data: buildAccountBalanceUpdate(comFeeCashGl, { debitAmount: deductions.commitmentFee }) });
-              await tx.chartOfAccount.update({ where: { id: comFeeGl.id }, data: buildAccountBalanceUpdate(comFeeGl, { creditAmount: deductions.commitmentFee }) });
-            }
+            // GL posting for this fee is handled inside
+            // createComprehensiveLoanDisbursementJournalEntry (Dr loan portfolio /
+            // Cr fee income, no cash leg — netDisbursement already accounts for it).
           }
 
           await tx.notification.create({
@@ -2054,7 +2042,10 @@ export class LoanService {
           // --- 4. Finalize ---
           await tx.vault.update({
             where: { id: branchVault.id },
-            data: { balance: { decrement: netDisbursement } },
+            data: {
+              balance: { decrement: netDisbursement },
+              physicalCash: { decrement: netDisbursement },
+            },
           });
           await tx.account.update({
             where: { id: account.id },
@@ -2167,6 +2158,9 @@ export class LoanService {
               processingFee: deductions.processingFee,
               insuranceFee: deductions.insurance,
               shareCapital: deductions.shares,
+              applicationFee: deductions.applicationFee,
+              stationeryFee: deductions.stationeryFee,
+              commitmentFee: deductions.commitmentFee,
               loanRecoveryPrincipal: recoveryPrincipal || 0,
               loanRecoveryInterest: recoveryInterest || 0,
               description: `Institution Loan Disbursement - ${app.institution.institutionName} - ${app.loanProduct.name}`,
@@ -2293,15 +2287,9 @@ export class LoanService {
               },
             });
 
-            const appFeeGl = await tx.chartOfAccount.findFirst({ where: { accountCode: "401007", isActive: true } });
-            const appFeeCashGl = await tx.chartOfAccount.findFirst({ where: { accountCode: CASH_AT_HAND_CODE, isActive: true } });
-            if (appFeeGl && appFeeCashGl) {
-              const jeNum = `JE-IAPPFEE-${Date.now()}`;
-              await tx.journalEntry.create({ data: { entryNumber: jeNum, accountId: appFeeCashGl.id, debitAmount: deductions.applicationFee, creditAmount: 0, description: `Inst application fee - ${updatedLoan.id.slice(0, 8)}`, entryDate: new Date(), reference: `INST-APPFEE-${updatedLoan.id.slice(0, 8)}`, branchId: account.branchId || undefined, createdByUserId: officerId } });
-              await tx.journalEntry.create({ data: { entryNumber: jeNum, accountId: appFeeGl.id, debitAmount: 0, creditAmount: deductions.applicationFee, description: `Inst application fee - ${updatedLoan.id.slice(0, 8)}`, entryDate: new Date(), reference: `INST-APPFEE-${updatedLoan.id.slice(0, 8)}`, branchId: account.branchId || undefined, createdByUserId: officerId } });
-              await tx.chartOfAccount.update({ where: { id: appFeeCashGl.id }, data: buildAccountBalanceUpdate(appFeeCashGl, { debitAmount: deductions.applicationFee }) });
-              await tx.chartOfAccount.update({ where: { id: appFeeGl.id }, data: buildAccountBalanceUpdate(appFeeGl, { creditAmount: deductions.applicationFee }) });
-            }
+            // GL posting for this fee is handled inside
+            // createComprehensiveLoanDisbursementJournalEntry (Dr loan portfolio /
+            // Cr fee income, no cash leg — netDisbursement already accounts for it).
           }
 
           // Stationery Fee IncomeRecord + GL
@@ -2348,15 +2336,9 @@ export class LoanService {
               },
             });
 
-            const staFeeGl = await tx.chartOfAccount.findFirst({ where: { accountCode: "401008", isActive: true } });
-            const staFeeCashGl = await tx.chartOfAccount.findFirst({ where: { accountCode: CASH_AT_HAND_CODE, isActive: true } });
-            if (staFeeGl && staFeeCashGl) {
-              const jeNum = `JE-ISTAFEE-${Date.now()}`;
-              await tx.journalEntry.create({ data: { entryNumber: jeNum, accountId: staFeeCashGl.id, debitAmount: deductions.stationeryFee, creditAmount: 0, description: `Inst stationery fee - ${updatedLoan.id.slice(0, 8)}`, entryDate: new Date(), reference: `INST-STAFEE-${updatedLoan.id.slice(0, 8)}`, branchId: account.branchId || undefined, createdByUserId: officerId } });
-              await tx.journalEntry.create({ data: { entryNumber: jeNum, accountId: staFeeGl.id, debitAmount: 0, creditAmount: deductions.stationeryFee, description: `Inst stationery fee - ${updatedLoan.id.slice(0, 8)}`, entryDate: new Date(), reference: `INST-STAFEE-${updatedLoan.id.slice(0, 8)}`, branchId: account.branchId || undefined, createdByUserId: officerId } });
-              await tx.chartOfAccount.update({ where: { id: staFeeCashGl.id }, data: buildAccountBalanceUpdate(staFeeCashGl, { debitAmount: deductions.stationeryFee }) });
-              await tx.chartOfAccount.update({ where: { id: staFeeGl.id }, data: buildAccountBalanceUpdate(staFeeGl, { creditAmount: deductions.stationeryFee }) });
-            }
+            // GL posting for this fee is handled inside
+            // createComprehensiveLoanDisbursementJournalEntry (Dr loan portfolio /
+            // Cr fee income, no cash leg — netDisbursement already accounts for it).
           }
 
           // Commitment Fee IncomeRecord + GL
@@ -2403,15 +2385,9 @@ export class LoanService {
               },
             });
 
-            const comFeeGl = await tx.chartOfAccount.findFirst({ where: { accountCode: "401009", isActive: true } });
-            const comFeeCashGl = await tx.chartOfAccount.findFirst({ where: { accountCode: CASH_AT_HAND_CODE, isActive: true } });
-            if (comFeeGl && comFeeCashGl) {
-              const jeNum = `JE-ICOMFEE-${Date.now()}`;
-              await tx.journalEntry.create({ data: { entryNumber: jeNum, accountId: comFeeCashGl.id, debitAmount: deductions.commitmentFee, creditAmount: 0, description: `Inst commitment fee - ${updatedLoan.id.slice(0, 8)}`, entryDate: new Date(), reference: `INST-COMFEE-${updatedLoan.id.slice(0, 8)}`, branchId: account.branchId || undefined, createdByUserId: officerId } });
-              await tx.journalEntry.create({ data: { entryNumber: jeNum, accountId: comFeeGl.id, debitAmount: 0, creditAmount: deductions.commitmentFee, description: `Inst commitment fee - ${updatedLoan.id.slice(0, 8)}`, entryDate: new Date(), reference: `INST-COMFEE-${updatedLoan.id.slice(0, 8)}`, branchId: account.branchId || undefined, createdByUserId: officerId } });
-              await tx.chartOfAccount.update({ where: { id: comFeeCashGl.id }, data: buildAccountBalanceUpdate(comFeeCashGl, { debitAmount: deductions.commitmentFee }) });
-              await tx.chartOfAccount.update({ where: { id: comFeeGl.id }, data: buildAccountBalanceUpdate(comFeeGl, { creditAmount: deductions.commitmentFee }) });
-            }
+            // GL posting for this fee is handled inside
+            // createComprehensiveLoanDisbursementJournalEntry (Dr loan portfolio /
+            // Cr fee income, no cash leg — netDisbursement already accounts for it).
           }
 
           if (app.institution.user?.email) {
@@ -3299,30 +3275,6 @@ export class LoanService {
                   performedByUserId: data.handlerId,
                 },
               });
-
-              if (loan.branchId) {
-                const branchVault = await tx.vault.findFirst({
-                  where: { branchId: loan.branchId, isActive: true },
-                });
-                if (branchVault) {
-                  await tx.vault.update({
-                    where: { id: branchVault.id },
-                    data: { balance: { increment: data.amount } },
-                  });
-
-                  await tx.vaultTransaction.create({
-                    data: {
-                      vaultId: branchVault.id,
-                      type: "LOAN_REPAYMENT",
-                      amount: data.amount,
-                      balanceBefore: branchVault.balance,
-                      balanceAfter: branchVault.balance + data.amount,
-                      description: `Loan Repayment received: ${ownerName}`,
-                      performedByUserId: data.handlerId,
-                    },
-                  });
-                }
-              }
             } catch (vaultErr: any) {
               console.error(
                 "Vault/Float accounting skipped or failed:",

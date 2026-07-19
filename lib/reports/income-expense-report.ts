@@ -190,8 +190,8 @@ export async function buildIncomeExpenseReport(input: {
     orderBy: [{ kind: "asc" }, { name: "asc" }],
   });
 
-  // Direct source: read from IncomeRecord and ExpenditureRecord
-  const [currentIncomeRecords, compareIncomeRecords, currentExpRecords, compareExpRecords] = await Promise.all([
+  // Direct source: read from IncomeRecord, ExpenditureRecord, and InsuranceContribution
+  const [currentIncomeRecords, compareIncomeRecords, currentExpRecords, compareExpRecords, currentInsContrib, compareInsContrib] = await Promise.all([
     db.incomeRecord.groupBy({
       by: ["budgetCategoryId"],
       where: {
@@ -231,6 +231,22 @@ export async function buildIncomeExpenseReport(input: {
       },
       _sum: { amount: true },
       _count: { id: true },
+    }),
+    db.insuranceContribution.aggregate({
+      where: {
+        type: "CONTRIBUTION",
+        createdAt: { gte: startDate, lte: endDate },
+        ...(branchId ? { account: { branchId } } : {}),
+      },
+      _sum: { amount: true },
+    }),
+    db.insuranceContribution.aggregate({
+      where: {
+        type: "CONTRIBUTION",
+        createdAt: { gte: compareStartDate, lte: compareEndDate },
+        ...(branchId ? { account: { branchId } } : {}),
+      },
+      _sum: { amount: true },
     }),
   ]);
 
@@ -239,6 +255,15 @@ export async function buildIncomeExpenseReport(input: {
   const compareIncMap = new Map(compareIncomeRecords.map((r) => [r.budgetCategoryId, { amount: Number(r._sum.amount || 0), count: r._count.id }]));
   const currentExpMap = new Map(currentExpRecords.map((r) => [r.budgetCategoryId, { amount: Number(r._sum.amount || 0), count: r._count.id }]));
   const compareExpMap = new Map(compareExpRecords.map((r) => [r.budgetCategoryId, { amount: Number(r._sum.amount || 0), count: r._count.id }]));
+
+  // Insurance contribution: override 401960 category with InsuranceContribution table data
+  const currentInsAmount = Number(currentInsContrib._sum?.amount || 0);
+  const compareInsAmount = Number(compareInsContrib._sum?.amount || 0);
+  const insuranceCat = categories.find((c) => c.code?.startsWith("401960"));
+  if (insuranceCat) {
+    currentIncMap.set(insuranceCat.id, { amount: currentInsAmount, count: 0 });
+    compareIncMap.set(insuranceCat.id, { amount: compareInsAmount, count: 0 });
+  }
 
   // Build account rows from BudgetCategory + source records
   const sectionRecords: Record<SectionType, IncomeExpenseAccount[]> = {

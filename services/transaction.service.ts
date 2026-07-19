@@ -445,8 +445,12 @@ export class TransactionService {
           data: { balance: { decrement: totalDeduction } },
         });
 
-        // Principal journal entry for withdrawal (Dr Savings Liability, Cr Cash)
-        if (data.channel?.toUpperCase() !== "MOBILE_MONEY") {
+        // Principal journal entry for withdrawal (Dr Savings Liability, Cr Cash).
+        // Posted for every channel, including MOBILE_MONEY — mirrors how
+        // createMemberDepositJournalEntry treats all deposit channels
+        // uniformly against Cash-at-Hand, so the principal always reaches
+        // the GL regardless of how the member was paid out.
+        {
           const savingsGl = await tx.chartOfAccount.findFirst({
             where: { ledgerType: "LIABILITIES", accountName: { contains: "SAVINGS", mode: "insensitive" }, isActive: true },
           });
@@ -766,6 +770,18 @@ export class TransactionService {
         },
       });
       if (!account) return { ok: false, error: "Active account not found" };
+
+      // 1f. Share accounts — never directly depositable (mirrors the withdrawal
+      // guard above). Deposits into share accounts must go through
+      // /api/v1/shares/purchase so ShareAccount/ShareTransaction and the
+      // Share Capital GL entry stay in sync with Account.balance.
+      const depositTypeName = account.accountType.name.toUpperCase();
+      if (account.accountType.isShareAccount || depositTypeName.includes("SHARE")) {
+        return {
+          ok: false,
+          error: "Direct deposits into share accounts are not permitted. Use the Shares Purchase flow instead.",
+        };
+      }
 
       // 2. Fixed Deposit Funding Restriction (Internal Transfers only)
       if (account.accountType.hasFixedPeriod) {
@@ -1219,8 +1235,18 @@ export class TransactionService {
         }
       }
 
-      // 2. Shares Rule: If source is Shares, it can only be transferred (no direct withdrawal already blocked)
-      // This method handles the transfer part.
+      // 2. Shares Rule: share accounts must move through /api/v1/shares/transfer,
+      // which keeps ShareAccount/ShareTransaction and the Share Capital GL
+      // entry in sync with Account.balance. This generic transfer only moves
+      // Account.balance, so allowing a share account through here would
+      // silently desync it the same way generic deposits/withdrawals did
+      // before they were guarded (see processDeposit/processWithdrawal above).
+      if (sourceAccount.accountType.isShareAccount || targetAccount.accountType.isShareAccount) {
+        return {
+          ok: false,
+          error: "Share accounts cannot be moved via internal transfer. Use the Shares Transfer flow instead.",
+        };
+      }
 
       const result = await db.$transaction(async (tx) => {
         const transferRef = `TRF-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
@@ -1666,9 +1692,52 @@ export class TransactionService {
       } 
       
       if (statusResponse.status === "failed") {
-        await db.transaction.update({
-          where: { id: transaction.id },
-          data: { status: TransactionStatus.FAILED },
+        // A MOBILE_MONEY deposit's Account.balance and float are applied
+        // immediately at creation (see processDeposit), before the provider
+        // confirms the payment. If the provider later reports failure, that
+        // balance/float must be unwound here — otherwise the member's
+        // balance and the handling teller/agent's float stay permanently
+        // inflated for a deposit that never actually arrived.
+        await db.$transaction(async (tx) => {
+          await tx.transaction.update({
+            where: { id: transaction.id },
+            data: { status: TransactionStatus.FAILED },
+          });
+
+          if (
+            (transaction.type === "DEPOSIT" || transaction.type === "FEE") &&
+            transaction.deposit?.channel?.toUpperCase() === "MOBILE_MONEY"
+          ) {
+            await tx.account.update({
+              where: { id: transaction.accountId },
+              data: { balance: { decrement: transaction.amount } },
+            });
+
+            const relatedFloatTxn = await tx.floatTransaction.findFirst({
+              where: { relatedTransactionId: transaction.id, type: TransactionType.DEPOSIT },
+            });
+            if (relatedFloatTxn) {
+              const floatWasIncrement = relatedFloatTxn.amount >= 0;
+              await tx.userFloat.update({
+                where: { id: relatedFloatTxn.floatId },
+                data: {
+                  balance: {
+                    [floatWasIncrement ? "decrement" : "increment"]: Math.abs(relatedFloatTxn.amount),
+                  },
+                },
+              });
+              await tx.floatTransaction.create({
+                data: {
+                  floatId: relatedFloatTxn.floatId,
+                  type: TransactionType.DEPOSIT,
+                  amount: -relatedFloatTxn.amount,
+                  description: `Reversal - Mobile Money deposit failed (${transaction.transactionRef})`,
+                  performedByUserId: transaction.processedByUserId || relatedFloatTxn.performedByUserId,
+                  relatedTransactionId: transaction.id,
+                },
+              });
+            }
+          }
         });
         void bumpAccountingSyncState("Relworx payment failed");
         return { success: true, status: TransactionStatus.FAILED, message: "Payment failed at Relworx." };

@@ -38,12 +38,13 @@ async function TotalDepositListingWithData() {
 
     const allDeposits = await depositsRes.json();
     const statistics = await statsRes.json();
+    const depositsList = allDeposits?.data || allDeposits || [];
 
     return (
         <DepositListing
-        title={`All Deposits (${allDeposits.length})`}
+        title={`All Deposits (${depositsList.length})`}
         subtitle="Complete history of all deposit transactions"
-        deposits={allDeposits || []}
+        deposits={depositsList || []}
         statistics={statistics}
         userRole={user.role}
         currentUserId={user.id}

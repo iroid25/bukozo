@@ -37,12 +37,13 @@ async function TodaysDepositListingWithData() {
 
     const allDeposits = await depositsRes.json();
     const statistics = await statsRes.json();
+    const depositsList = allDeposits?.data || allDeposits || [];
 
     // Filter deposits for today
     const today = new Date();
     const startOfDay = new Date(today.setHours(0, 0, 0, 0));
 
-    const todaysDeposits = allDeposits.filter((deposit: any) => {
+    const todaysDeposits = depositsList.filter((deposit: any) => {
         const depositDate = new Date(deposit.depositDate);
         return depositDate >= startOfDay;
     });

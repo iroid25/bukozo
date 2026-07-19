@@ -51,19 +51,28 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // If successful and this is a deposit, update member account balance
+    // If successful and this is a deposit, update member account balance.
+    // Idempotency guard: this callback may fire more than once (retries) or
+    // the underlying deposit may already have been applied/confirmed via the
+    // main deposit flow, so only increment the balance the first time we see
+    // this transaction move into COMPLETED status.
     if (status === "SUCCESSFUL" && transaction.type === "DEPOSIT") {
       const deposit = await db.deposit.findFirst({
         where: { transactionId: transaction.id },
       });
 
-      if (deposit) {
+      if (deposit && transaction.status !== TransactionStatus.COMPLETED) {
         await db.account.update({
           where: { id: transaction.accountId },
           data: {
             balance: { increment: Number(amount) },
           },
         });
+      } else if (deposit) {
+        console.log(
+          "MoMo callback: transaction already COMPLETED, skipping duplicate balance increment for externalId:",
+          externalId,
+        );
       }
     }
 

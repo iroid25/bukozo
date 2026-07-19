@@ -237,46 +237,54 @@ export function GenericReportPage<T>({
     if (!typeField || typeFilter === "all") return summary;
     if (filteredData.length === data.length) return summary;
 
-    const newSummary: Record<string, any> = { ...summary };
     const rows = filteredData as any[];
+    const newSummary: Record<string, any> = {};
 
     newSummary.count = rows.length;
     newSummary.totalRecords = rows.length;
     newSummary.row_count = rows.length;
 
-    const dataNumericKeys = rows.length > 0
-      ? Object.keys(rows[0]).filter((k) => typeof rows[0][k] === "number")
-      : [];
+    const numericColumns = columns.filter((col) => {
+      const key = col.accessorKey as string;
+      if (!key || rows.length === 0) return false;
+      return typeof rows[0][key] === "number";
+    });
+
+    for (const col of numericColumns) {
+      const key = col.accessorKey as string;
+      const sum = rows.reduce((acc: number, row: any) => acc + (Number(row[key]) || 0), 0);
+      newSummary[key] = sum;
+      const camelKey = key.replace(/_([a-z])/g, (_: string, c: string) => c.toUpperCase());
+      if (camelKey !== key) {
+        newSummary[camelKey] = sum;
+      }
+      const pascalKey = key.replace(/(^|_)([a-z])/g, (_: string, __: string, c: string) => c.toUpperCase());
+      if (pascalKey !== key && pascalKey !== camelKey) {
+        newSummary[pascalKey] = sum;
+      }
+    }
 
     for (const sKey of Object.keys(summary)) {
-      if (typeof summary[sKey] !== "number") continue;
-      if (sKey === "count" || sKey === "totalRecords" || sKey === "row_count") continue;
-
-      const lower = sKey.toLowerCase();
-      const isCount = lower.includes("count") || lower.includes("unique");
-      if (isCount) {
-        continue;
-      }
-
-      const matchedDataKey = dataNumericKeys.find((dKey) => {
-        const dLower = dKey.toLowerCase();
-        return lower.includes(dLower) || dLower.includes(lower.replace("total", "").replace("amount", ""));
-      });
-
-      if (matchedDataKey) {
-        newSummary[sKey] = rows.reduce((sum: number, row: any) => sum + (Number(row[matchedDataKey]) || 0), 0);
-      } else if (lower.includes("total") || lower.includes("amount") || lower.includes("debit") || lower.includes("credit") || lower.includes("balance")) {
-        const fallbackKey = dataNumericKeys.find((dKey) =>
-          lower.includes(dKey.toLowerCase()) || dKey.toLowerCase().includes(lower.replace("total", ""))
-        );
-        if (fallbackKey) {
-          newSummary[sKey] = rows.reduce((sum: number, row: any) => sum + (Number(row[fallbackKey]) || 0), 0);
+      if (sKey in newSummary) continue;
+      if (typeof summary[sKey] === "number") {
+        const lower = sKey.toLowerCase();
+        if (lower.includes("count") || lower.includes("unique")) continue;
+        const matchedCol = numericColumns.find((col) => {
+          const colLower = (col.accessorKey as string).toLowerCase();
+          return lower.includes(colLower) || colLower.includes(lower.replace("total", ""));
+        });
+        if (matchedCol) {
+          newSummary[sKey] = newSummary[matchedCol.accessorKey as string];
+        } else {
+          newSummary[sKey] = summary[sKey];
         }
+      } else {
+        newSummary[sKey] = summary[sKey];
       }
     }
 
     return newSummary;
-  }, [summary, typeFilter, typeField, filteredData, data.length]);
+  }, [summary, typeFilter, typeField, filteredData, data.length, columns]);
 
   const handleExport = useCallback(() => {
     if (filteredData.length === 0) {
@@ -325,6 +333,7 @@ export function GenericReportPage<T>({
     <ReportPageLayout
       title={title}
       description={description}
+      onPrint={handlePrint}
       period={
         dateRange?.from || dateRange?.to
           ? `${dateRange?.from ? format(dateRange.from, "dd MMM yyyy") : "Start"} - ${dateRange?.to ? format(dateRange.to, "dd MMM yyyy") : "Now"}`

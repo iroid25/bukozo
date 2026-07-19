@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { TransactionType, ReconciliationStatus, UserRole } from "@prisma/client";
+import { ReconciliationStatus, UserRole } from "@prisma/client";
 import { getAuthUser } from "@/config/useAuth";
 import { db } from "@/prisma/db";
 import { getFloatOpeningBalanceSource } from "@/lib/float-session";
@@ -166,16 +166,11 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      await tx.floatTransaction.create({
-        data: {
-          floatId: userFloat.id,
-          type: TransactionType.FLOAT_RECONCILIATION,
-          amount: -systemBalance,
-          performedByUserId: user.id,
-          description: `EOD reconciliation submitted for ${userFloat.user.name}`,
-          relatedTransactionId: reconciliation.id,
-        },
-      });
+      // Note: no FloatTransaction is logged here. Submission does not change
+      // UserFloat.balance (that only happens at APPROVE, which logs the single
+      // ledger entry for the zeroing). Logging here previously duplicated the
+      // -systemBalance deduction in FloatTransaction, causing SUM(FloatTransaction.amount)
+      // to diverge from the real UserFloat.balance for every reconciled teller.
 
       await tx.auditLog.create({
         data: {

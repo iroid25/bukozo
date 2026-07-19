@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
 import { getInterestConfiguration } from "@/services/interest-config.service";
 import { assertMemberCanTransact } from "@/lib/member-transact-eligibility";
+import { buildAccountBalanceUpdate } from "@/lib/accounting-rules";
 
 // GET /api/v1/fixed-deposits - Fetch all fixed deposits
 export async function GET(request: NextRequest) {
@@ -428,13 +429,17 @@ export async function POST(request: NextRequest) {
       });
 
       // 3. Update GL Balances
+      // Use the shared helper so the sign of `balance` respects the account's
+      // normal side (a debit posting DECREASES balance on a credit-normal
+      // LIABILITY/EQUITY/INCOME account like a savings ledger, and INCREASES
+      // it on a debit-normal ASSET/EXPENDITURE account like cash).
       await tx.chartOfAccount.update({
         where: { id: debitGlAccount.id },
-        data: { debitBalance: { increment: body.principalAmount }, balance: { increment: body.principalAmount } },
+        data: buildAccountBalanceUpdate(debitGlAccount, { debitAmount: body.principalAmount }),
       });
       await tx.chartOfAccount.update({
         where: { id: fdLiabilityAccount.id },
-        data: { creditBalance: { increment: body.principalAmount }, balance: { increment: body.principalAmount } },
+        data: buildAccountBalanceUpdate(fdLiabilityAccount, { creditAmount: body.principalAmount }),
       });
 
       // 4. Send In-App Notification

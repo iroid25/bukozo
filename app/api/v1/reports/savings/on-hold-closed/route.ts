@@ -1,6 +1,5 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/config/auth';
+import { getAuthUser } from '@/config/useAuth';
 import { ReportExporter } from '@/lib/reports';
 import { OnHoldClosedStatusGenerator } from '@/lib/reports/generators/on-hold-closed-status';
 
@@ -10,12 +9,13 @@ export const revalidate = 0;
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
+    const user = await getAuthUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const params = await request.json();
+    params.branchId = user.role !== "ADMIN" ? user.branchId : (params.branchId || undefined);
     const generator = new OnHoldClosedStatusGenerator();
     const reportData = await generator.generateData(params);
 

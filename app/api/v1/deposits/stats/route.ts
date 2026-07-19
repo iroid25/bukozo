@@ -19,29 +19,20 @@ export async function GET(req: NextRequest) {
     const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
     endOfMonth.setHours(23, 59, 59, 999);
 
-    const whereClause: any = {
-      transaction: {
-        status: TransactionStatus.COMPLETED,
-      },
+    const baseWhere: any = {
+      type: "DEPOSIT",
+      status: TransactionStatus.COMPLETED,
     };
 
-    // Branch isolation for non-ADMIN roles
-    if (user.role !== UserRole.ADMIN) {
-      if (!user.branchId) {
-        console.warn("⚠️ [GET /deposits/stats] User has no branchId:", user.id);
-      } else {
-        whereClause.transaction = {
-          ...whereClause.transaction,
-          branchId: user.branchId,
-        };
-      }
+    if (user.role !== UserRole.ADMIN && user.branchId) {
+      baseWhere.branchId = user.branchId;
     }
 
     const [todayStats, monthStats, totalStats] = await Promise.all([
-      db.deposit.aggregate({
+      db.transaction.aggregate({
         where: {
-          ...whereClause,
-          depositDate: {
+          ...baseWhere,
+          transactionDate: {
             gte: today,
             lt: tomorrow,
           },
@@ -49,10 +40,10 @@ export async function GET(req: NextRequest) {
         _sum: { amount: true },
         _count: true,
       }),
-      db.deposit.aggregate({
+      db.transaction.aggregate({
         where: {
-          ...whereClause,
-          depositDate: {
+          ...baseWhere,
+          transactionDate: {
             gte: startOfMonth,
             lte: endOfMonth,
           },
@@ -60,8 +51,8 @@ export async function GET(req: NextRequest) {
         _sum: { amount: true },
         _count: true,
       }),
-      db.deposit.aggregate({
-        where: whereClause,
+      db.transaction.aggregate({
+        where: baseWhere,
         _sum: { amount: true },
         _count: true,
       }),

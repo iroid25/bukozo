@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Prisma, UserRole } from "@prisma/client";
+import { Prisma, TransactionType, UserRole } from "@prisma/client";
 import { db } from "@/prisma/db";
 import { getAuthUser } from "@/config/useAuth";
 import { buildAccountBalanceUpdate } from "@/lib/accounting-rules";
@@ -130,6 +130,30 @@ export async function POST(
         await tx.chartOfAccount.update({
           where: { id: advancesAccount.id },
           data: buildAccountBalanceUpdate(advancesAccount, { creditAmount: amount }),
+        });
+      }
+
+      // Restore the recording teller's float — the repayment is collected in
+      // cash (see GL posting above: Dr 102001-Cash at Hand), so the cash
+      // physically lands back with the teller recording it.
+      const recordingUserFloat = await tx.userFloat.findUnique({
+        where: { userId: user.id },
+      });
+
+      if (recordingUserFloat) {
+        await tx.userFloat.update({
+          where: { id: recordingUserFloat.id },
+          data: { balance: { increment: amount } },
+        });
+
+        await tx.floatTransaction.create({
+          data: {
+            floatId: recordingUserFloat.id,
+            type: TransactionType.FLOAT_PURCHASE,
+            amount,
+            description: `Advance repayment from ${advance.staffName} [${advance.requestCode}]`,
+            performedByUserId: user.id,
+          },
         });
       }
 

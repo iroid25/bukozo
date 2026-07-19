@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
       const newBalance = vault.balance + amount;
       await tx.vault.update({
         where: { id: vault.id },
-        data: { balance: newBalance, physicalCash: newBalance, lastVerified: new Date() },
+        data: { balance: { increment: amount }, physicalCash: { increment: amount }, lastVerified: new Date() },
       });
 
       const transaction = await tx.vaultTransaction.create({

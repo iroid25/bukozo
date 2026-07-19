@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/prisma/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
+import { buildAccountBalanceUpdate } from "@/lib/accounting-rules";
 
 // GET /api/v1/journal-entries - List journal entries
 export async function GET(request: NextRequest) {
@@ -186,17 +187,10 @@ export async function POST(request: NextRequest) {
         // Update account balances
         await tx.chartOfAccount.update({
           where: { id: entry.accountId },
-          data: {
-            debitBalance: {
-              increment: entry.debitAmount || 0,
-            },
-            creditBalance: {
-              increment: entry.creditAmount || 0,
-            },
-            balance: {
-              increment: (entry.debitAmount || 0) - (entry.creditAmount || 0),
-            },
-          },
+          data: buildAccountBalanceUpdate(account, {
+            debitAmount: entry.debitAmount || 0,
+            creditAmount: entry.creditAmount || 0,
+          }),
         });
 
         createdEntries.push(journalEntry);

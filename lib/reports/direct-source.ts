@@ -212,7 +212,7 @@ async function getDirectLiabilities(asOfDate: Date, branchId?: string): Promise<
   });
   const totalInsurance = Number(insurancePoolAccount?.balance || 0);
 
-  const [savingsAgg, savingsTypes, fixedDepositAgg] = await Promise.all([
+  const [savingsAgg, savingsTypes, fixedDepositAgg, accumDeprAgg] = await Promise.all([
     db.account.groupBy({
       by: ["accountTypeId"],
       where: {
@@ -232,6 +232,13 @@ async function getDirectLiabilities(asOfDate: Date, branchId?: string): Promise<
         ...bf(branchId),
       },
       _sum: { principalAmount: true },
+    }),
+    db.fixedAsset.aggregate({
+      where: {
+        status: { not: "DISPOSED" },
+        ...bf(branchId),
+      },
+      _sum: { accumulatedDepreciation: true },
     }),
   ]);
 
@@ -263,7 +270,7 @@ async function getDirectLiabilities(asOfDate: Date, branchId?: string): Promise<
   }
 
   liabs.push(group(NON_CURRENT_LIABILITIES, "Non-Current Liabilities", "LIABILITIES", vid(LIABILITY_ROOT), 2));
-  liabs.push(leaf(ACCUM_DEPR_NONCURRENT, "Accumulated Depreciation", "LIABILITIES", vid(NON_CURRENT_LIABILITIES), 0, 3));
+  liabs.push(leaf(ACCUM_DEPR_NONCURRENT, "Accumulated Depreciation", "LIABILITIES", vid(NON_CURRENT_LIABILITIES), Number(accumDeprAgg._sum.accumulatedDepreciation || 0), 3));
   liabs.push(leaf(EXTERNAL_LOAN_CODE, "External Loan", "LIABILITIES", vid(NON_CURRENT_LIABILITIES), 0, 3));
   liabs.push(leaf(FOUNDERS_ACCOUNT_CODE, "Founders Account", "LIABILITIES", vid(NON_CURRENT_LIABILITIES), 0, 3));
 

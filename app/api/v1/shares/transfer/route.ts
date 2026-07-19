@@ -134,6 +134,30 @@ export async function POST(request: NextRequest) {
         }
       });
 
+      // Share accounts are redundantly tracked in the generic Account model
+      // (linked by matching accountNumber, same convention as /api/v1/shares/purchase).
+      // Keep that mirror in sync so it doesn't drift from ShareAccount.totalValue.
+      // A matching Account row may legitimately not exist for a given ShareAccount
+      // (see app/api/v1/admin/repair-share-account-drift/route.ts) — skip rather than throw.
+      const [sourceGenericAccount, targetGenericAccount] = await Promise.all([
+        tx.account.findFirst({ where: { accountNumber: sourceAccount.accountNumber }, select: { id: true } }),
+        tx.account.findFirst({ where: { accountNumber: targetAccount.accountNumber }, select: { id: true } }),
+      ]);
+
+      if (sourceGenericAccount) {
+        await tx.account.update({
+          where: { id: sourceGenericAccount.id },
+          data: { balance: { decrement: transactionAmount } },
+        });
+      }
+
+      if (targetGenericAccount) {
+        await tx.account.update({
+          where: { id: targetGenericAccount.id },
+          data: { balance: { increment: transactionAmount } },
+        });
+      }
+
       const reference = `TRF-${Date.now()}`;
 
       // Create Source Transaction (Transfer Out)

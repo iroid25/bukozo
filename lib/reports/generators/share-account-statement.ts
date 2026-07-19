@@ -22,7 +22,7 @@ export class ShareAccountStatementGenerator extends BaseReportGenerator {
     const endDate = new Date(params.endDate);
 
     // Fetch account details and transactions up to endDate
-    const account = await db.account.findUnique({
+    const account = await db.shareAccount.findUnique({
       where: { id: accountId },
       include: {
         member: {
@@ -35,11 +35,6 @@ export class ShareAccountStatementGenerator extends BaseReportGenerator {
                 address: true,
               },
             },
-          },
-        },
-        institution: {
-          select: {
-            institutionName: true,
           },
         },
         accountType: {
@@ -124,14 +119,14 @@ export class ShareAccountStatementGenerator extends BaseReportGenerator {
     const accountInfo = {
       accountNumber: account.accountNumber,
       accountType: account.accountType.name,
-      memberName: account.member?.user?.name || account.institution?.institutionName || 'N/A',
+      memberName: account.member?.user?.name || 'N/A',
       memberPhone: account.member?.user?.phone || 'N/A',
       memberEmail: account.member?.user?.email || 'N/A',
       memberAddress: account.member?.user?.address || 'N/A',
       branch: account.branch?.name || 'N/A',
-      currentShares: account.sharesCount || 0,
-      currentValue: this.formatCurrency(account.balance),
-      openedDate: this.formatDate(account.openedAt),
+      currentShares: account.numberOfShares || 0,
+      currentValue: this.formatCurrency(account.totalValue),
+      openedDate: this.formatDate(account.openedDate),
       status: account.status,
     };
 

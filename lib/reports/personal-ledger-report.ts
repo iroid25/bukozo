@@ -263,7 +263,17 @@ function resolveSavingsVariant(name: string | null | undefined, accountCode?: st
 
 function resolveTransactionDirection(type: string) {
   const normalized = String(type || "").toUpperCase();
-  if (normalized === TransactionType.WITHDRAWAL || normalized === TransactionType.FEE) return "debit" as const;
+  const debitTypes = new Set([
+    TransactionType.WITHDRAWAL,
+    TransactionType.FEE,
+    TransactionType.LOAN_REPAYMENT,
+    TransactionType.LOAN_FEE,
+    TransactionType.SHARES_PURCHASE,
+    TransactionType.INSURANCE_PREMIUM,
+    TransactionType.FLOAT_PURCHASE,
+    "TRANSFER_OUT",
+  ]);
+  if (debitTypes.has(normalized)) return "debit" as const;
   return "credit" as const;
 }
 
@@ -543,6 +553,7 @@ async function buildSavingsSection(account: any, fromDate: Date, toDate: Date): 
         transactionDate: {
           lte: toDate,
         },
+        isReversed: false,
       },
       include: {
         teller: {
@@ -763,6 +774,7 @@ async function buildShareSection(account: any, fromDate: Date, toDate: Date): Pr
         transactionDate: {
           lte: toDate,
         },
+        isReversed: false,
       },
       include: {
         teller: {

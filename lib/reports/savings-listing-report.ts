@@ -690,13 +690,14 @@ export async function buildSavingsMemberDetail(accountNumber: string, user: any,
     ? differenceInCalendarDays(reportDate, lastDate)
     : 0;
 
-  const transactions = [...account.transactions].reverse();
-  let runningBalance = money(account.balance);
+  const transactions = [...account.transactions];
+  const totalDelta = transactions.reduce((sum, tx) => sum + resolveTransactionDirection(tx as any), 0);
+  let runningBalance = money(account.balance) - totalDelta;
   const detailedTransactions = transactions.map((tx) => {
     const delta = resolveTransactionDirection(tx as any);
+    const balanceBefore = runningBalance;
+    runningBalance += delta;
     const balanceAfter = runningBalance;
-    const balanceBefore = balanceAfter - delta;
-    runningBalance = balanceBefore;
 
     return {
       transactionDate: format(new Date(tx.transactionDate), "yyyy-MM-dd"),
@@ -707,7 +708,7 @@ export async function buildSavingsMemberDetail(accountNumber: string, user: any,
       balanceBefore,
       balanceAfter,
     };
-  }).reverse();
+  });
 
   return {
     accountNumber: account.accountNumber,

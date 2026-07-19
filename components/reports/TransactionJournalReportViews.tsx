@@ -519,7 +519,7 @@ export function DaySheetReportPage({ mode }: { mode: DaySheetFilterMode }) {
       },
       headers,
       rows,
-      totals: ["", "", "", "", "", "", "", "Total", report.summary.total_debit, report.summary.total_credit, ""],
+      totals: ["", "", "", "Total", "", "", "", "", report.summary.total_debit, report.summary.total_credit, ""],
       summary: {
         Rows: report.summary.row_count,
         "Debit Total": report.summary.total_debit,
@@ -766,7 +766,7 @@ export function CashierCashStatusReportPage() {
       },
       headers,
       rows,
-      totals: ["", "", "", "", "", "", "", "", "Total", report.summary.total_debit, report.summary.total_credit, report.summary.closing_balance, ""],
+      totals: ["", "", "Total", "", "", "", "", "", "", report.summary.total_debit, report.summary.total_credit, "", ""],
       summary: {
         Transactions: report.summary.transaction_count,
         "Opening Float": report.summary.opening_float,

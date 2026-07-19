@@ -251,6 +251,9 @@ export async function createComprehensiveLoanDisbursementJournalEntry(data: {
   processingFee: number;
   insuranceFee: number;
   shareCapital: number;
+  applicationFee?: number;
+  stationeryFee?: number;
+  commitmentFee?: number;
   loanRecoveryPrincipal: number;
   loanRecoveryInterest: number;
   description: string;
@@ -266,6 +269,9 @@ export async function createComprehensiveLoanDisbursementJournalEntry(data: {
   feeAccountId?: string;
   shareAccountId?: string;
   insuranceAccountId?: string;
+  applicationFeeAccountId?: string;
+  stationeryFeeAccountId?: string;
+  commitmentFeeAccountId?: string;
 }, tx: any = db) {
   const resolveAccountByIdOrCode = async (
     ref: string | undefined,
@@ -314,7 +320,10 @@ export async function createComprehensiveLoanDisbursementJournalEntry(data: {
     insuranceAccount,
     interestIncomeAccount,
     penaltyIncomeAccount,
-    sharesAccount
+    sharesAccount,
+    applicationFeeAccount,
+    stationeryFeeAccount,
+    commitmentFeeAccount,
   ] = await Promise.all([
     findActiveAccountByCodes(tx, getAccountCodeCandidates(data.sourceAccountCode || "102001")),
     resolveAccountByIdOrCode(data.ledgerAccountId, "107000"),
@@ -323,6 +332,9 @@ export async function createComprehensiveLoanDisbursementJournalEntry(data: {
     resolveAccountByIdOrCode(data.interestAccountId, "401001"),
     resolveAccountByIdOrCode(data.penaltyAccountId, "401005"),
     resolveAccountByIdOrCode(data.shareAccountId, "304000"),
+    resolveAccountByIdOrCode(data.applicationFeeAccountId, "401007"),
+    resolveAccountByIdOrCode(data.stationeryFeeAccountId, "401008"),
+    resolveAccountByIdOrCode(data.commitmentFeeAccountId, "401009"),
   ]);
 
   if (!sourceAccount || !loanPortfolioAccount) {
@@ -395,6 +407,72 @@ export async function createComprehensiveLoanDisbursementJournalEntry(data: {
       await client.chartOfAccount.update({
         where: { id: feeAccount.id },
         data: buildAccountBalanceUpdate(feeAccount, { creditAmount: data.processingFee })
+      });
+    }
+
+    // 3b. Application Fee (Income) — deduction from loan proceeds, no cash leg
+    if ((data.applicationFee || 0) > 0 && applicationFeeAccount) {
+      await client.journalEntry.create({
+        data: {
+          entryNumber,
+          accountId: applicationFeeAccount.id,
+          debitAmount: 0,
+          creditAmount: data.applicationFee,
+          description: `${data.description} (Application Fee)`,
+          reference: data.reference || null,
+          transactionId: data.transactionId || null,
+          createdByUserId: data.userId,
+          entryDate: data.entryDate ?? undefined,
+          branchId: data.branchId || null,
+        }
+      });
+      await client.chartOfAccount.update({
+        where: { id: applicationFeeAccount.id },
+        data: buildAccountBalanceUpdate(applicationFeeAccount, { creditAmount: data.applicationFee })
+      });
+    }
+
+    // 3c. Stationery Fee (Income) — deduction from loan proceeds, no cash leg
+    if ((data.stationeryFee || 0) > 0 && stationeryFeeAccount) {
+      await client.journalEntry.create({
+        data: {
+          entryNumber,
+          accountId: stationeryFeeAccount.id,
+          debitAmount: 0,
+          creditAmount: data.stationeryFee,
+          description: `${data.description} (Stationery Fee)`,
+          reference: data.reference || null,
+          transactionId: data.transactionId || null,
+          createdByUserId: data.userId,
+          entryDate: data.entryDate ?? undefined,
+          branchId: data.branchId || null,
+        }
+      });
+      await client.chartOfAccount.update({
+        where: { id: stationeryFeeAccount.id },
+        data: buildAccountBalanceUpdate(stationeryFeeAccount, { creditAmount: data.stationeryFee })
+      });
+    }
+
+    // 3d. Commitment Fee (Income) — deduction from loan proceeds, no cash leg
+    if ((data.commitmentFee || 0) > 0 && commitmentFeeAccount) {
+      await client.journalEntry.create({
+        data: {
+          entryNumber,
+          accountId: commitmentFeeAccount.id,
+          debitAmount: 0,
+          creditAmount: data.commitmentFee,
+          description: `${data.description} (Commitment Fee)`,
+          reference: data.reference || null,
+          transactionId: data.transactionId || null,
+          createdByUserId: data.userId,
+          entryDate: data.entryDate ?? undefined,
+          branchId: data.branchId || null,
+        }
+      });
+      await client.chartOfAccount.update({
+        where: { id: commitmentFeeAccount.id },
+        data: buildAccountBalanceUpdate(commitmentFeeAccount, { creditAmount: data.commitmentFee })
       });
     }
 

@@ -1,7 +1,6 @@
 ﻿// @ts-nocheck 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/config/auth';
+import { getAuthUser } from '@/config/useAuth';
 import { ReportExporter } from '@/lib/reports';
 import { SavingsAccountBalanceGenerator } from '@/lib/reports/generators/savings-account-balance';
 
@@ -25,9 +24,8 @@ export async function POST(request: NextRequest) {
 
 async function generateReport(request: NextRequest, method: 'GET' | 'POST') {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user) {
+    const user = await getAuthUser();
+    if (!user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -49,6 +47,7 @@ async function generateReport(request: NextRequest, method: 'GET' | 'POST') {
       }
     }
 
+    params.branchId = user.role !== "ADMIN" ? user.branchId : (params.branchId || undefined);
     // Generate report
     const generator = new SavingsAccountBalanceGenerator();
     const reportData = await generator.generateData(params);

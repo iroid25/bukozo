@@ -12,20 +12,26 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const memberId = searchParams.get("memberId") || undefined;
+    const institutionId = searchParams.get("institutionId") || undefined;
     const limit = parseInt(searchParams.get("limit") || "100");
 
-    const whereClause: any = {};
+    const whereClause: any = {
+      type: "DEPOSIT",
+      status: "COMPLETED",
+    };
     if (memberId) whereClause.memberId = memberId;
+    if (institutionId) whereClause.institutionId = institutionId;
 
-    const deposits = await db.deposit.findMany({
+    const transactions = await db.transaction.findMany({
       where: whereClause,
       take: limit,
       include: {
-        transaction: true,
+        deposit: true,
         member: {
           include: {
             user: {
               select: {
+                id: true,
                 name: true,
                 email: true,
                 phone: true,
@@ -56,7 +62,7 @@ export async function GET(req: NextRequest) {
             branch: true,
           },
         },
-        handler: {
+        processedByUser: {
           select: {
             id: true,
             name: true,
@@ -65,9 +71,91 @@ export async function GET(req: NextRequest) {
         },
       },
       orderBy: {
-        depositDate: "desc",
+        transactionDate: "desc",
       },
     });
+
+    const deposits = transactions.map((tx) => ({
+      id: tx.deposit?.id ?? tx.id,
+      transactionId: tx.id,
+      memberId: tx.memberId,
+      institutionId: tx.institutionId,
+      accountId: tx.accountId,
+      amount: tx.amount,
+      depositDate: tx.transactionDate,
+      handlerUserId: tx.processedByUserId,
+      channel: tx.channel,
+      mobileMoneyRef: tx.deposit?.mobileMoneyRef ?? null,
+      depositorName: tx.deposit?.depositorName ?? null,
+      institutionName: tx.deposit?.institutionName ?? null,
+      transaction: {
+        id: tx.id,
+        transactionRef: tx.transactionRef,
+        type: tx.type,
+        status: tx.status,
+        description: tx.description,
+        amount: tx.amount,
+        currency: tx.currency ?? "UGX",
+        branchId: tx.branchId,
+        notes: tx.notes,
+      },
+      member: tx.member
+        ? {
+            id: tx.member.id,
+            memberNumber: tx.member.memberNumber,
+            user: {
+              id: tx.member.user.id,
+              name: tx.member.user.name,
+              email: tx.member.user.email,
+              phone: tx.member.user.phone,
+              image: tx.member.user.image,
+            },
+          }
+        : null,
+      institution: tx.institution
+        ? {
+            id: tx.institution.id,
+            institutionNumber: tx.institution.institutionNumber,
+            institutionName: tx.institution.institutionName,
+            institutionType: (tx.institution as any).institutionType ?? "",
+            institutionEmail: (tx.institution as any).institutionEmail ?? "",
+            institutionPhone: (tx.institution as any).institutionPhone ?? "",
+            user: tx.institution.user
+              ? {
+                  id: tx.institution.user.id,
+                  name: tx.institution.user.name,
+                  email: tx.institution.user.email,
+                  phone: tx.institution.user.phone,
+                  image: tx.institution.user.image,
+                }
+              : null,
+          }
+        : null,
+      account: {
+        id: tx.account.id,
+        accountNumber: tx.account.accountNumber,
+        balance: tx.account.balance,
+        accountType: {
+          id: tx.account.accountType.id,
+          name: tx.account.accountType.name,
+          minBalance: (tx.account.accountType as any).minBalance ?? 0,
+        },
+        branch: tx.account.branch
+          ? {
+              id: tx.account.branch.id,
+              name: tx.account.branch.name,
+              location: (tx.account.branch as any).location ?? "",
+            }
+          : { id: "", name: "Unknown", location: "" },
+      },
+      handler: tx.processedByUser
+        ? {
+            id: tx.processedByUser.id,
+            name: tx.processedByUser.name,
+            role: tx.processedByUser.role,
+          }
+        : { id: "", name: "System", role: "SYSTEM" },
+    }));
 
     return NextResponse.json({ data: deposits });
   } catch (error: any) {

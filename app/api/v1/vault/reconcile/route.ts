@@ -57,6 +57,19 @@ export async function POST(request: NextRequest) {
             performedByUserId: user.id,
           },
         });
+
+        if (variance < 0) {
+          await tx.cashShortage.create({
+            data: {
+              userId: user.id,
+              amount: Math.abs(variance),
+              reportedByUserId: user.id,
+              description: `Shortage detected in vault reconciliation for ${vault.name}${notes ? ` - ${notes}` : ""}`,
+              reconciliationId: reconciliation.id,
+              status: "PENDING",
+            },
+          });
+        }
       } else {
         await tx.vault.update({ where: { id: vaultId }, data: { lastVerified: new Date() } });
       }

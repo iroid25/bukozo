@@ -871,7 +871,7 @@ async function fetchTransactions(filters: SavingsTransactionReportFilters, user:
     ? filters.threshold
     : DEFAULT_THRESHOLD;
 
-  const records = await db.savingsTransaction.findMany({
+  const savingsRecords = await db.savingsTransaction.findMany({
     where,
     include: {
       account: {
@@ -925,25 +925,14 @@ async function fetchTransactions(filters: SavingsTransactionReportFilters, user:
     ],
   });
 
-  if (records.length > 0) {
-    const mapped = records.map((transaction) => mapTransactionRow(transaction as SavingsTransactionRecord, threshold));
-    const transactions = applyMixedFlowFlags(mapped);
-    const summary = summarizeTransactions(transactions);
-    const tellerSummary = buildTellerSummary(transactions);
-
-    return {
-      branchScope: branchId || "all",
-      transactions,
-      summary,
-      tellerSummary,
-    };
-  }
+  const savingsRows = savingsRecords.map((transaction) => mapTransactionRow(transaction as SavingsTransactionRecord, threshold));
 
   const genericWhere: Prisma.TransactionWhereInput = {
     transactionDate: {
       gte: resolveDateRange(filters).from,
       lte: resolveDateRange(filters).to,
     },
+    type: { in: [TransactionType.DEPOSIT, TransactionType.WITHDRAWAL, TransactionType.FEE, TransactionType.TRANSFER] },
     ...(branchId
       ? {
           account: {
@@ -997,6 +986,24 @@ async function fetchTransactions(filters: SavingsTransactionReportFilters, user:
             member: {
               user: {
                 lastName: {
+                  contains: search,
+                  mode: "insensitive",
+                },
+              },
+            },
+          },
+          {
+            institution: {
+              institutionName: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+          },
+          {
+            institution: {
+              user: {
+                name: {
                   contains: search,
                   mode: "insensitive",
                 },
@@ -1133,7 +1140,18 @@ async function fetchTransactions(filters: SavingsTransactionReportFilters, user:
     ],
   });
 
-  const transactions = mapGenericTransactions(genericRecords as GenericSavingsTransactionRecord[], threshold);
+  const genericRows = mapGenericTransactions(genericRecords as GenericSavingsTransactionRecord[], threshold);
+
+  const savingsRefSet = new Set(savingsRows.map((r) => r.trxNo).filter(Boolean));
+  const dedupedGenericRows = genericRows.filter((r) => !r.trxNo || !savingsRefSet.has(r.trxNo));
+
+  const merged = [...savingsRows, ...dedupedGenericRows].sort((a, b) => {
+    const dateDiff = new Date(a.trxDate).getTime() - new Date(b.trxDate).getTime();
+    if (dateDiff !== 0) return dateDiff;
+    return (a.id || "").localeCompare(b.id || "");
+  });
+
+  const transactions = applyMixedFlowFlags(merged);
   const summary = summarizeTransactions(transactions);
   const tellerSummary = buildTellerSummary(transactions);
 

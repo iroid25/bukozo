@@ -82,6 +82,16 @@ export async function importAccountsBatch(rows: ImportAccountRow[]) {
         const existing = await db.account.findUnique({ where: { accountNumber: row.accountNumber } });
         if (existing) throw new Error(`Account Number '${row.accountNumber}' already exists`);
 
+        // Share accounts must be funded through the Shares Purchase flow, which
+        // records the ShareAccount/ShareTransaction and the 304000 Share Capital
+        // GL entry. Bulk import only touches the generic Account.balance and
+        // would silently miss that bookkeeping, so reject nonzero opening balances.
+        if (accType.isShareAccount && (Number(row.balance) || 0) > 0) {
+            throw new Error(
+                "Share accounts cannot be bulk-imported with a nonzero opening balance — use the Shares Purchase flow instead",
+            );
+        }
+
         // 4. Create Account
         await db.account.create({
             data: {

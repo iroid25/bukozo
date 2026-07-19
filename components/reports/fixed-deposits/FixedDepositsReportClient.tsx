@@ -337,19 +337,27 @@ export function FixedDepositsReportClient({ mode }: Props) {
     const period = periodLabel;
 
     if (mode === "concentration") {
-      const section = report.sections[0] as ConcentrationSection | undefined;
-      if (!section) return;
+      const sections = report.sections as ConcentrationSection[];
+      if (sections.length === 0) return;
       const headers = ["Size of Account", "Account (count)", "Account %", "Balance Amount", "Balance %", "Average Balance"];
-      const rows = section.bands.map((band) => [
-        band.label,
-        band.accountCount,
-        `${band.accountPct.toFixed(2)}%`,
-        band.totalBalance,
-        `${band.balancePct.toFixed(2)}%`,
-        band.averageBalance,
-      ]);
-      const totals = ["TOTAL", section.total.accountCount, "100.00%", section.total.totalBalance, "100.00%", section.total.averageBalance];
-      printReport({ title: config.title, subtitle: config.description, period, headers, rows, totals });
+      const allRows: (string | number)[][] = [];
+      for (const section of sections) {
+        for (const band of section.bands) {
+          allRows.push([
+            `${section.productCode} - ${section.productName}`,
+            band.label,
+            band.accountCount,
+            `${band.accountPct.toFixed(2)}%`,
+            band.totalBalance,
+            `${band.balancePct.toFixed(2)}%`,
+            band.averageBalance,
+          ]);
+        }
+      }
+      const headersWithProduct = ["Product", ...headers];
+      const gt = report.grandTotal as ConcentrationSection["total"];
+      const totals = ["GRAND TOTAL", "", "", "", gt.totalBalance, "", gt.averageBalance];
+      printReport({ title: config.title, subtitle: config.description, period, headers: headersWithProduct, rows: allRows, totals });
       return;
     }
 
@@ -410,32 +418,33 @@ export function FixedDepositsReportClient({ mode }: Props) {
     if (!report) return null;
 
     if (mode === "concentration") {
-      const section = report.sections[0] as ConcentrationSection | undefined;
+      const gt = report.grandTotal as ConcentrationSection["total"];
+      const totalBands = (report.sections as ConcentrationSection[]).reduce((sum, s) => sum + s.bands.length, 0);
       return (
         <>
           <Card className="min-w-0">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Accounts</CardTitle>
             </CardHeader>
-            <CardContent className="text-2xl font-bold">{Number(section?.total.accountCount || 0).toLocaleString()}</CardContent>
+            <CardContent className="text-2xl font-bold">{Number(gt.accountCount || 0).toLocaleString()}</CardContent>
           </Card>
           <Card className="min-w-0">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Balance</CardTitle>
             </CardHeader>
-            <CardContent className="text-2xl font-bold">UGX {currency(section?.total.totalBalance || 0)}</CardContent>
+            <CardContent className="text-2xl font-bold">UGX {currency(gt.totalBalance || 0)}</CardContent>
           </Card>
           <Card className="min-w-0">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Average Balance</CardTitle>
             </CardHeader>
-            <CardContent className="text-2xl font-bold">UGX {currency(section?.total.averageBalance || 0)}</CardContent>
+            <CardContent className="text-2xl font-bold">UGX {currency(gt.averageBalance || 0)}</CardContent>
           </Card>
           <Card className="min-w-0">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Bands</CardTitle>
             </CardHeader>
-            <CardContent className="text-2xl font-bold">{Number(section?.bands.length || 0).toLocaleString()}</CardContent>
+            <CardContent className="text-2xl font-bold">{Number(totalBands).toLocaleString()}</CardContent>
           </Card>
         </>
       );

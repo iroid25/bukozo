@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const totalToMove = Number(amount);
+    const totalToMove = Number(amount) + Number(floatAmount || 0);
     if (sourceVault.balance < totalToMove) {
       return NextResponse.json(
         { error: "Insufficient funds in Organisational Reserve" },
@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
         where: { id: sourceVault.id },
         data: {
           balance: { decrement: totalToMove },
-          physicalCash: { decrement: Number(amount) }
+          physicalCash: { decrement: totalToMove }
         }
       });
 
@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
         where: { id: targetVault.id },
         data: {
           balance: { increment: totalToMove },
-          physicalCash: { increment: Number(amount) }
+          physicalCash: { increment: totalToMove }
         }
       });
 

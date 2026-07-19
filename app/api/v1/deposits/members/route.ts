@@ -14,18 +14,16 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search") || "";
 
     const whereClause: any = {
-      user: {
-        ...(user.role !== UserRole.ADMIN && user.branchId ? { branchId: user.branchId } : {}),
-        ...(search
-          ? {
-              OR: [
-                { name: { contains: search, mode: "insensitive" } },
-                { email: { contains: search, mode: "insensitive" } },
-                { phone: { contains: search, mode: "insensitive" } },
-              ],
-            }
-          : {}),
-      },
+      ...(search
+        ? {
+            OR: [
+              { user: { name: { contains: search, mode: "insensitive" } } },
+              { user: { email: { contains: search, mode: "insensitive" } } },
+              { user: { phone: { contains: search, mode: "insensitive" } } },
+              { memberNumber: { contains: search, mode: "insensitive" } },
+            ],
+          }
+        : {}),
     };
 
 
@@ -57,7 +55,7 @@ export async function GET(request: NextRequest) {
         accounts: {
           where: {
             status: "ACTIVE",
-            ...(user.role !== UserRole.ADMIN && user.branchId
+            ...(!search && user.role !== UserRole.ADMIN && user.branchId
               ? { branchId: user.branchId }
               : {}),
           },
@@ -83,12 +81,7 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    const filtered = members.filter((member) =>
-      Array.isArray(member.accounts) &&
-      member.accounts.some((account) => !account.accountType?.isShareAccount),
-    );
-
-    return NextResponse.json(filtered);
+    return NextResponse.json(members);
   } catch (error: any) {
     console.error("Error fetching members API:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });

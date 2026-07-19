@@ -24,7 +24,7 @@ export class ShareAccountListingGenerator extends BaseReportGenerator {
     if (params.status) where.status = params.status;
     if (params.accountTypeId) where.accountTypeId = params.accountTypeId;
 
-    const accounts = await db.account.findMany({
+    const accounts = await db.shareAccount.findMany({
       where,
       include: {
         member: {
@@ -50,34 +50,34 @@ export class ShareAccountListingGenerator extends BaseReportGenerator {
     });
 
     const reportData = accounts.map(account => {
-      const sharesCount = account.sharesCount || 0;
+      const sharesCount = account.numberOfShares || 0;
       const sharePrice = account.accountType.sharePrice || 10000;
       
       return {
         accountNumber: account.accountNumber,
-        memberName: account.member?.user?.name || account.institution?.institutionName || 'N/A',
+        memberName: account.member?.user?.name || 'N/A',
         memberPhone: account.member?.user?.phone || 'N/A',
         accountType: account.accountType.name,
         branch: account.branch?.name || 'N/A',
         numberOfShares: sharesCount,
         shareValue: this.formatCurrency(sharePrice),
-        totalValue: this.formatCurrency(account.balance),
+        totalValue: this.formatCurrency(account.totalValue),
         status: account.status,
-        openedDate: this.formatDate(account.openedAt),
-        lastTransactionDate: this.formatDate(account.openedAt), // fallback
+        openedDate: this.formatDate(account.openedDate),
+        lastTransactionDate: this.formatDate(account.lastTransactionDate || account.openedDate),
       };
     });
 
     const summary = {
       totalAccounts: accounts.length,
-      totalShares: accounts.reduce((sum, acc) => sum + (acc.sharesCount || 0), 0),
-      totalValue: accounts.reduce((sum, acc) => sum + acc.balance, 0),
+      totalShares: accounts.reduce((sum, acc) => sum + (acc.numberOfShares || 0), 0),
+      totalValue: accounts.reduce((sum, acc) => sum + acc.totalValue, 0),
       activeAccounts: accounts.filter(acc => acc.status === 'ACTIVE').length,
       averageShares: accounts.length > 0
-        ? accounts.reduce((sum, acc) => sum + (acc.sharesCount || 0), 0) / accounts.length
+        ? accounts.reduce((sum, acc) => sum + (acc.numberOfShares || 0), 0) / accounts.length
         : 0,
       averageValue: accounts.length > 0
-        ? accounts.reduce((sum, acc) => sum + acc.balance, 0) / accounts.length
+        ? accounts.reduce((sum, acc) => sum + acc.totalValue, 0) / accounts.length
         : 0,
     };
 

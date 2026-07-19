@@ -342,7 +342,7 @@ function buildTransactionRows(params: Record<string, any>) {
           "300501";
         const productName = getProductName(tx.account, productCode);
         const amount = Number(tx.amount || 0);
-        const isCredit = String(tx.type || "").toUpperCase() === "SHARES_PURCHASE";
+        const isCredit = ["SHARES_PURCHASE", "DEPOSIT"].includes(String(tx.type || "").toUpperCase());
         const direction = isCredit ? "credit" : "debit";
         const tellerCode = resolveTellerCode(tx.transactionRef, tx.processedByUser?.name);
         const userName = resolveTellerName(tx.transactionRef, tx.processedByUser?.name);
@@ -419,7 +419,7 @@ function buildTransactionRows(params: Record<string, any>) {
 
     const genericTransactions = await db.transaction.findMany({
       where: {
-        type: "SHARES_PURCHASE",
+        type: { in: ["SHARES_PURCHASE", "DEPOSIT"] },
         status: "COMPLETED",
         transactionDate: {
           gte: fromDate,

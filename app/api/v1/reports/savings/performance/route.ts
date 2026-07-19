@@ -1,6 +1,5 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/config/auth";
+import { getAuthUser } from "@/config/useAuth";
 import { db } from "@/prisma/db";
 
 export const dynamic = "force-dynamic";
@@ -19,12 +18,13 @@ async function parseParams(request: NextRequest, method: "GET" | "POST") {
 
 async function generateReport(request: NextRequest, method: "GET" | "POST") {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
+    const user = await getAuthUser();
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const params = await parseParams(request, method);
+    params.branchId = user.role !== "ADMIN" ? user.branchId : (params.branchId || undefined);
     // Account is the master balance source. SavingsAccount.balance is retired (TXN-001).
     // Exclude CLOSED accounts by default unless caller explicitly passes a status filter.
     const where: any = {

@@ -7,42 +7,38 @@ export class ShareConcentrationGenerator extends BaseReportGenerator {
   }
 
   async generateData(params: Record<string, any>): Promise<ReportData> {
-    const accounts = await db.account.findMany({
+    const accounts = await db.shareAccount.findMany({
       where: {
         status: 'ACTIVE',
-        accountType: {
-          isShareAccount: true,
-        },
       },
       include: {
         member: { include: { user: { select: { name: true } } } },
-        institution: { select: { institutionName: true } },
         accountType: { select: { sharePrice: true } },
       },
-      orderBy: { sharesCount: 'desc' },
+      orderBy: { numberOfShares: 'desc' },
     });
 
-    const totalShares = accounts.reduce((sum, acc) => sum + (acc.sharesCount || 0), 0);
+    const totalShares = accounts.reduce((sum, acc) => sum + (acc.numberOfShares || 0), 0);
     
     const reportData = accounts.map((account, index) => {
-      const sharesCount = account.sharesCount || 0;
+      const sharesCount = account.numberOfShares || 0;
       const sharePrice = account.accountType.sharePrice || 10000;
       const percentage = totalShares > 0 ? (sharesCount / totalShares) * 100 : 0;
       
       return {
         rank: index + 1,
         accountNumber: account.accountNumber,
-        memberName: account.member?.user?.name || account.institution?.institutionName || 'N/A',
+        memberName: account.member?.user?.name || 'N/A',
         numberOfShares: sharesCount,
         shareValue: this.formatCurrency(sharePrice),
-        totalValue: this.formatCurrency(account.balance),
+        totalValue: this.formatCurrency(account.totalValue),
         percentage: this.formatNumber(percentage, 2) + '%',
       };
     });
 
     // Calculate concentration metrics
     const top10Count = Math.min(10, accounts.length);
-    const top10Shares = accounts.slice(0, top10Count).reduce((sum, acc) => sum + (acc.sharesCount || 0), 0);
+    const top10Shares = accounts.slice(0, top10Count).reduce((sum, acc) => sum + (acc.numberOfShares || 0), 0);
     const top10Percentage = totalShares > 0 ? (top10Shares / totalShares) * 100 : 0;
 
     const summary = {

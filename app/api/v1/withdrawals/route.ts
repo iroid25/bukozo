@@ -412,6 +412,7 @@ export async function POST(request: NextRequest) {
         data: {
           transactionRef,
           memberId: memberId || account.memberId,
+          institutionId: account.institutionId || null,
           accountId: accountId,
           type: TransactionType.WITHDRAWAL,
           amount: amount,
@@ -433,6 +434,7 @@ export async function POST(request: NextRequest) {
         data: {
           transactionId: transaction.id,
           memberId: memberId || account.memberId,
+          institutionId: account.institutionId || null,
           accountId: accountId,
           amount: amount,
           fee: fee,

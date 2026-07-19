@@ -1,7 +1,186 @@
 import { db } from "@/prisma/db";
-import { TransactionType, TransactionStatus, AccountStatus } from "@prisma/client";
+import { TransactionType, TransactionStatus, AccountStatus, UserRole } from "@prisma/client";
 import { format } from "date-fns";
 import { isVoluntarySavingsAccountTypeName } from "@/lib/accounting/account-type-rules";
+import { buildAccountBalanceUpdate } from "@/lib/accounting-rules";
+
+// ── GL posting helpers for fixed deposit maturity payouts ──
+// These mirror the account-lookup conventions already used in
+// app/api/v1/fixed-deposits/route.ts (FD opening entry) so the maturity
+// payout posts a symmetric reversal: Dr FD Liability / Cr Savings Liability
+// for the principal, plus an Interest Expense leg for interest — but ONLY
+// if an Interest Expense chart of account is actually configured. This
+// codebase has no established/used Interest Expense COA code today, so
+// rather than invent one (and risk an unbalanced entry), the interest leg
+// is skipped with a warning when no such account is found.
+
+async function resolveFdLiabilityAccount(tx: any) {
+  return tx.chartOfAccount.findFirst({
+    where: {
+      ledgerType: "LIABILITIES",
+      isActive: true,
+      OR: [
+        { accountCode: "201003" },
+        { accountCode: "201100" },
+        { accountCode: "2014" },
+        { accountName: { contains: "FIXED DEPOSIT", mode: "insensitive" } },
+      ],
+    },
+  });
+}
+
+async function resolveSavingsLiabilityAccount(
+  tx: any,
+  destAccountType: { ledgerAccountId?: string | null } | null | undefined,
+) {
+  const ledgerAccountId = destAccountType?.ledgerAccountId;
+  if (ledgerAccountId) {
+    const acct = await tx.chartOfAccount.findUnique({ where: { id: ledgerAccountId } });
+    if (acct) return acct;
+  }
+  return tx.chartOfAccount.findFirst({
+    where: {
+      ledgerType: "LIABILITIES",
+      accountName: { contains: "SAVINGS", mode: "insensitive" },
+      isActive: true,
+    },
+  });
+}
+
+async function resolveInterestExpenseAccount(tx: any) {
+  return tx.chartOfAccount.findFirst({
+    where: {
+      ledgerType: "EXPENDITURES",
+      isActive: true,
+      OR: [
+        { accountCode: "502001" },
+        { accountName: { contains: "INTEREST EXPENSE", mode: "insensitive" } },
+      ],
+    },
+  });
+}
+
+/**
+ * Posts the GL entries for an FD maturity/rollover payout that moves
+ * `principalAmount` (+ optional `interestAmount`) from the FD Liability
+ * ledger account to the destination savings Liability ledger account.
+ * Must be called with the transaction client (`tx`) so a partial failure
+ * can't desync the GL from the Account.balance moves already made.
+ */
+async function postFdMaturityGlEntries(
+  tx: any,
+  params: {
+    principalAmount: number;
+    interestAmount: number;
+    fdAccountNumber: string;
+    destAccountNumber: string;
+    destAccountType: { ledgerAccountId?: string | null } | null | undefined;
+    reference: string;
+    branchId: string | null;
+    userId: string;
+  },
+) {
+  const { principalAmount, interestAmount, fdAccountNumber, destAccountNumber, destAccountType, reference, branchId, userId } = params;
+  if (principalAmount <= 0 && interestAmount <= 0) return;
+
+  const fdLiabilityAccount = await resolveFdLiabilityAccount(tx);
+  const savingsLiabilityAccount = await resolveSavingsLiabilityAccount(tx, destAccountType);
+
+  if (!fdLiabilityAccount || !savingsLiabilityAccount) {
+    console.warn(
+      `[fixedDepositMaturity] Skipping GL posting for ${fdAccountNumber} -> ${destAccountNumber}: ` +
+      `missing FD liability or savings liability chart of account.`,
+    );
+    return;
+  }
+
+  const entryNumber = `JE-FD-MAT-${reference}`;
+  const entryDate = new Date();
+
+  if (principalAmount > 0) {
+    await tx.journalEntry.create({
+      data: {
+        entryNumber,
+        accountId: fdLiabilityAccount.id,
+        debitAmount: principalAmount,
+        creditAmount: 0,
+        description: `FD Maturity Payout - Principal: ${fdAccountNumber} -> ${destAccountNumber}`,
+        reference,
+        entryDate,
+        branchId: branchId || null,
+        createdByUserId: userId,
+      },
+    });
+    await tx.journalEntry.create({
+      data: {
+        entryNumber,
+        accountId: savingsLiabilityAccount.id,
+        debitAmount: 0,
+        creditAmount: principalAmount,
+        description: `FD Maturity Payout - Principal: ${fdAccountNumber} -> ${destAccountNumber}`,
+        reference,
+        entryDate,
+        branchId: branchId || null,
+        createdByUserId: userId,
+      },
+    });
+    await tx.chartOfAccount.update({
+      where: { id: fdLiabilityAccount.id },
+      data: buildAccountBalanceUpdate(fdLiabilityAccount, { debitAmount: principalAmount }),
+    });
+    await tx.chartOfAccount.update({
+      where: { id: savingsLiabilityAccount.id },
+      data: buildAccountBalanceUpdate(savingsLiabilityAccount, { creditAmount: principalAmount }),
+    });
+  }
+
+  if (interestAmount > 0) {
+    const interestExpenseAccount = await resolveInterestExpenseAccount(tx);
+    if (interestExpenseAccount) {
+      await tx.journalEntry.create({
+        data: {
+          entryNumber,
+          accountId: interestExpenseAccount.id,
+          debitAmount: interestAmount,
+          creditAmount: 0,
+          description: `FD Maturity Payout - Interest: ${fdAccountNumber} -> ${destAccountNumber}`,
+          reference,
+          entryDate,
+          branchId: branchId || null,
+          createdByUserId: userId,
+        },
+      });
+      await tx.journalEntry.create({
+        data: {
+          entryNumber,
+          accountId: savingsLiabilityAccount.id,
+          debitAmount: 0,
+          creditAmount: interestAmount,
+          description: `FD Maturity Payout - Interest: ${fdAccountNumber} -> ${destAccountNumber}`,
+          reference,
+          entryDate,
+          branchId: branchId || null,
+          createdByUserId: userId,
+        },
+      });
+      await tx.chartOfAccount.update({
+        where: { id: interestExpenseAccount.id },
+        data: buildAccountBalanceUpdate(interestExpenseAccount, { debitAmount: interestAmount }),
+      });
+      await tx.chartOfAccount.update({
+        where: { id: savingsLiabilityAccount.id },
+        data: buildAccountBalanceUpdate(savingsLiabilityAccount, { creditAmount: interestAmount }),
+      });
+    } else {
+      console.warn(
+        `[fixedDepositMaturity] No Interest Expense chart of account found (checked code 502001 / ` +
+        `name "Interest Expense") — interest portion (${interestAmount}) of the maturity payout for ` +
+        `${fdAccountNumber} -> ${destAccountNumber} was NOT posted to the GL, to avoid an unbalanced ` +
+        `entry or inventing a new account code. Only the principal was posted.`,
+      );
+    }
+  }
+}
 
 /**
  * Process matured fixed deposit accounts
@@ -11,6 +190,17 @@ export async function processMaturedFixedDeposits() {
   try {
     const today = new Date();
     today.setHours(0, 0, 0, 0); // Start of day
+
+    // Resolve a real user id to attribute system-posted journal entries to
+    // (JournalEntry.createdByUserId is a required FK to User — "SYSTEM" used
+    // elsewhere in this file for Transaction.processedByUserId is not a valid
+    // user id). Mirrors the fallback pattern in
+    // lib/cron/voluntarySavingsMonthlyCharges.ts.
+    const postingUser = await db.user.findFirst({
+      where: { role: UserRole.ADMIN },
+      orderBy: { createdAt: "asc" },
+      select: { id: true },
+    });
 
     // Find all matured fixed deposits that haven't been processed
     const maturedAccounts = await db.account.findMany({
@@ -141,6 +331,27 @@ export async function processMaturedFixedDeposits() {
             },
           });
 
+          // 4b. Post GL entries for the payout (Dr FD Liability, Cr Savings Liability,
+          // plus an Interest Expense leg if configured) so the GL doesn't silently
+          // diverge from the Account.balance moves made above. Same transaction as
+          // the balance updates, so a partial failure can't desync them.
+          if (postingUser) {
+            await postFdMaturityGlEntries(tx, {
+              principalAmount,
+              interestAmount,
+              fdAccountNumber: account.accountNumber,
+              destAccountNumber: voluntarySavings.accountNumber,
+              destAccountType: voluntarySavings.accountType,
+              reference: transactionRef,
+              branchId: account.branchId,
+              userId: postingUser.id,
+            });
+          } else {
+            console.warn(
+              `[fixedDepositMaturity] No ADMIN user found to attribute GL postings to — skipping GL entries for FD ${account.accountNumber} maturity payout.`,
+            );
+          }
+
           // 5. Create audit log
           await tx.auditLog.create({
             data: {
@@ -265,6 +476,27 @@ export async function processMaturedFixedDeposits() {
               channel: "INTERNAL",
             },
           });
+
+          // Post GL entries for the payout (Dr FD Liability, Cr Savings Liability,
+          // plus an Interest Expense leg if configured) so the GL doesn't silently
+          // diverge from the Account.balance move made above. Same transaction as
+          // the balance update, so a partial failure can't desync them.
+          if (postingUser) {
+            await postFdMaturityGlEntries(tx, {
+              principalAmount: fd.principalAmount,
+              interestAmount: interestEarned,
+              fdAccountNumber: fd.accountNumber,
+              destAccountNumber: destAccount.accountNumber,
+              destAccountType: destAccount.accountType,
+              reference: transactionRef,
+              branchId: fd.branchId,
+              userId: postingUser.id,
+            });
+          } else {
+            console.warn(
+              `[fixedDepositMaturity] No ADMIN user found to attribute GL postings to — skipping GL entries for FD ${fd.accountNumber} maturity payout.`,
+            );
+          }
 
           await tx.auditLog.create({
             data: {
