@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
 import { db } from "@/prisma/db";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -12,15 +13,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = session.user as any;
     const { searchParams } = new URL(request.url);
     const category = searchParams.get("category") || "savings";
+    const user = session.user as any;
+    const branchId = resolveBranchScope(user, searchParams.get("branchId") || undefined);
 
-    // Branch isolation for non-admin users
-    const branchFilter =
-      user.role !== "ADMIN" && user.branchId
-        ? { branchId: user.branchId }
-        : {};
+    const branchFilter = branchId ? { branchId } : {};
 
     if (category === "loans") {
       const loans = await db.loan.findMany({

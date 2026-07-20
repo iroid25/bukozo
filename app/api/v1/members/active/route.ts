@@ -82,6 +82,24 @@ export async function GET(request: NextRequest) {
                 location: true,
               },
             },
+            jointMembers: {
+              select: {
+                id: true,
+                memberId: true,
+                member: {
+                  select: {
+                    id: true,
+                    memberNumber: true,
+                    user: {
+                      select: {
+                        name: true,
+                        image: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
           },
         },
       },

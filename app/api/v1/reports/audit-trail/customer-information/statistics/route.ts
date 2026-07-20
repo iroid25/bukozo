@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 import {
   ensureCustomerAuditTrailSchema,
   groupCustomerAuditTrailRows,
@@ -17,11 +18,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const sessionRole = (session.user as any).role as string | undefined;
-    const sessionBranchId = (session.user as any).branchId as string | undefined;
-    const requestedBranchId = request.nextUrl.searchParams.get("branchId") || undefined;
-    const branchId =
-      sessionRole === "ADMIN" ? requestedBranchId : sessionBranchId || undefined;
+    const user = session.user as any;
+    const rawBranchId = request.nextUrl.searchParams.get("branchId") || undefined;
+    const branchId = resolveBranchScope(
+      { role: user.role, branchId: user.branchId },
+      rawBranchId,
+    );
 
     await ensureCustomerAuditTrailSchema();
 

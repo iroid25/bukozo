@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/config/useAuth";
 import { getFixedDepositConcentrationReport } from "@/lib/reports/fixed-deposits-report";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -12,10 +13,11 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
+    const branchId = resolveBranchScope(user, searchParams.get("branchId") || undefined);
     const data = await getFixedDepositConcentrationReport({
       user,
       reportDate: searchParams.get("reportDate") || searchParams.get("asOfDate") || undefined,
-      branchId: searchParams.get("branchId") || undefined,
+      branchId,
     });
 
     return NextResponse.json({

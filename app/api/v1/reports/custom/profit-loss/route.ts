@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { TransactionStatus, UserRole } from "@prisma/client";
 import { getAuthUser } from "@/config/useAuth";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 import { db } from "@/prisma/db";
 import { IncomeService } from "@/services/income.service";
 
@@ -36,8 +37,8 @@ function parseDate(value: unknown): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-function normalizeBranchIds(user: { role: UserRole; branchId?: string | null }, requestedBranchIds: unknown) {
-  if (user.role === UserRole.ADMIN) {
+function normalizeBranchIds(user: { role: string; branchId?: string | null }, requestedBranchIds: unknown) {
+  if (user.role === "ADMIN") {
     return Array.isArray(requestedBranchIds)
       ? requestedBranchIds.filter((branchId): branchId is string => typeof branchId === "string" && branchId.length > 0)
       : [];

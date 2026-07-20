@@ -4,6 +4,7 @@ import * as XLSX from "xlsx";
 import { getAuthUser } from "@/config/useAuth";
 import { UserRole } from "@prisma/client";
 import { buildTrialBalanceReport, buildTrialBalanceWorkbookRows } from "@/lib/reports/trial-balance-report";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +39,10 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const report = await buildTrialBalanceReport({
       user,
-      branchId: normalizeBranchId(searchParams.get("branchId") || undefined),
+      branchId: resolveBranchScope(
+        { role: user.role, branchId: user.branchId },
+        normalizeBranchId(searchParams.get("branchId") || undefined),
+      ),
       startDate: parseDate(searchParams.get("start_date") || searchParams.get("startDate") || undefined),
       endDate: parseDate(searchParams.get("end_date") || searchParams.get("endDate") || undefined),
     });

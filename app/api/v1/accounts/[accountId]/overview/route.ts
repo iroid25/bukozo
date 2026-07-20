@@ -64,6 +64,25 @@ export async function GET(
         },
         accountType: true,
         branch: true,
+        jointMembers: {
+          include: {
+            member: {
+              select: {
+                id: true,
+                memberNumber: true,
+                user: {
+                  select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    phone: true,
+                    image: true,
+                  },
+                },
+              },
+            },
+          },
+        },
         transactions: {
           include: {
             processedByUser: {

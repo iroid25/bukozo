@@ -75,6 +75,7 @@ const ACCOUNT_TYPE_LABELS: Record<string, string> = {
   VOLUNTARY_SAVINGS: "Voluntary Savings",
   COMPULSORY_SAVINGS: "Compulsory Savings",
   JUNIOR_SAVINGS: "Junior Savings",
+  JOINT_SAVINGS: "Joint Savings",
   FIXED_SAVINGS: "Fixed Savings",
   FIXED_DEPOSIT: "Fixed Savings",
   EMERGENCY_SAVINGS: "Emergency Savings",

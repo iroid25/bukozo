@@ -3,6 +3,7 @@ import { UserRole } from "@prisma/client";
 
 import { getAuthUser } from "@/config/useAuth";
 import { buildFinancialYearProfitLossReport } from "@/lib/reports/profit-loss-report";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +34,10 @@ async function handleRequest(request: NextRequest) {
   const fyStart = searchParams.get("fyStart") || undefined;
   const fromDate = searchParams.get("fromDate") || undefined;
   const toDate = searchParams.get("toDate") || undefined;
-  const branchId = normalizeBranchId(searchParams.get("branchId") || undefined);
+  const branchId = resolveBranchScope(
+    { role: user.role, branchId: user.branchId },
+    normalizeBranchId(searchParams.get("branchId") || undefined),
+  );
 
   const report = await buildFinancialYearProfitLossReport({
     user,

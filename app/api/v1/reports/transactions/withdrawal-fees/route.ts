@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 import { db } from "@/prisma/db";
-import { UserRole } from "@prisma/client";
 import { calculateWithdrawalFee } from "@/lib/fees";
 import { AGENT_WITHDRAWAL_FEES } from "@/config/fees";
 
@@ -30,7 +30,11 @@ export async function GET(request: NextRequest) {
     end.setHours(23, 59, 59, 999);
 
     const user = session.user as any;
-    const isAdmin = user.role === UserRole.ADMIN;
+    const rawBranchId = searchParams.get("branchId") || undefined;
+    const resolvedBranchId = resolveBranchScope(
+      { role: user.role, branchId: user.branchId },
+      rawBranchId && rawBranchId !== "all" ? rawBranchId : undefined,
+    );
 
     const where: any = {
       withdrawalDate: { gte: start, lte: end },
@@ -42,10 +46,8 @@ export async function GET(request: NextRequest) {
       },
     };
 
-    if (!isAdmin && user.branchId) {
-      where.account = { branchId: user.branchId };
-    } else if (branchId && branchId !== "all") {
-      where.account = { branchId };
+    if (resolvedBranchId) {
+      where.account = { branchId: resolvedBranchId };
     }
 
     const withdrawals = await db.withdrawal.findMany({

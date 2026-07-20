@@ -2,6 +2,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
 import { db } from "@/prisma/db";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -29,14 +30,26 @@ async function generateTrends(request: NextRequest, method: 'GET' | 'POST') {
       );
     }
 
+    const user = session.user as any;
+
     let months = 12;
+    let body: any = {};
 
     if (method === 'GET') {
       const { searchParams } = new URL(request.url);
       months = parseInt(searchParams.get("months") || "12");
     } else {
-      const body = await request.json();
+      body = await request.json();
       months = parseInt(body.months || "12");
+    }
+
+    const requestedBranchId = method === 'GET'
+      ? new URL(request.url).searchParams.get("branchId")
+      : body.branchId;
+    const branchId = resolveBranchScope(user, requestedBranchId);
+
+    if (!branchId && user.role !== "ADMIN") {
+      return NextResponse.json({ success: true, data: [] });
     }
 
     // Get journal entries for the past N months
@@ -48,6 +61,7 @@ async function generateTrends(request: NextRequest, method: 'GET' | 'POST') {
         entryDate: {
           gte: startDate,
         },
+        ...(branchId ? { branchId } : {}),
       },
       include: {
         account: {

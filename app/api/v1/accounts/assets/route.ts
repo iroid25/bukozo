@@ -163,6 +163,9 @@ export async function GET(request: NextRequest) {
       where: {
         outstandingBalance: { gt: 0 },
         status: { not: "WRITTEN_OFF" },
+        ...(scopedBranchId
+          ? { institution: { user: { branchId: scopedBranchId } } }
+          : {}),
       },
     });
 
@@ -189,6 +192,9 @@ export async function GET(request: NextRequest) {
     const institutionRepaymentAgg = await db.institutionLoanRepayment.aggregate({
       _sum: { principalPaid: true },
       _count: { _all: true },
+      where: scopedBranchId
+        ? { institution: { user: { branchId: scopedBranchId } } }
+        : {},
     });
 
     const cashAtHand = {
@@ -208,7 +214,10 @@ export async function GET(request: NextRequest) {
     };
 
     const floatAgg = await db.userFloat.aggregate({
-      where: { isActiveForDay: true },
+      where: {
+        isActiveForDay: true,
+        ...(scopedBranchId ? { user: { branchId: scopedBranchId } } : {}),
+      },
       _sum: { balance: true },
     });
     const floatBalance = {

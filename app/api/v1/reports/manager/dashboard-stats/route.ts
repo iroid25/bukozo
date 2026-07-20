@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 import { db } from "@/prisma/db";
-import { UserRole } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
@@ -35,15 +35,12 @@ async function handler(request: NextRequest) {
     }
 
     // Branch scope: ADMIN can filter, others locked to their branch
-    let branchId: string | undefined;
-    if (user.role === UserRole.ADMIN) {
-      branchId =
-        requestedBranchId && requestedBranchId !== "ALL" && requestedBranchId !== "all"
-          ? requestedBranchId
-          : undefined;
-    } else {
-      branchId = user.branchId || undefined;
-    }
+    const branchId = resolveBranchScope(
+      { role: user.role, branchId: user.branchId },
+      requestedBranchId && requestedBranchId !== "ALL" && requestedBranchId !== "all"
+        ? requestedBranchId
+        : undefined,
+    );
 
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);

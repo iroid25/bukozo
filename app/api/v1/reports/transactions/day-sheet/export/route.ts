@@ -7,6 +7,7 @@ import {
   buildDaySheetWorkbook,
   FilterMode,
 } from "@/lib/reports/transaction-journal-reports";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +48,7 @@ export async function GET(request: NextRequest) {
     const filterMode = parseFilterMode(searchParams.get("filterMode") || searchParams.get("filter_mode"));
     const fromDate = parseDateParam(searchParams.get("fromDate") || searchParams.get("startDate"), new Date().toISOString().slice(0, 10));
     const toDate = parseDateParam(searchParams.get("toDate") || searchParams.get("endDate"), fromDate);
-    const branchId = normalizeBranchId(searchParams.get("branchId"));
+    const branchId = normalizeBranchId(resolveBranchScope(user, searchParams.get("branchId")) || undefined);
     const userName = searchParams.get("userName") || searchParams.get("user_name") || undefined;
     const glAccount = searchParams.get("glAccount") || searchParams.get("gl_account") || undefined;
     const trxCode = searchParams.get("trxCode") || searchParams.get("trx_code") || undefined;

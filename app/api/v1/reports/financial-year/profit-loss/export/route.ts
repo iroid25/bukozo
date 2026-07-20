@@ -6,6 +6,7 @@ import {
   buildFinancialYearProfitLossReport,
   buildFinancialYearProfitLossWorkbook,
 } from "@/lib/reports/profit-loss-report";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +38,10 @@ export async function GET(request: NextRequest) {
     const fyStart = searchParams.get("fyStart") || undefined;
     const fromDate = searchParams.get("fromDate") || undefined;
     const toDate = searchParams.get("toDate") || undefined;
-    const branchId = normalizeBranchId(searchParams.get("branchId") || undefined);
+    const branchId = resolveBranchScope(
+      { role: user.role, branchId: user.branchId },
+      normalizeBranchId(searchParams.get("branchId") || undefined),
+    );
 
     const report = await buildFinancialYearProfitLossReport({
       user,

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/prisma/db";
 import { getAuthUser } from "@/config/useAuth";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export async function GET() {
   try {
@@ -8,6 +9,10 @@ export async function GET() {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const branchId = resolveBranchScope(user, undefined);
+    const branchFilter = branchId
+      ? { member: { user: { branchId } } }
+      : {};
 
     const poolAccount = await db.account.findFirst({
       where: { accountNumber: "SACCO_LOAN_INSURANCE_POOL" },
@@ -15,6 +20,7 @@ export async function GET() {
     });
 
     const insuranceContributions = await db.insuranceContribution.findMany({
+      where: branchFilter,
       orderBy: { createdAt: "desc" },
       take: 500,
       include: {
@@ -44,8 +50,9 @@ export async function GET() {
     );
 
     const now = new Date();
+    const totalContributionsAmount = contributions.reduce((sum, entry) => sum + entry.amount, 0);
     const statistics = {
-      totalPoolBalance: poolAccount?.balance || 0,
+      totalPoolBalance: branchId ? totalContributionsAmount : poolAccount?.balance || 0,
       totalContributions: contributions.length,
       totalFromLoans: contributions.filter((entry) => entry.type === "CONTRIBUTION").length,
       monthlyCollection: contributions

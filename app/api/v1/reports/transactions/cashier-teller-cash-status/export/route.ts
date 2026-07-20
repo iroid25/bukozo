@@ -7,6 +7,7 @@ import {
   buildCashierCashStatusWorkbook,
   getTransactionTellerOptions,
 } from "@/lib/reports/transaction-journal-reports";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +43,10 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const sessionDate = parseDateParam(searchParams.get("sessionDate") || searchParams.get("startDate"), new Date().toISOString().slice(0, 10));
     const tellerId = searchParams.get("tellerId") || searchParams.get("teller_id") || undefined;
-    const branchId = normalizeBranchId(searchParams.get("branchId"));
+    const branchId = resolveBranchScope(
+      { role: user.role, branchId: user.branchId },
+      normalizeBranchId(searchParams.get("branchId")),
+    );
     const trxCode = searchParams.get("trxCode") || searchParams.get("trx_code") || undefined;
 
     const report = await buildCashierCashStatusReport({

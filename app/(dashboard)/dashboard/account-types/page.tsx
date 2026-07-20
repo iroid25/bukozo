@@ -18,6 +18,7 @@ const REQUIRED_SAVINGS = [
   "Compulsory Savings",
   "Fixed Savings",
   "Junior Savings",
+  "Joint Savings",
 ];
 
 const REQUIRED_SHARES = [

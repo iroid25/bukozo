@@ -4,6 +4,7 @@ import {
   buildInterestExposureReport,
   buildInterestExposureWorkbook,
 } from "@/lib/reports/interest-exposure-report";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -14,16 +15,16 @@ function normalizeBranchId(branchId: string | null | undefined) {
 
 function parseQuery(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-    return {
-      reportDate: searchParams.get("reportDate") || searchParams.get("report_date") || undefined,
-      productId: searchParams.get("productId") || searchParams.get("product_id") || undefined,
-      memberSearch: searchParams.get("memberSearch") || searchParams.get("search") || undefined,
-      depositPeriod: searchParams.get("depositPeriod") || searchParams.get("deposit_period") || undefined,
-      maturityFrom: searchParams.get("maturityFrom") || searchParams.get("maturity_from") || undefined,
-      maturityTo: searchParams.get("maturityTo") || searchParams.get("maturity_to") || undefined,
+  return {
+    reportDate: searchParams.get("reportDate") || searchParams.get("report_date") || undefined,
+    productId: searchParams.get("productId") || searchParams.get("product_id") || undefined,
+    memberSearch: searchParams.get("memberSearch") || searchParams.get("search") || undefined,
+    depositPeriod: searchParams.get("depositPeriod") || searchParams.get("deposit_period") || undefined,
+    maturityFrom: searchParams.get("maturityFrom") || searchParams.get("maturity_from") || undefined,
+    maturityTo: searchParams.get("maturityTo") || searchParams.get("maturity_to") || undefined,
     branchId: normalizeBranchId(searchParams.get("branchId")),
-      format: searchParams.get("format") || undefined,
-    };
+    format: searchParams.get("format") || undefined,
+  };
 }
 
 async function handleRequest(request: NextRequest) {
@@ -33,6 +34,7 @@ async function handleRequest(request: NextRequest) {
   }
 
   const params = parseQuery(request);
+  const branchId = resolveBranchScope(user, params.branchId);
   const report = await buildInterestExposureReport({
     user,
     reportDate: params.reportDate,
@@ -41,7 +43,7 @@ async function handleRequest(request: NextRequest) {
     depositPeriod: params.depositPeriod,
     maturityFrom: params.maturityFrom,
     maturityTo: params.maturityTo,
-    branchId: params.branchId,
+    branchId,
   });
 
   if ((params.format || "").toLowerCase() === "xlsx") {
@@ -82,6 +84,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json().catch(() => ({}));
+    const branchId = resolveBranchScope(user, body.branchId);
     const report = await buildInterestExposureReport({
       user,
       reportDate: body.reportDate || body.report_date,
@@ -90,7 +93,7 @@ export async function POST(request: NextRequest) {
       depositPeriod: body.depositPeriod || body.deposit_period,
       maturityFrom: body.maturityFrom || body.maturity_from,
       maturityTo: body.maturityTo || body.maturity_to,
-      branchId: normalizeBranchId(body.branchId),
+      branchId,
     });
 
     if ((body.format || "").toString().toLowerCase() === "xlsx") {

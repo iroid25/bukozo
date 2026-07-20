@@ -27,22 +27,44 @@ export async function GET(request: NextRequest) {
     const user = session.user as { role: string; branchId?: string | null };
     const scopedBranchId = resolveBranchScope(user, branchId);
 
-    // --- Insurance Pool (single global Account row) ---
+    // --- Insurance Pool (branch-scoped when possible) ---
     const insurancePoolAccount = await db.account.findFirst({
       where: { accountNumber: LOAN_INSURANCE_POOL_ACCOUNT_NUMBER },
       select: { id: true, balance: true },
     });
 
-    const insurancePoolItem = insurancePoolAccount
+    const insuranceContributionAgg = await db.insuranceContribution.aggregate({
+      where: {
+        type: "CONTRIBUTION",
+        ...(scopedBranchId
+          ? { member: { user: { branchId: scopedBranchId } } }
+          : {}),
+      },
+      _sum: { amount: true },
+      _count: { _all: true },
+    });
+
+    const insurancePoolAmount = scopedBranchId
+      ? Number(insuranceContributionAgg._sum.amount || 0)
+      : Number(insurancePoolAccount?.balance || 0);
+
+    const insurancePoolCount =
+      typeof insuranceContributionAgg._count === "object" &&
+      "_all" in insuranceContributionAgg._count
+        ? Number(insuranceContributionAgg._count._all || 0)
+        : 0;
+
+    const insurancePoolItem = insurancePoolAmount > 0 || insurancePoolCount > 0 || insurancePoolAccount
       ? [
           {
             id: "INSURANCE_POOL:pool",
             sourceType: "INSURANCE_POOL",
             source: "INSURANCE_POOL",
             isManualLedger: false,
-            accountId: insurancePoolAccount.id,
+            accountId: insurancePoolAccount?.id,
             name: "Loan Insurance Pool",
-            amount: Number(insurancePoolAccount.balance || 0),
+            amount: insurancePoolAmount,
+            accountCount: insurancePoolCount,
           },
         ]
       : [];
@@ -103,7 +125,8 @@ export async function GET(request: NextRequest) {
     const savingsAccountTypes = linkedAccountTypes.filter(
       (accountType) =>
         !isInsuranceAccountType(accountType) &&
-        getCanonicalSavingsLedgerCode(accountType.name) !== null,
+        getCanonicalSavingsLedgerCode(accountType.name) !== null &&
+        getCanonicalSavingsLedgerCode(accountType.name) !== "201001",
     );
 
     const accountTypeIds = savingsAccountTypes.map((at) => at.id);
@@ -135,46 +158,52 @@ export async function GET(request: NextRequest) {
       ]),
     );
 
-// --- Fixed Deposits (from FixedDeposit table, not Account) ---
-const fdAgg = await db.fixedDeposit.aggregate({
-  where: {
-    status: { in: ["ACTIVE", "MATURED"] },
-    isReversed: false,
-    ...(scopedBranchId ? { branchId: scopedBranchId } : {}),
-  },
-  _sum: { principalAmount: true },
-  _count: { _all: true },
-});
+    // --- Fixed Deposits (from FixedDeposit table, not Account) ---
+    const fdAgg = await db.fixedDeposit.aggregate({
+      where: {
+        status: { in: ["ACTIVE", "MATURED"] },
+        isReversed: false,
+        ...(scopedBranchId ? { branchId: scopedBranchId } : {}),
+      },
+      _sum: { principalAmount: true },
+      _count: { _all: true },
+    });
 
-const fdTotal = Number(fdAgg._sum.principalAmount || 0);
-const fdCount =
-  typeof fdAgg._count === "object" && "_all" in fdAgg._count
-    ? Number(fdAgg._count._all || 0)
-    : 0;
+    const fdTotal = Number(fdAgg._sum.principalAmount || 0);
+    const fdCount =
+      typeof fdAgg._count === "object" && "_all" in fdAgg._count
+        ? Number(fdAgg._count._all || 0)
+        : 0;
 
-const savingsItems = savingsAccountTypes.map((accountType) => {
-  const aggregate = balanceMap.get(accountType.id) || { amount: 0, count: 0 };
-  const canonicalCode = getCanonicalSavingsLedgerCode(accountType.name);
-  let amount = aggregate.amount;
-  let count = aggregate.count;
-  if (canonicalCode === "201001" && fdCount > 0) {
-    amount += fdTotal;
-    count += fdCount;
-  }
-  return {
-    id: `SAVINGS_ACCOUNT_TYPE:${accountType.id}`,
-    sourceType: "ACCOUNT_TYPE",
-    source: "SAVINGS_ACCOUNT_TYPE",
-    isManualLedger: false,
-    accountTypeId: accountType.id,
-    ledgerAccountId: accountType.ledgerAccountId,
-    accountCode: canonicalCode,
-    name: getAccountTypeDisplayName(accountType.name),
-    rawName: accountType.name,
-    amount,
-    accountCount: count,
-  };
-});
+    const savingsItems = savingsAccountTypes.map((accountType) => {
+      const aggregate = balanceMap.get(accountType.id) || { amount: 0, count: 0 };
+      return {
+        id: `SAVINGS_ACCOUNT_TYPE:${accountType.id}`,
+        sourceType: "ACCOUNT_TYPE",
+        source: "SAVINGS_ACCOUNT_TYPE",
+        isManualLedger: false,
+        accountTypeId: accountType.id,
+        ledgerAccountId: accountType.ledgerAccountId,
+        accountCode: getCanonicalSavingsLedgerCode(accountType.name),
+        name: getAccountTypeDisplayName(accountType.name),
+        rawName: accountType.name,
+        amount: aggregate.amount,
+        accountCount: aggregate.count,
+      };
+    });
+
+    const fixedDepositItems = fdCount > 0
+      ? [{
+          id: "FIXED_DEPOSITS:aggregate",
+          sourceType: "FIXED_DEPOSITS",
+          source: "FIXED_DEPOSITS",
+          isManualLedger: false,
+          name: "Fixed Savings",
+          amount: fdTotal,
+          accountCount: fdCount,
+          accountCode: "201001",
+        }]
+      : [];
 
     const savingsTotal = savingsItems.reduce((sum, item) => sum + item.amount, 0);
     const insuranceTotal = insurancePoolItem.reduce((sum, item) => sum + item.amount, 0);
@@ -185,6 +214,11 @@ const savingsItems = savingsAccountTypes.map((accountType) => {
           title: "Savings",
           items: savingsItems,
           total: savingsTotal,
+        },
+        fixedDeposits: {
+          title: "Fixed Savings",
+          items: fixedDepositItems,
+          total: fdTotal,
         },
         loanInsurance: {
           title: "Insurance Pool",
@@ -205,7 +239,7 @@ const savingsItems = savingsAccountTypes.map((accountType) => {
         },
       },
       summary: {
-        currentTotal: savingsTotal + insuranceTotal,
+        currentTotal: savingsTotal + insuranceTotal + fdTotal,
         nonCurrentTotal: 0,
         savingsTotal,
         fixedDepositsTotal: fdTotal,

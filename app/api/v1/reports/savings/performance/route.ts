@@ -1,5 +1,6 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/config/useAuth";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 import { db } from "@/prisma/db";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +25,7 @@ async function generateReport(request: NextRequest, method: "GET" | "POST") {
     }
 
     const params = await parseParams(request, method);
-    params.branchId = user.role !== "ADMIN" ? user.branchId : (params.branchId || undefined);
+    params.branchId = resolveBranchScope(user, params.branchId);
     // Account is the master balance source. SavingsAccount.balance is retired (TXN-001).
     // Exclude CLOSED accounts by default unless caller explicitly passes a status filter.
     const where: any = {

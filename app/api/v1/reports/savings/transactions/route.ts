@@ -6,6 +6,7 @@ import {
   buildSavingsTransactionsReport,
   buildSavingsTransactionsWorkbook,
 } from "@/lib/reports/savings-transactions-report";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -59,9 +60,10 @@ async function handleRequest(request: NextRequest, method: "GET" | "POST") {
   }
 
   const params = await parseParams(request, method);
+  const branchId = resolveBranchScope(session.user as any, params.branchId || undefined);
   const report = await buildSavingsTransactionsReport({
     user: session.user,
-    branchId: params.branchId,
+    branchId: normalizeBranchId(branchId || undefined),
     productCode: params.productCode,
     dateFrom: params.dateFrom,
     dateTo: params.dateTo,

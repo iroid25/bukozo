@@ -121,6 +121,25 @@ const BUTCS_PRODUCTS = [
     earnsDividends: false,
     sharePrice: null,
   },
+  {
+    name: "Joint Savings",
+    interestRate: 0,
+    interestPeriod: "MONTHLY",
+    minBalance: 5000,
+    isDefault: false,
+    isLoanEligible: true,
+    canWithdraw: true,
+    monthlyCharge: 500,
+    withdrawalFeeTiers: VOLUNTARY_TIERS,
+    flatWithdrawalFee: null,
+    withdrawalFrequencyDays: null,
+    hasFixedPeriod: false,
+    fixedPeriodMonths: null,
+    maturityTransferAccountType: null,
+    isShareAccount: false,
+    earnsDividends: false,
+    sharePrice: null,
+  },
   // ── Share products ──────────────────────────────────────────────────────────
   // All shares: UGX 20,000 per share, dividend from annual surplus, not withdrawable
   {

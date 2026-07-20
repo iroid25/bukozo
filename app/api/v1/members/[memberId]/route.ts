@@ -62,6 +62,24 @@ export async function GET(
                 location: true,
               },
             },
+            jointMembers: {
+              select: {
+                id: true,
+                memberId: true,
+                member: {
+                  select: {
+                    id: true,
+                    memberNumber: true,
+                    user: {
+                      select: {
+                        name: true,
+                        image: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
           },
         },
         shareAccounts: {

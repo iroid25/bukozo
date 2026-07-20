@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/config/useAuth";
 import { buildShareConcentrationWorkbook, getShareConcentrationReport } from "@/lib/reports/share-concentration-report";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -12,10 +13,11 @@ export async function POST(request: NextRequest) {
     }
 
     const params = await request.json();
+    const branchId = resolveBranchScope(user, params.branchId || undefined);
     const report = await getShareConcentrationReport({
       user,
       reportDate: params.reportDate || params.report_date || undefined,
-      branchId: params.branchId || undefined,
+      branchId,
       excludeNonFinancial:
         params.excludeNonFinancial ?? params.exclude_non_financial ?? true,
     });

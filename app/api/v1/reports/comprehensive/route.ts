@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
 import { db } from "@/prisma/db";
 import { getDirectBalanceSheetAccounts, getDirectIncomeExpenseAccounts, getDirectTrialBalanceAccounts } from "@/lib/reports/direct-source";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -17,7 +18,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { reportType, startDate, endDate, ...params } = await request.json();
+    const user = session.user as any;
+
+    const { reportType, startDate, endDate, branchId: requestedBranchId, ...params } = await request.json();
+    const branchId = resolveBranchScope(user, requestedBranchId);
 
     const start = startDate ? new Date(startDate) : new Date(new Date().setFullYear(new Date().getFullYear() - 1));
     const end = endDate ? new Date(endDate) : new Date();
@@ -28,13 +32,13 @@ export async function POST(request: NextRequest) {
     switch (reportType) {
       // Fixed Deposit Reports
       case "fd-concentration":
-        data = await generateFDConcentrationReport();
+        data = await generateFDConcentrationReport(branchId);
         break;
       case "fd-reversed":
-        data = await generateFDReversedReport(start, end);
+        data = await generateFDReversedReport(start, end, branchId);
         break;
       case "fd-interest-exposure":
-        data = await generateFDInterestExposureReport();
+        data = await generateFDInterestExposureReport(branchId);
         break;
 
       // Share Reports
@@ -44,24 +48,24 @@ export async function POST(request: NextRequest) {
 
       // Savings Reports
       case "savings-overdrawn-age":
-        data = await generateSavingsOverdrawnByAgeReport();
+        data = await generateSavingsOverdrawnByAgeReport(branchId);
         break;
 
       // Financial Reports
       case "coa-listing":
-        data = await generateCOAListingReport();
+        data = await generateCOAListingReport(branchId);
         break;
       case "budget-variance":
-        data = await generateBudgetVarianceReport(params.year || new Date().getFullYear());
+        data = await generateBudgetVarianceReport(params.year || new Date().getFullYear(), branchId);
         break;
       case "comprehensive-trial-balance":
-        data = await generateComprehensiveTrialBalanceReport(start, end);
+        data = await generateComprehensiveTrialBalanceReport(start, end, branchId);
         break;
       case "comprehensive-balance-sheet":
-        data = await generateComprehensiveBalanceSheetReport(end);
+        data = await generateComprehensiveBalanceSheetReport(end, branchId);
         break;
       case "comprehensive-income":
-        data = await generateComprehensiveIncomeReport(start, end);
+        data = await generateComprehensiveIncomeReport(start, end, branchId);
         break;
 
       // General Reports
@@ -72,7 +76,7 @@ export async function POST(request: NextRequest) {
         data = await generatePersonalLedgerReport(params.memberId, start, end);
         break;
       case "clients-registered":
-        data = await generateClientsRegisteredReport(start, end);
+        data = await generateClientsRegisteredReport(start, end, branchId);
         break;
       case "customer-feedback":
         data = await generateCustomerFeedbackReport(start, end);
@@ -90,9 +94,9 @@ export async function POST(request: NextRequest) {
 }
 
 // Fixed Deposit Concentration — queries FixedDeposit table (new model)
-async function generateFDConcentrationReport() {
+async function generateFDConcentrationReport(branchId?: string) {
   const deposits = await db.fixedDeposit.findMany({
-    where: { status: "ACTIVE", isReversed: false },
+    where: { status: "ACTIVE", isReversed: false, ...(branchId ? { branchId } : {}) },
     include: {
       member: { include: { user: { select: { name: true } } } },
       institution: { select: { institutionName: true } },
@@ -113,12 +117,13 @@ async function generateFDConcentrationReport() {
 }
 
 // FD Reversed — checks both Account (legacy) and FixedDeposit (new) entity types
-async function generateFDReversedReport(start: Date, end: Date) {
+async function generateFDReversedReport(start: Date, end: Date, branchId?: string) {
   const reversedLogs = await db.auditLog.findMany({
     where: {
       entityType: { in: ["Account", "FixedDeposit"] },
       action: { contains: "REVERSE" },
       timestamp: { gte: start, lte: end },
+      ...(branchId ? { user: { branchId } } : {}),
     },
     include: { user: true },
   });
@@ -135,9 +140,9 @@ async function generateFDReversedReport(start: Date, end: Date) {
 }
 
 // FD Interest Exposure — queries FixedDeposit table (new model)
-async function generateFDInterestExposureReport() {
+async function generateFDInterestExposureReport(branchId?: string) {
   const deposits = await db.fixedDeposit.findMany({
-    where: { status: "ACTIVE", isReversed: false },
+    where: { status: "ACTIVE", isReversed: false, ...(branchId ? { branchId } : {}) },
     include: {
       member: { include: { user: { select: { name: true } } } },
       institution: { select: { institutionName: true } },
@@ -215,11 +220,12 @@ async function generateShareStatementReport(accountId: string, start: Date, end:
 }
 
 // Savings Overdrawn by Age
-async function generateSavingsOverdrawnByAgeReport() {
+async function generateSavingsOverdrawnByAgeReport(branchId?: string) {
   const accounts = await db.account.findMany({
     where: {
       balance: { lt: 0 },
       accountType: { isShareAccount: false, hasFixedPeriod: false },
+      ...(branchId ? { branchId } : {}),
     },
     include: {
       member: { include: { user: true } },
@@ -247,10 +253,10 @@ async function generateSavingsOverdrawnByAgeReport() {
 }
 
 // COA Listing (all accounts from direct source)
-async function generateCOAListingReport() {
+async function generateCOAListingReport(branchId?: string) {
   const now = new Date();
   const startOfYear = new Date(now.getFullYear(), 0, 1);
-  const allAccounts = await getDirectTrialBalanceAccounts(startOfYear, now);
+  const allAccounts = await getDirectTrialBalanceAccounts(startOfYear, now, branchId);
 
   const records = allAccounts
     .filter((a) => !a.isGroup)
@@ -267,7 +273,7 @@ async function generateCOAListingReport() {
 }
 
 // Budget Variance
-async function generateBudgetVarianceReport(year: number) {
+async function generateBudgetVarianceReport(year: number, branchId?: string) {
   const budgets = await db.budget.findMany({
     where: { year, isActive: true },
     include: { category: true },
@@ -283,6 +289,7 @@ async function generateBudgetVarianceReport(year: number) {
             lte: new Date(year, 11, 31),
           },
           status: "COMPLETED",
+          ...(branchId ? { branchId } : {}),
         },
         _sum: { amount: true },
       });
@@ -323,8 +330,8 @@ async function generateBudgetVarianceReport(year: number) {
 }
 
 // Comprehensive Trial Balance (direct source)
-async function generateComprehensiveTrialBalanceReport(start: Date, end: Date) {
-  const accounts = await getDirectTrialBalanceAccounts(start, end);
+async function generateComprehensiveTrialBalanceReport(start: Date, end: Date, branchId?: string) {
+  const accounts = await getDirectTrialBalanceAccounts(start, end, branchId);
 
   const records = accounts.map((account) => ({
     accountCode: account.accountCode,
@@ -344,8 +351,8 @@ async function generateComprehensiveTrialBalanceReport(start: Date, end: Date) {
 }
 
 // Comprehensive Balance Sheet (direct source)
-async function generateComprehensiveBalanceSheetReport(asOfDate: Date) {
-  const accounts = await getDirectBalanceSheetAccounts(asOfDate);
+async function generateComprehensiveBalanceSheetReport(asOfDate: Date, branchId?: string) {
+  const accounts = await getDirectBalanceSheetAccounts(asOfDate, branchId);
 
   const assets = accounts.filter((a) => a.ledgerType === "ASSETS");
   const liabilities = accounts.filter((a) => a.ledgerType === "LIABILITIES");
@@ -377,8 +384,8 @@ async function generateComprehensiveBalanceSheetReport(asOfDate: Date) {
 }
 
 // Comprehensive Income (direct source)
-async function generateComprehensiveIncomeReport(start: Date, end: Date) {
-  const accounts = await getDirectIncomeExpenseAccounts(start, end);
+async function generateComprehensiveIncomeReport(start: Date, end: Date, branchId?: string) {
+  const accounts = await getDirectIncomeExpenseAccounts(start, end, branchId);
 
   const income = accounts.filter((a) => a.ledgerType === "INCOME");
   const expenses = accounts.filter((a) => a.ledgerType === "EXPENDITURES");
@@ -499,10 +506,11 @@ async function generatePersonalLedgerReport(memberId: string, start: Date, end: 
 }
 
 // Clients Registered
-async function generateClientsRegisteredReport(start: Date, end: Date) {
+async function generateClientsRegisteredReport(start: Date, end: Date, branchId?: string) {
   const members = await db.member.findMany({
     where: {
       registrationDate: { gte: start, lte: end },
+      ...(branchId ? { user: { branchId } } : {}),
     },
     include: { user: true },
     orderBy: { registrationDate: "desc" },

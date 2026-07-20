@@ -6,6 +6,7 @@ import {
   buildGeneralTransactionRegisterReport,
   buildGeneralTransactionRegisterWorkbook,
 } from "@/lib/reports/transaction-journal-reports";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -45,12 +46,13 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const fromDate = pickParam(searchParams, "fromDate", "startDate") || new Date().toISOString().slice(0, 10);
     const toDate = pickParam(searchParams, "toDate", "endDate") || fromDate;
+    const branchId = resolveBranchScope(user, pickParam(searchParams, "branchId"));
 
     const report = await buildGeneralTransactionRegisterReport({
       user,
       fromDate,
       toDate,
-      branchId: normalizeBranchId(pickParam(searchParams, "branchId")),
+      branchId: normalizeBranchId(branchId || undefined),
       userName: pickParam(searchParams, "userName", "user_name"),
       glAccount: pickParam(searchParams, "glAccount", "gl_account"),
       trxCode: pickParam(searchParams, "trxCode", "trx_code"),

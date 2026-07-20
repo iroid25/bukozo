@@ -2,6 +2,7 @@
 import { getProfitAndLossStatementService } from "@/lib/services/financial-reports";
 import { getAuthUser } from "@/config/useAuth";
 import { UserRole } from "@prisma/client";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -26,9 +27,12 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get("startDate") ? new Date(searchParams.get("startDate")!) : new Date(new Date().getFullYear(), 0, 1);
     const endDate = searchParams.get("endDate") ? new Date(searchParams.get("endDate")!) : new Date();
     const requestedBranchId = searchParams.get("branchId") || undefined;
-    const branchId = requestedBranchId && requestedBranchId !== "all" && requestedBranchId !== "ALL"
-      ? requestedBranchId
-      : undefined;
+    const branchId = resolveBranchScope(
+      { role: user.role, branchId: user.branchId },
+      requestedBranchId && requestedBranchId !== "all" && requestedBranchId !== "ALL"
+        ? requestedBranchId
+        : undefined,
+    );
 
     const data = await getProfitAndLossStatementService(startDate, endDate, branchId, user);
     
@@ -61,9 +65,12 @@ export async function POST(request: NextRequest) {
     const startDate = body.startDate ? new Date(body.startDate) : new Date(new Date().getFullYear(), 0, 1);
     const endDate = body.endDate ? new Date(body.endDate) : new Date();
     const requestedBranchId = body.branchId || undefined;
-    const branchId = requestedBranchId && requestedBranchId !== "all" && requestedBranchId !== "ALL"
-      ? requestedBranchId
-      : undefined;
+    const branchId = resolveBranchScope(
+      { role: user.role, branchId: user.branchId },
+      requestedBranchId && requestedBranchId !== "all" && requestedBranchId !== "ALL"
+        ? requestedBranchId
+        : undefined,
+    );
 
     const data = await getProfitAndLossStatementService(startDate, endDate, branchId, user);
     

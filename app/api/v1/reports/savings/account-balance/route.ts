@@ -1,4 +1,5 @@
 ﻿// @ts-nocheck 
+import { resolveBranchScope } from '@/lib/services/branch-scope';
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/config/useAuth';
 import { ReportExporter } from '@/lib/reports';
@@ -47,7 +48,7 @@ async function generateReport(request: NextRequest, method: 'GET' | 'POST') {
       }
     }
 
-    params.branchId = user.role !== "ADMIN" ? user.branchId : (params.branchId || undefined);
+    params.branchId = resolveBranchScope(user, params.branchId);
     // Generate report
     const generator = new SavingsAccountBalanceGenerator();
     const reportData = await generator.generateData(params);

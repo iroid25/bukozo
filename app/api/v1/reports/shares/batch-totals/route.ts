@@ -6,6 +6,7 @@ import {
   buildShareBatchTotalsWorkbook,
   getShareBatchTotalsReport,
 } from "@/lib/reports/share-portfolio-reports";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,7 @@ async function handleRequest(request: NextRequest) {
   }
 
   const params = await request.json();
+  const branchId = resolveBranchScope(session.user as any, params.branchId || undefined);
   const report = await getShareBatchTotalsReport({
     user: session.user,
     reportDate: params.reportDate || params.report_date || undefined,
@@ -23,7 +25,7 @@ async function handleRequest(request: NextRequest) {
     batchNumber: params.batchNumber || params.batch_number || undefined,
     memberSearch: params.memberSearch || params.search || undefined,
     minBalance: params.minBalance || params.min_balance || undefined,
-    branchId: params.branchId || undefined,
+    branchId,
   });
 
   if ((params.format || "").toString().toLowerCase() !== "json") {

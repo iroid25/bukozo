@@ -10,6 +10,7 @@ import {
   Phone,
   Mail,
   User,
+  Users,
   Building,
   ArrowUpRight,
   ArrowDownLeft,
@@ -81,6 +82,20 @@ interface AccountDetailsProps {
       sharePrice?: number | null;
     };
     sharesCount?: number | null;
+    jointMembers?: Array<{
+      id: string;
+      member: {
+        id: string;
+        memberNumber: string;
+        user: {
+          id: string;
+          name: string;
+          email: string | null;
+          phone?: string | null;
+          image?: string | null;
+        };
+      };
+    }>;
     branch: {
       name: string;
       location: string;
@@ -505,6 +520,37 @@ export default function AccountDetails({
             </div>
           </div>
         </div>
+
+        {/* Joint Members */}
+        {account.jointMembers && account.jointMembers.length > 0 && (
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
+              <Users className="h-5 w-5 text-amber-600" />
+              Joint Account Holders ({account.jointMembers.length})
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {account.jointMembers.map((jm) => (
+                <div key={jm.id} className="flex items-center space-x-4 p-3 border rounded-lg">
+                  <div className="h-12 w-12 bg-amber-100 rounded-full flex items-center justify-center">
+                    {jm.member.user.image ? (
+                      <img
+                        src={jm.member.user.image}
+                        alt={jm.member.user.name}
+                        className="h-12 w-12 rounded-full object-cover"
+                      />
+                    ) : (
+                      <User className="h-6 w-6 text-amber-600" />
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-gray-900">{jm.member.user.name}</h3>
+                    <p className="text-sm text-gray-500">#{jm.member.memberNumber}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Transactions Section */}
         <div className="bg-white rounded-lg shadow-sm">

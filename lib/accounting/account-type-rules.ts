@@ -2,6 +2,7 @@ export const VOLUNTARY_SAVINGS_ACCOUNT_TYPE_NAME = "Voluntary Savings";
 export const FIXED_DEPOSIT_ACCOUNT_TYPE_NAME = "Fixed Savings";
 export const JUNIOR_SAVINGS_ACCOUNT_TYPE_NAME = "Junior Savings";
 export const COMPULSORY_SAVINGS_ACCOUNT_TYPE_NAME = "Compulsory Savings";
+export const JOINT_SAVINGS_ACCOUNT_TYPE_NAME = "Joint Savings";
 export const INSURANCE_POOL_ACCOUNT_TYPE_NAME = "Insurance Pool";
 
 export const CANONICAL_SAVINGS_LEDGER_CODES = {
@@ -9,6 +10,7 @@ export const CANONICAL_SAVINGS_LEDGER_CODES = {
   JUNIOR_SAVINGS: "201002",
   VOLUNTARY_SAVINGS: "201003",
   COMPULSORY_SAVINGS: "201004",
+  JOINT_SAVINGS: "201005",
 } as const;
 
 const VOLUNTARY_SAVINGS_NAME_KEYS = new Set([
@@ -29,6 +31,13 @@ const JUNIOR_SAVINGS_NAME_KEYS = new Set([
   "JUNIOR_SAVINGS",
   "JUNIOR SAVINGS",
   "JUNIOR SAVINGS ACCOUNT",
+]);
+
+const JOINT_SAVINGS_NAME_KEYS = new Set([
+  "JOINT_SAVINGS",
+  "JOINT SAVINGS",
+  "JOINT ACCOUNT",
+  "JOINT",
 ]);
 
 const COMPULSORY_SAVINGS_NAME_KEYS = new Set([
@@ -82,6 +91,15 @@ export function isJuniorSavingsAccountTypeName(
   return JUNIOR_SAVINGS_NAME_KEYS.has(key.replace(/_/g, " "));
 }
 
+export function isJointSavingsAccountTypeName(
+  name: string | null | undefined,
+): boolean {
+  const key = normalizeAccountTypeKey(name);
+  return JOINT_SAVINGS_NAME_KEYS.has(key.replace(/_/g, " "))
+    || key === "JOINT_SAVINGS"
+    || key.includes("JOINT");
+}
+
 export function isCompulsorySavingsAccountTypeName(
   name: string | null | undefined,
 ): boolean {
@@ -99,6 +117,12 @@ export function isFixedDepositAccountType<
   T extends { name?: string | null },
 >(accountType: T | null | undefined): boolean {
   return isFixedDepositAccountTypeName(accountType?.name);
+}
+
+export function isJointSavingsAccountType<
+  T extends { name?: string | null },
+>(accountType: T | null | undefined): boolean {
+  return isJointSavingsAccountTypeName(accountType?.name);
 }
 
 export function getCanonicalSavingsLedgerCode(
@@ -120,6 +144,13 @@ export function getCanonicalSavingsLedgerCode(
 
   if (JUNIOR_SAVINGS_NAME_KEYS.has(key.replace(/_/g, " "))) {
     return CANONICAL_SAVINGS_LEDGER_CODES.JUNIOR_SAVINGS;
+  }
+
+  if (
+    JOINT_SAVINGS_NAME_KEYS.has(key.replace(/_/g, " ")) ||
+    key.includes("JOINT")
+  ) {
+    return CANONICAL_SAVINGS_LEDGER_CODES.JOINT_SAVINGS;
   }
 
   if (
@@ -147,6 +178,8 @@ export function getCanonicalSavingsAccountTypeName(
       return VOLUNTARY_SAVINGS_ACCOUNT_TYPE_NAME;
     case CANONICAL_SAVINGS_LEDGER_CODES.COMPULSORY_SAVINGS:
       return COMPULSORY_SAVINGS_ACCOUNT_TYPE_NAME;
+    case CANONICAL_SAVINGS_LEDGER_CODES.JOINT_SAVINGS:
+      return JOINT_SAVINGS_ACCOUNT_TYPE_NAME;
     default:
       return null;
   }
@@ -185,6 +218,24 @@ export function getFixedDepositAccountTypeDefaults(): AccountTypeProductDefaults
     isDefault: false,
     isLoanEligible: false,
     canWithdraw: false,
+    isShareAccount: false,
+    earnsDividends: false,
+  };
+}
+
+export function getJointSavingsAccountTypeDefaults(): AccountTypeProductDefaults {
+  return {
+    monthlyCharge: 500,
+    flatWithdrawalFee: null,
+    withdrawalFeePercentage: null,
+    withdrawalFeeTiers: null,
+    withdrawalFrequencyDays: null,
+    hasFixedPeriod: false,
+    fixedPeriodMonths: null,
+    maturityTransferAccountType: null,
+    isDefault: false,
+    isLoanEligible: true,
+    canWithdraw: true,
     isShareAccount: false,
     earnsDividends: false,
   };

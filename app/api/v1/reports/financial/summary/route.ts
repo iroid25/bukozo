@@ -2,6 +2,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
 import { getDirectBalanceSheetAccounts, getDirectIncomeExpenseAccounts } from "@/lib/reports/direct-source";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -26,13 +27,21 @@ async function generateSummary(request: NextRequest) {
       );
     }
 
-    // Get all account balances from direct source
+    const user = session.user as any;
+    const requestedBranchId = request.nextUrl.searchParams.get("branchId") ||
+      (request.method === "POST" ? (await request.json().catch(() => ({})))?.branchId : undefined);
+    const branchId = resolveBranchScope(user, requestedBranchId);
+
+    if (!branchId && user.role !== "ADMIN") {
+      return NextResponse.json({ data: { totalIncome: 0, totalExpenses: 0, totalAssets: 0, totalLiabilities: 0, totalEquity: 0, netProfit: 0, profitMargin: 0 } });
+    }
+
     const now = new Date();
     const startOfYear = new Date(now.getFullYear(), 0, 1);
 
     const [balanceSheetAccounts, incomeExpenseAccounts] = await Promise.all([
-      getDirectBalanceSheetAccounts(now),
-      getDirectIncomeExpenseAccounts(startOfYear, now),
+      getDirectBalanceSheetAccounts(now, branchId),
+      getDirectIncomeExpenseAccounts(startOfYear, now, branchId),
     ]);
 
     // Calculate totals by ledger type

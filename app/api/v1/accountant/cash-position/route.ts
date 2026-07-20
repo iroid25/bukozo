@@ -4,6 +4,7 @@ import { db } from "@/prisma/db";
 import { getAuthUser } from "@/config/useAuth";
 import { UserRole } from "@prisma/client";
 import { subMonths, endOfMonth } from "date-fns";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export async function GET(request: NextRequest) {
   try {
@@ -33,6 +34,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Resolve branch scope: non-admin users are locked to their branch
+    const requestedBranchId = request.nextUrl.searchParams.get("branchId");
+    const branchId = resolveBranchScope(user, requestedBranchId);
+    const branchFilter = branchId ? { branchId } : {};
+
     const now = new Date();
     const lastMonthEnd = endOfMonth(subMonths(now, 1));
 
@@ -43,6 +49,7 @@ export async function GET(request: NextRequest) {
         db.vault.aggregate({
           where: {
             isActive: true,
+            ...branchFilter,
           },
           _sum: {
             balance: true,
@@ -50,8 +57,9 @@ export async function GET(request: NextRequest) {
           },
         }),
 
-        // Sum of all user float balances
+        // Sum of all user float balances (scope through user branch)
         db.userFloat.aggregate({
+          where: branchId ? { user: { branchId } } : {},
           _sum: {
             balance: true,
           },
@@ -61,6 +69,7 @@ export async function GET(request: NextRequest) {
         db.vault.findMany({
           where: {
             isActive: true,
+            ...branchFilter,
           },
           include: {
             branch: {
@@ -85,6 +94,7 @@ export async function GET(request: NextRequest) {
             balance: {
               gt: 0,
             },
+            ...(branchId ? { user: { branchId } } : {}),
           },
           include: {
             user: {

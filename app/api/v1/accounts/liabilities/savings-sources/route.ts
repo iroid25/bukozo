@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
 import { db } from "@/prisma/db";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -38,10 +39,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const branchId = resolveBranchScope(
+      session.user as { role: string; branchId?: string | null },
+      request.nextUrl.searchParams.get("branchId"),
+    );
+
     const accounts = await db.account.findMany({
       where: {
         accountTypeId,
         status: "ACTIVE",
+        ...(branchId ? { branchId } : {}),
       },
       select: {
         id: true,

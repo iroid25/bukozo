@@ -3,6 +3,7 @@ import { db } from "@/prisma/db";
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/config/useAuth";
 import { IncomeService } from "@/services/income.service";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -15,9 +16,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const branchId = user.role === "ADMIN" ? undefined : user.branchId;
-
-    const { reportId, startDate, endDate } = await request.json();
+    const { reportId, startDate, endDate, branchId: requestedBranchId } = await request.json();
+    const branchId = resolveBranchScope(user, requestedBranchId);
 
     if (!reportId) {
       return NextResponse.json({ error: "Report ID is required" }, { status: 400 });
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
         data = await generateShareAccountsListingReport();
         break;
       case "shares-batch-totals":
-        data = await generateShareBatchTotalsReport(start, end);
+        data = await generateShareBatchTotalsReport(start, end, branchId);
         break;
       case "shares-on-hold":
         data = await generateSharesOnHoldReport();
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
         data = await generateTopBottomShareholdersReport();
         break;
       case "shares-transactions":
-        data = await generateShareTransactionsReport(start, end);
+        data = await generateShareTransactionsReport(start, end, branchId);
         break;
 
       // ========== LOAN REPORTS ==========
@@ -83,21 +83,21 @@ export async function POST(request: NextRequest) {
 
       // ========== FINANCIAL REPORTS ==========
       case "income-report":
-        data = await generateIncomeReport(start, end, branchId);
+        data = await generateIncomeReport(start, end, branchId, user);
         break;
       case "expenditure-report":
         data = await generateExpenditureReport(start, end, branchId);
         break;
       case "income-vs-expenditure":
-        data = await generateIncomeVsExpenditureReport(start, end, branchId);
+        data = await generateIncomeVsExpenditureReport(start, end, branchId, user);
         break;
 
       // ========== OPERATIONS REPORTS ==========
       case "float-transactions":
-        data = await generateFloatTransactionsReport(start, end);
+        data = await generateFloatTransactionsReport(start, end, branchId);
         break;
       case "vault-transactions":
-        data = await generateVaultTransactionsReport(start, end);
+        data = await generateVaultTransactionsReport(start, end, branchId);
         break;
       case "branch-performance":
         data = await generateBranchPerformanceReport(start, end);
@@ -105,13 +105,13 @@ export async function POST(request: NextRequest) {
 
       // ========== MEMBER REPORTS ==========
       case "customer-accounts-listing":
-        data = await generateCustomerAccountsListingReport();
+        data = await generateCustomerAccountsListingReport(branchId);
         break;
       case "customer-contacts":
-        data = await generateCustomerContactsReport();
+        data = await generateCustomerContactsReport(branchId);
         break;
       case "blacklisted-clients":
-        data = await generateBlacklistedClientsReport();
+        data = await generateBlacklistedClientsReport(branchId);
         break;
       case "transferred-clients":
         data = await generateTransferredClientsReport(start, end);
@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
 
       // ========== AUDIT & COMPLIANCE REPORTS ==========
       case "audit-trail":
-        data = await generateAuditTrailReport(start, end);
+        data = await generateAuditTrailReport(start, end, branchId);
         break;
       case "error-corrected-transactions":
         data = await generateErrorCorrectedTransactionsReport(start, end);
@@ -131,15 +131,15 @@ export async function POST(request: NextRequest) {
         data = await generateEODSupervisionReport(start, end);
         break;
       case "system-users":
-        data = await generateSystemUsersReport();
+        data = await generateSystemUsersReport(branchId);
         break;
 
       // ========== PERFORMANCE REPORTS ==========
       case "performance-monitoring":
-        data = await generatePerformanceMonitoringReport(start, end);
+        data = await generatePerformanceMonitoringReport(start, end, branchId, user);
         break;
       case "performance-indicators":
-        data = await generatePerformanceIndicatorsReport(start, end);
+        data = await generatePerformanceIndicatorsReport(start, end, branchId);
         break;
 
       default:
@@ -480,9 +480,9 @@ async function generateOutstandingLoansReport(branchId?: string) {
   };
 }
 
-async function generateIncomeReport(startDate: Date, endDate: Date, branchId?: string) {
+async function generateIncomeReport(startDate: Date, endDate: Date, branchId?: string, user?: any) {
   const income = await IncomeService.getUnifiedIncomeRecords({
-    user: { role: "ADMIN", branchId: null },
+    user: user || { role: "ADMIN", branchId: null },
     branchId,
     startDate,
     endDate,
@@ -555,10 +555,10 @@ async function generateExpenditureReport(startDate: Date, endDate: Date, branchI
   };
 }
 
-async function generateIncomeVsExpenditureReport(startDate: Date, endDate: Date, branchId?: string) {
+async function generateIncomeVsExpenditureReport(startDate: Date, endDate: Date, branchId?: string, user?: any) {
   const [income, expenditure] = await Promise.all([
     IncomeService.getUnifiedIncomeRecords({
-      user: { role: "ADMIN", branchId: null },
+      user: user || { role: "ADMIN", branchId: null },
       branchId,
       startDate,
       endDate,
@@ -609,10 +609,11 @@ async function generateIncomeVsExpenditureReport(startDate: Date, endDate: Date,
   };
 }
 
-async function generateFloatTransactionsReport(startDate: Date, endDate: Date) {
+async function generateFloatTransactionsReport(startDate: Date, endDate: Date, branchId?: string) {
   const transactions = await db.floatTransaction.findMany({
     where: {
       transactionDate: { gte: startDate, lte: endDate },
+      ...(branchId ? { float: { user: { branchId } } } : {}),
     },
     include: {
       float: { include: { user: true } },
@@ -643,10 +644,11 @@ async function generateFloatTransactionsReport(startDate: Date, endDate: Date) {
   };
 }
 
-async function generateVaultTransactionsReport(startDate: Date, endDate: Date) {
+async function generateVaultTransactionsReport(startDate: Date, endDate: Date, branchId?: string) {
   const transactions = await db.vaultTransaction.findMany({
     where: {
       transactionDate: { gte: startDate, lte: endDate },
+      ...(branchId ? { vault: { branchId } } : {}),
     },
     include: {
       vault: { include: { branch: true } },
@@ -893,11 +895,12 @@ async function generateShareAccountsListingReport() {
   };
 }
 
-async function generateShareBatchTotalsReport(startDate: Date, endDate: Date) {
+async function generateShareBatchTotalsReport(startDate: Date, endDate: Date, branchId?: string) {
   const transactions = await db.shareTransaction.findMany({
     where: {
       transactionDate: { gte: startDate, lte: endDate },
       isReversed: false,
+      ...(branchId ? { account: { branchId } } : {}),
     },
     include: {
       account: {
@@ -1023,10 +1026,11 @@ async function generateTopBottomShareholdersReport() {
   };
 }
 
-async function generateShareTransactionsReport(startDate: Date, endDate: Date) {
+async function generateShareTransactionsReport(startDate: Date, endDate: Date, branchId?: string) {
   const transactions = await db.shareTransaction.findMany({
     where: {
       transactionDate: { gte: startDate, lte: endDate },
+      ...(branchId ? { account: { branchId } } : {}),
     },
     include: {
       account: {
@@ -1064,9 +1068,9 @@ async function generateShareTransactionsReport(startDate: Date, endDate: Date) {
 
 // ==================== MEMBER REPORTS ====================
 
-async function generateCustomerAccountsListingReport() {
+async function generateCustomerAccountsListingReport(branchId?: string) {
   const members = await db.member.findMany({
-    where: { isApproved: true },
+    where: { isApproved: true, ...(branchId ? { user: { branchId } } : {}) },
     include: {
       user: true,
       accounts: {
@@ -1102,9 +1106,9 @@ async function generateCustomerAccountsListingReport() {
   };
 }
 
-async function generateCustomerContactsReport() {
+async function generateCustomerContactsReport(branchId?: string) {
   const members = await db.member.findMany({
-    where: { isApproved: true },
+    where: { isApproved: true, ...(branchId ? { user: { branchId } } : {}) },
     include: { user: true },
     orderBy: { memberNumber: "asc" },
   });
@@ -1128,7 +1132,7 @@ async function generateCustomerContactsReport() {
   };
 }
 
-async function generateBlacklistedClientsReport() {
+async function generateBlacklistedClientsReport(branchId?: string) {
   // Members with SUSPENDED status (MemberStatus enum) are the true "blacklisted" records.
   // Also include those whose user account has been deactivated.
   const members = await db.member.findMany({
@@ -1137,6 +1141,7 @@ async function generateBlacklistedClientsReport() {
         { status: "SUSPENDED" },
         { user: { isActive: false } },
       ],
+      ...(branchId ? { user: { branchId } } : {}),
     },
     include: {
       user: true,
@@ -1195,10 +1200,11 @@ async function generateTransferredClientsReport(startDate: Date, endDate: Date) 
 
 // ==================== AUDIT & COMPLIANCE REPORTS ====================
 
-async function generateAuditTrailReport(startDate: Date, endDate: Date) {
+async function generateAuditTrailReport(startDate: Date, endDate: Date, branchId?: string) {
   const logs = await db.auditLog.findMany({
     where: {
       timestamp: { gte: startDate, lte: endDate },
+      ...(branchId ? { user: { branchId } } : {}),
     },
     include: { user: true },
     orderBy: { timestamp: "desc" },
@@ -1327,8 +1333,9 @@ async function generateEODSupervisionReport(startDate: Date, endDate: Date) {
   };
 }
 
-async function generateSystemUsersReport() {
+async function generateSystemUsersReport(branchId?: string) {
   const users = await db.user.findMany({
+    ...(branchId ? { where: { branchId } } : {}),
     include: {
       branch: true,
       _count: {
@@ -1362,7 +1369,8 @@ async function generateSystemUsersReport() {
 
 // ==================== PERFORMANCE REPORTS ====================
 
-async function generatePerformanceMonitoringReport(startDate: Date, endDate: Date) {
+async function generatePerformanceMonitoringReport(startDate: Date, endDate: Date, branchId?: string, user?: any) {
+  const branchFilter = branchId ? { branchId } : {};
   const [
     totalMembers,
     totalDeposits,
@@ -1373,22 +1381,23 @@ async function generatePerformanceMonitoringReport(startDate: Date, endDate: Dat
   ] = await Promise.all([
     db.member.count({ where: { isApproved: true } }),
     db.deposit.aggregate({
-      where: { depositDate: { gte: startDate, lte: endDate } },
+      where: { depositDate: { gte: startDate, lte: endDate }, ...branchFilter },
       _sum: { amount: true },
       _count: true,
     }),
     db.withdrawal.aggregate({
-      where: { withdrawalDate: { gte: startDate, lte: endDate } },
+      where: { withdrawalDate: { gte: startDate, lte: endDate }, ...branchFilter },
       _sum: { amount: true },
       _count: true,
     }),
     db.loan.aggregate({
-      where: { disbursementDate: { gte: startDate, lte: endDate } },
+      where: { disbursementDate: { gte: startDate, lte: endDate }, ...branchFilter },
       _sum: { amountGranted: true },
       _count: true,
     }),
     IncomeService.getUnifiedIncomeRecords({
-      user: { role: "ADMIN", branchId: null },
+      user: user || { role: "ADMIN", branchId: null },
+      branchId,
       startDate,
       endDate,
     }).then((records) => ({
@@ -1397,7 +1406,7 @@ async function generatePerformanceMonitoringReport(startDate: Date, endDate: Dat
       },
     })),
     db.expenditureRecord.aggregate({
-      where: { date: { gte: startDate, lte: endDate } },
+      where: { date: { gte: startDate, lte: endDate }, ...branchFilter },
       _sum: { amount: true },
     }),
   ]);
@@ -1444,23 +1453,25 @@ async function generatePerformanceMonitoringReport(startDate: Date, endDate: Dat
   };
 }
 
-async function generatePerformanceIndicatorsReport(startDate: Date, endDate: Date) {
+async function generatePerformanceIndicatorsReport(startDate: Date, endDate: Date, branchId?: string) {
+  const branchFilter = branchId ? { branchId } : {};
   const [
     activeLoans,
     overdueLoans,
     totalSavings,
     memberCount,
   ] = await Promise.all([
-    db.loan.count({ where: { status: "DISBURSED" } }),
-    db.loan.count({ where: { status: "OVERDUE" } }),
+    db.loan.count({ where: { status: "DISBURSED", ...branchFilter } }),
+    db.loan.count({ where: { status: "OVERDUE", ...branchFilter } }),
     db.account.aggregate({
       where: {
         status: "ACTIVE",
         accountType: { isShareAccount: false, hasFixedPeriod: false },
+        ...branchFilter,
       },
       _sum: { balance: true },
     }),
-    db.member.count({ where: { isApproved: true } }),
+    db.member.count({ where: { isApproved: true, ...branchFilter } }),
   ]);
 
   const records = [

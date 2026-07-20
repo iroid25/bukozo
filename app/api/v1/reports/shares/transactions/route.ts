@@ -5,6 +5,7 @@ import { authOptions } from "@/config/auth";
 import {
   getSharesTransactionReport,
 } from "@/lib/reports/shares-transactions-report";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest) {
       user: session.user as any,
       dateFrom,
       dateTo,
-      branchId: searchParams.get("branchId") || undefined,
+      branchId: resolveBranchScope(session.user as any, searchParams.get("branchId") || undefined),
       accountTypeId: searchParams.get("accountTypeId") || undefined,
       memberId: searchParams.get("memberId") || undefined,
       tellerId: searchParams.get("tellerId") || undefined,

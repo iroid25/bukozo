@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/prisma/db";
 import { getAuthUser } from "@/config/useAuth";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 import { UserRole } from "@prisma/client";
 
 /**
@@ -26,7 +27,11 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const branchId = searchParams.get("branchId") || undefined;
+    const rawBranchId = searchParams.get("branchId") || undefined;
+    const branchId = resolveBranchScope(
+      { role: user.role, branchId: user.branchId },
+      rawBranchId,
+    );
 
     const [vaultAgg, vaultGL, floatAgg, floatGL, cashAtHandGL] = await Promise.all([
       db.vault.aggregate({

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { UserRole } from "@prisma/client";
 import { getAuthUser } from "@/config/useAuth";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 import { getActivityReports } from "@/lib/reports/activity-report";
 
 export const dynamic = "force-dynamic";
@@ -22,12 +22,9 @@ export async function GET(request: NextRequest) {
     const requestedBranchId = searchParams.get("branchId") || undefined;
     const effectiveRequestedBranchId = requestedBranchId && requestedBranchId !== "all" ? requestedBranchId : undefined;
 
-    const branchId =
-      user.role === UserRole.ADMIN
-        ? effectiveRequestedBranchId
-        : user.branchId || undefined;
+    const branchId = resolveBranchScope(user, effectiveRequestedBranchId);
 
-    if (user.role !== UserRole.ADMIN && !branchId) {
+    if (!branchId && user.role !== "ADMIN") {
       return NextResponse.json(
         { error: "Branch access is required for this user" },
         { status: 403 },

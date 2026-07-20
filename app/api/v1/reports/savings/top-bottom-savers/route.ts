@@ -6,6 +6,7 @@ import {
   buildTopBottomSaversReport,
   buildTopBottomSaversWorkbook,
 } from "@/lib/reports/top-bottom-savers-report";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -17,7 +18,11 @@ export async function POST(request: NextRequest) {
     }
 
     const params = await request.json();
+    const user = session.user as any;
+    const branchId = resolveBranchScope(user, params.branchId);
     const report = await buildTopBottomSaversReport({
+      user: session.user,
+      branchId,
       accountCategory: "savings",
       startDate: params.startDate || params.start_date || params.reportDate || params.report_date || new Date().toISOString().slice(0, 10),
       endDate: params.endDate || params.end_date || params.reportDate || params.report_date || new Date().toISOString().slice(0, 10),

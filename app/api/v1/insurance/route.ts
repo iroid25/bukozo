@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/prisma/db";
 import { getAuthUser } from "@/config/useAuth";
 import { InsuranceContributionType } from "@prisma/client";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 const LOAN_INSURANCE_POOL_ACCOUNT = "SACCO_LOAN_INSURANCE_POOL";
 
@@ -15,6 +16,10 @@ export async function GET() {
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const branchId = resolveBranchScope(user, undefined);
+    const branchFilter = branchId
+      ? { member: { user: { branchId } } }
+      : {};
 
     const [
       records,
@@ -25,6 +30,7 @@ export async function GET() {
       uniqueMembers,
     ] = await Promise.all([
       db.insuranceContribution.findMany({
+        where: branchFilter,
         include: {
           member: {
             select: {
@@ -54,11 +60,11 @@ export async function GET() {
         select: { balance: true },
       }),
       db.insuranceContribution.aggregate({
-        where: { type: InsuranceContributionType.CONTRIBUTION },
+        where: { type: InsuranceContributionType.CONTRIBUTION, ...branchFilter },
         _sum: { amount: true },
       }),
       db.insuranceContribution.aggregate({
-        where: { type: InsuranceContributionType.PAYMENT_OUT },
+        where: { type: InsuranceContributionType.PAYMENT_OUT, ...branchFilter },
         _sum: { amount: true },
       }),
       db.insuranceContribution.aggregate({
@@ -68,6 +74,7 @@ export async function GET() {
             gte: monthStart,
             lt: nextMonthStart,
           },
+          ...branchFilter,
         },
         _sum: { amount: true },
       }),
@@ -75,6 +82,7 @@ export async function GET() {
         where: {
           type: InsuranceContributionType.CONTRIBUTION,
           memberId: { not: null },
+          ...branchFilter,
         },
         select: { memberId: true },
         distinct: ["memberId"],
@@ -82,10 +90,13 @@ export async function GET() {
     ]);
 
     const totalCollected = totalCollectedResult._sum.amount || 0;
+    const totalPaidOut = totalPaidOutResult._sum.amount || 0;
     const statistics = {
-      totalPoolBalance: insuranceAccount?.balance || 0,
+      totalPoolBalance: branchId
+        ? Math.max(totalCollected - totalPaidOut, 0)
+        : insuranceAccount?.balance || 0,
       totalCollected,
-      totalPaidOut: totalPaidOutResult._sum.amount || 0,
+      totalPaidOut,
       monthlyCollection: monthlyCollectionResult._sum.amount || 0,
       membersCovered: uniqueMembers.length,
       averageContribution: uniqueMembers.length

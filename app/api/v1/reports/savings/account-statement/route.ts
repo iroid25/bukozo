@@ -2,6 +2,7 @@
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/config/auth';
 import { SavingsAccountStatementGenerator, buildSavingsAccountStatementWorkbook } from '@/lib/reports/generators/savings-account-statement';
+import { resolveBranchScope } from '@/lib/services/branch-scope';
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -40,7 +41,8 @@ async function generateReport(request: NextRequest, method: 'GET' | 'POST') {
     }
 
     const generator = new SavingsAccountStatementGenerator();
-    const reportData = await generator.generateData({ ...params, user: session.user });
+    const branchId = resolveBranchScope(session.user as any, params.branchId || undefined);
+    const reportData = await generator.generateData({ ...params, branchId, user: session.user });
     const report = reportData.data;
 
     if (params.format && params.format !== 'JSON') {

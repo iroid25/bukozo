@@ -213,6 +213,7 @@ import {
 } from "@/lib/services/income-structure";
 import { createWithdrawalFeeJournalEntry } from "@/lib/journal-entries-extended";
 import { assertMemberCanTransact } from "@/lib/member-transact-eligibility";
+import { isJointSavingsAccountType } from "@/lib/accounting/account-type-rules";
 
 // Initialize Resend - skip logging at module level to avoid build crashes
 const resend = process.env.RESEND_API_KEY
@@ -254,6 +255,7 @@ async function processWithdrawalInApi(params: {
   verifiedSignatories?: string[];
   verifiedAgent?: boolean;
   signatoryId?: string;
+  verifiedJointMembers?: string[];
 }) {
   const {
     verification,
@@ -271,6 +273,7 @@ async function processWithdrawalInApi(params: {
     verifiedSignatories,
     verifiedAgent,
     signatoryId,
+    verifiedJointMembers,
   } = params;
 
   if (verification.memberId) {
@@ -546,6 +549,7 @@ export async function POST(request: NextRequest) {
       recipientRelation,
       verifiedSignatories, // string[]
       verifiedAgent,
+      verifiedJointMembers, // string[] - joint member IDs verified for joint savings
       signatoryFingerprints, // Record<string, {captured: boolean; score: number}>
       skipDelivery,
       // Auth method selection
@@ -644,6 +648,11 @@ export async function POST(request: NextRequest) {
       include: {
         accountType: true,
         member: { include: { user: true } },
+        jointMembers: {
+          include: {
+            member: { include: { user: true } },
+          },
+        },
         institution: {
           include: {
             user: true,
@@ -697,10 +706,16 @@ export async function POST(request: NextRequest) {
       );
     }
     if (!isInstitution && memberId && account.memberId !== memberId) {
-      return NextResponse.json(
-        { error: "Account does not belong to the specified member" },
-        { status: 400 },
+      const isJoint = isJointSavingsAccountType(account.accountType);
+      const isJointMember = isJoint && (account as any).jointMembers?.some(
+        (jm: any) => jm.memberId === memberId,
       );
+      if (!isJointMember) {
+        return NextResponse.json(
+          { error: "Account does not belong to the specified member" },
+          { status: 400 },
+        );
+      }
     }
 
     // â”€â”€ 6. Active account hold check â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -771,7 +786,42 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // â”€â”€ 8. Calculate fee â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // â”€â”€ 8. Joint savings member verification â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    if (!isInstitution && isJointSavingsAccountType(account.accountType)) {
+      const jointMembers = (account as any).jointMembers || [];
+      if (jointMembers.length === 0) {
+        return NextResponse.json(
+          { error: "Joint savings account has no joint members configured" },
+          { status: 400 },
+        );
+      }
+
+      const verifiedIds: string[] = Array.isArray(verifiedJointMembers) ? verifiedJointMembers : [];
+      const verifiedSet = new Set(verifiedIds);
+
+      // All joint members must be verified
+      for (const jm of jointMembers) {
+        if (!verifiedSet.has(jm.memberId)) {
+          return NextResponse.json(
+            { error: `All joint members must verify this withdrawal. Missing verification for member #${jm.member.memberNumber}.` },
+            { status: 400 },
+          );
+        }
+      }
+
+      // All verified members must be valid joint members
+      const jointMemberIds = new Set(jointMembers.map((jm: any) => jm.memberId));
+      for (const vid of verifiedIds) {
+        if (!jointMemberIds.has(vid)) {
+          return NextResponse.json(
+            { error: `Verified member ${vid} is not a joint member of this account` },
+            { status: 400 },
+          );
+        }
+      }
+    }
+
+    // â”€â”€ 9. Calculate fee â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const fallbackTiersJson = await getWithdrawalFeeFallbackTiers(
       isInstitution,
     );
@@ -792,7 +842,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // â”€â”€ 9. Float check for TELLER / AGENT cash withdrawals â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // â”€â”€ 10. Float check for TELLER / AGENT cash withdrawals â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if (
       channel.toLowerCase() === "cash" &&
       ["TELLER", "AGENT"].includes(user.role)
@@ -819,7 +869,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // â”€â”€ 10. Expire any stale pending verifications for this account â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // â”€â”€ 11. Expire any stale pending verifications for this account â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     await db.withdrawalVerification.updateMany({
       where: {
         accountId,
@@ -829,7 +879,7 @@ export async function POST(request: NextRequest) {
       data: { isUsed: true },
     });
 
-    // â”€â”€ 11. Generate OTP and persist â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // â”€â”€ 12. Generate OTP and persist â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
@@ -861,11 +911,15 @@ export async function POST(request: NextRequest) {
             verifiedSignatories: verifiedSignatories || [],
             verifiedAgent: !!verifiedAgent,
           }),
+          // Joint savings audit data
+          ...(verifiedJointMembers?.length > 0 && {
+            verifiedJointMembers,
+          }),
         },
       },
     });
 
-    // â”€â”€ 12. Resolve OTP recipient â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // â”€â”€ 13. Resolve OTP recipient â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if (skipDelivery) {
       let processed;
       try {
@@ -885,6 +939,7 @@ export async function POST(request: NextRequest) {
           verifiedSignatories,
           verifiedAgent,
           signatoryId,
+          verifiedJointMembers,
         });
       } catch (error) {
         return NextResponse.json(
@@ -933,7 +988,7 @@ export async function POST(request: NextRequest) {
       recipientPhoneNumber = primarySig?.phone || inst.user.phone || "";
     }
 
-    // â”€â”€ 13. Send OTP email via Resend â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // â”€â”€ 14. Send OTP email via Resend â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     let emailSent = false;
     let smsSent = false;
     const method = verificationMethod || (skipDelivery ? "fingerprint" : "email");
@@ -989,7 +1044,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // â”€â”€ 14. Update delivery flags â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // â”€â”€ 15. Update delivery flags â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if (emailSent || smsSent) {
       await db.withdrawalVerification.update({
         where: { id: verification.id },
@@ -1004,7 +1059,7 @@ export async function POST(request: NextRequest) {
     // For thumbprint, expose the code since it's verified physically, not via delivery
     const debugVerificationCode = method === "thumbprint" ? code : (!emailSent && !smsSent ? code : undefined);
 
-    // â”€â”€ 15. Return (OTP is never exposed) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // â”€â”€ 16. Return (OTP is never exposed) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     return NextResponse.json({
       success: true,
       message: emailSent

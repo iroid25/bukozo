@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/config/useAuth";
 import { buildComprehensiveBalanceSheetDrilldown } from "@/lib/reports/statement-of-comprehensive-balance-sheet";
 import { UserRole } from "@prisma/client";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
     const data = await buildComprehensiveBalanceSheetDrilldown({
       user,
       accountCode,
-      branchId: searchParams.get("branchId") || undefined,
+      branchId: resolveBranchScope(user as any, searchParams.get("branchId") || undefined),
       startDate: searchParams.get("start_date") || searchParams.get("startDate") || undefined,
       endDate: searchParams.get("end_date") || searchParams.get("endDate") || undefined,
     });

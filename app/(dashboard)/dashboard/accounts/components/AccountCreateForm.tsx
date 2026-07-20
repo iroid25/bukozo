@@ -12,6 +12,7 @@ import {
 import {
   CreditCard,
   User,
+  Users,
   Building,
   DollarSign,
   Percent,
@@ -149,6 +150,7 @@ export default function AccountCreateForm({
 
   const [selectedMember, setSelectedMember] = useState<Option | null>(null);
   const [selectedGuardian, setSelectedGuardian] = useState<Option | null>(null);
+  const [jointMembers, setJointMembers] = useState<Option[]>([]);
 
   const [selectedInstitution, setSelectedInstitution] = useState<Option | null>(
     null,
@@ -315,6 +317,21 @@ export default function AccountCreateForm({
         return;
       }
 
+      if (selectedAccountType.name === "Joint Savings") {
+        if (ownerType !== "member") {
+          toast.error("Joint Savings requires member owners");
+          setLoading(false);
+          return;
+        }
+        if (jointMembers.length < 1) {
+          toast.error("Joint members required", {
+            description: "Add at least one additional joint member.",
+          });
+          setLoading(false);
+          return;
+        }
+      }
+
       if (ownerType === "member" && !selectedMember) {
         toast.error("Please select a member");
         setLoading(false);
@@ -358,6 +375,10 @@ export default function AccountCreateForm({
           selectedAccountType.name === "Junior Savings"
             ? selectedGuardian?.value
             : undefined,
+        jointMemberIds:
+          selectedAccountType.name === "Joint Savings"
+            ? jointMembers.map((m) => m.value)
+            : undefined,
       };
 
       const response = await fetch("/api/v1/accounts", {
@@ -392,6 +413,7 @@ export default function AccountCreateForm({
       reset();
       setSelectedMember(null);
       setSelectedGuardian(null);
+      setJointMembers([]);
       setSelectedInstitution(null);
       setSelectedAccountType(null);
       setSelectedBranch(null);
@@ -408,6 +430,7 @@ export default function AccountCreateForm({
     reset();
     setSelectedMember(null);
     setSelectedGuardian(null);
+    setJointMembers([]);
     setSelectedInstitution(null);
     setSelectedAccountType(null);
     setSelectedBranch(null);
@@ -607,6 +630,55 @@ export default function AccountCreateForm({
                     )}
                   </TabsContent>
                 </Tabs>
+
+                {/* Joint Savings members */}
+                {selectedMember && selectedAccountType?.name === "Joint Savings" && (
+                  <div className="mt-4 p-4 border border-amber-200 rounded-xl bg-amber-50/50 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-5 w-5 text-amber-600" />
+                      <h4 className="font-semibold text-amber-900">
+                        Joint Account Members
+                      </h4>
+                    </div>
+                    <p className="text-sm text-amber-700">
+                      Select additional members who will co-own this account.
+                      All joint members must be present and verify for withdrawals.
+                    </p>
+                    <FormSelectInput
+                      label="Primary Member"
+                      options={memberOptions.filter((o) => o.value !== selectedMember?.value)}
+                      option={null}
+                      setOption={(opt: Option) => {
+                        if (opt && !jointMembers.some((m) => m.value === opt.value) && opt.value !== selectedMember?.value) {
+                          setJointMembers((prev) => [...prev, opt]);
+                        }
+                      }}
+                      toolTipText="Add Joint Member"
+                    />
+                    {jointMembers.length > 0 && (
+                      <div className="space-y-2">
+                        <Label>Joint Members</Label>
+                        <div className="flex flex-wrap gap-2">
+                          {jointMembers.map((jm) => (
+                            <div
+                              key={jm.value}
+                              className="flex items-center gap-2 bg-white rounded-full border px-3 py-1.5 text-sm shadow-sm"
+                            >
+                              <span>{jm.label}</span>
+                              <button
+                                type="button"
+                                onClick={() => setJointMembers((prev) => prev.filter((m) => m.value !== jm.value))}
+                                className="text-red-500 hover:text-red-700 ml-1"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Account Type Selection */}

@@ -1,5 +1,6 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/config/useAuth";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 import { db } from "@/prisma/db";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +15,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const branchId = user.role !== "ADMIN" ? user.branchId : undefined;
+    const branchId = resolveBranchScope(user, undefined);
 
     const deposits = await db.fixedDeposit.findMany({
       where: {

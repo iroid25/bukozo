@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
 import { db } from "@/prisma/db";
 import { getDirectIncomeExpenseAccounts } from "@/lib/reports/direct-source";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -27,18 +28,33 @@ async function generatePerformance(request: NextRequest, method: 'GET' | 'POST')
       );
     }
 
+    const user = session.user as any;
+
     let startDate: string | null = null;
     let endDate: string | null = null;
+    let body: any = {};
 
     if (method === 'GET') {
       const { searchParams } = new URL(request.url);
       startDate = searchParams.get("start");
       endDate = searchParams.get("end");
     } else {
-      const body = await request.json();
+      body = await request.json();
       startDate = body.startDate || body.start;
       endDate = body.endDate || body.end;
     }
+
+    const requestedBranchId = method === 'GET'
+      ? new URL(request.url).searchParams.get("branchId")
+      : body.branchId;
+    const branchId = resolveBranchScope(user, requestedBranchId);
+
+    if (!branchId && user.role !== "ADMIN") {
+      return NextResponse.json({ success: true, data: { reportType: "Performance Metrics", period: {}, financial: { totalIncome: 0, totalExpenses: 0, netProfit: 0, profitMargin: 0, returnOnAssets: 0, returnOnEquity: 0 }, operational: { totalMembers: 0, totalLoans: 0, activeLoans: 0, loanUtilization: 0 }, generatedAt: new Date().toISOString() } });
+    }
+
+    // Build branch filter for Prisma queries
+    const branchFilter = branchId ? { branchId } : {};
 
     if (!startDate || !endDate) {
       return NextResponse.json(
@@ -52,7 +68,7 @@ async function generatePerformance(request: NextRequest, method: 'GET' | 'POST')
     const end = new Date(endDate);
     end.setHours(23, 59, 59, 999);
 
-    const directAccounts = await getDirectIncomeExpenseAccounts(start, end);
+    const directAccounts = await getDirectIncomeExpenseAccounts(start, end, branchId);
     const totalIncome = directAccounts
       .filter((a) => a.ledgerType === "INCOME")
       .reduce((sum, a) => sum + a.balance, 0);
@@ -65,10 +81,11 @@ async function generatePerformance(request: NextRequest, method: 'GET' | 'POST')
     const returnOnAssets = 0;
     const returnOnEquity = 0;
 
+    // Scope member/loan counts by branch for non-admin users
     const [memberCount, loanCount, activeLoans] = await Promise.all([
-      db.member.count({ where: { isApproved: true } }),
-      db.loan.count(),
-      db.loan.count({ where: { status: { in: ["DISBURSED", "OVERDUE"] } } }),
+      db.member.count({ where: { isApproved: true, ...branchFilter } }),
+      db.loan.count({ where: branchFilter }),
+      db.loan.count({ where: { status: { in: ["DISBURSED", "OVERDUE"] }, ...branchFilter } }),
     ]);
 
     return NextResponse.json({

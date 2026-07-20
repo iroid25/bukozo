@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/config/useAuth";
 import { getFixedDepositWithdrawnReport } from "@/lib/reports/fixed-deposits-report";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest) {
       user,
       fromDate: searchParams.get("fromDate") || searchParams.get("startDate") || undefined,
       toDate: searchParams.get("toDate") || searchParams.get("endDate") || undefined,
-      branchId: normalizeBranchId(searchParams.get("branchId") || undefined),
+      branchId: normalizeBranchId(resolveBranchScope(user, searchParams.get("branchId") || undefined) || undefined),
       memberId: searchParams.get("memberId") || undefined,
       memberSearch: searchParams.get("memberSearch") || searchParams.get("search") || undefined,
     });

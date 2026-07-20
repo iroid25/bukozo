@@ -151,7 +151,9 @@ export class ExpenditureService {
                   entryDate: new Date(),
                   reference: `EXP-${updatedRecord.id.slice(0, 8)}`,
                   branchId: updatedRecord.branchId || undefined,
-                  transactionId: updatedRecord.id,
+                  // ExpenditureRecord is not a Transaction row, so keep the FK null.
+                  // Reversal logic resolves these entries by the EXP- reference prefix.
+                  transactionId: null,
                   createdByUserId: user.id,
                 },
               });
@@ -165,7 +167,7 @@ export class ExpenditureService {
                   entryDate: new Date(),
                   reference: `EXP-${updatedRecord.id.slice(0, 8)}`,
                   branchId: updatedRecord.branchId || undefined,
-                  transactionId: updatedRecord.id,
+                  transactionId: null,
                   createdByUserId: user.id,
                 },
               });

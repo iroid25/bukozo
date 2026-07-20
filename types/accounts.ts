@@ -232,6 +232,7 @@ export interface AccountCreateDTO {
   fixingEndDate?: Date;
   expectedInterest?: number;
   fundingSourceAccountId?: string;
+  jointMemberIds?: string[];
 }
 
 export interface AccountUpdateDTO {

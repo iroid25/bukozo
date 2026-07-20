@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/prisma/db";
 import { getAuthUser } from "@/config/useAuth";
-import { UserRole, SavingsAccountStatus, AccountStatus } from "@prisma/client";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
+import { SavingsAccountStatus, UserRole } from "@prisma/client";
 
 /**
  * GET /api/v1/accountant/reconciliation/member-vs-gl
@@ -21,7 +22,11 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const branchId = searchParams.get("branchId") || undefined;
+    const rawBranchId = searchParams.get("branchId") || undefined;
+    const branchId = resolveBranchScope(
+      { role: user.role, branchId: user.branchId },
+      rawBranchId,
+    );
 
     const [
       savingsByType,

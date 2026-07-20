@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/config/useAuth";
 import { buildComprehensiveBalanceSheetReport } from "@/lib/reports/statement-of-comprehensive-balance-sheet";
 import { UserRole } from "@prisma/client";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +34,10 @@ async function handler(request: NextRequest) {
   }
 
   const { searchParams } = new URL(request.url);
-  const branchId = normalizeBranchId(searchParams.get("branchId"));
+  const branchId = resolveBranchScope(
+    { role: user.role, branchId: user.branchId },
+    normalizeBranchId(searchParams.get("branchId")),
+  );
   const startDate = parseDate(searchParams.get("start_date") || searchParams.get("startDate") || undefined);
   const endDate = parseDate(searchParams.get("end_date") || searchParams.get("endDate") || undefined);
   const compareStartDate = parseDate(searchParams.get("compare_start") || searchParams.get("compareStartDate") || undefined);
@@ -83,7 +87,10 @@ export async function POST(request: NextRequest) {
 
     const data = await buildComprehensiveBalanceSheetReport({
       user,
-      branchId: normalizeBranchId(body.branchId),
+      branchId: resolveBranchScope(
+        { role: user.role, branchId: user.branchId },
+        normalizeBranchId(body.branchId),
+      ),
       startDate: body.startDate || body.start_date || undefined,
       endDate: body.endDate || body.end_date || undefined,
       compareStartDate: body.compareStartDate || body.compare_start || undefined,

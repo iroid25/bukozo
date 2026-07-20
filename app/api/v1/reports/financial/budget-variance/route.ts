@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 import { db } from "@/prisma/db";
-import { UserRole } from "@prisma/client";
 import { IncomeService } from "@/services/income.service";
 
 export const dynamic = "force-dynamic";
@@ -43,14 +43,12 @@ async function handler(request: NextRequest) {
     }
 
     // Branch scope: ADMIN can filter, others are locked to their branch
-    let branchId: string | undefined;
-    if (user.role === UserRole.ADMIN) {
-      branchId = requestedBranchId && requestedBranchId !== "ALL" && requestedBranchId !== "all"
+    const branchId = resolveBranchScope(
+      { role: user.role, branchId: user.branchId },
+      requestedBranchId && requestedBranchId !== "ALL" && requestedBranchId !== "all"
         ? requestedBranchId
-        : undefined;
-    } else {
-      branchId = user.branchId || undefined;
-    }
+        : undefined,
+    );
 
     const yearStart = new Date(year, 0, 1, 0, 0, 0, 0);
     const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999);
@@ -109,17 +107,32 @@ async function handler(request: NextRequest) {
     ]);
 
     const expenditureMap = new Map(
-      actualExpenditures.map((e) => [e.budgetCategoryId!, Number(e._sum.amount) || 0]),
+      actualExpenditures.map((e: { budgetCategoryId: string | null; _sum: { amount: number | null } }) => [
+        e.budgetCategoryId!,
+        Number(e._sum.amount) || 0,
+      ]),
     );
     const incomeMap = new Map<string, number>();
-    for (const record of incomeRecords) {
+    for (const record of incomeRecords as Array<{ budgetCategoryId: string | null; amount: number }>) {
       const categoryId = record.budgetCategoryId;
       if (!categoryId || !categoryIds.includes(categoryId)) continue;
       const current = incomeMap.get(categoryId) || 0;
       incomeMap.set(categoryId, current + Number(record.amount || 0));
     }
 
-    const rows = budgets.map((budget) => {
+    const rows: Array<{
+      categoryId: string;
+      categoryName: string;
+      categoryCode: string;
+      kind: string;
+      budgeted: number;
+      actual: number;
+      variance: number;
+      variancePct: number;
+      status: "UNDER_BUDGET" | "OVER_BUDGET";
+      utilizationPct: number;
+      branch: string;
+    }> = budgets.map((budget) => {
       const budgeted = Number(budget.amount);
       const isIncome = budget.category.kind === "INCOME";
       const actual = isIncome

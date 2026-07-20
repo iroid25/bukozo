@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
 import { buildSavingsListingReport, buildSavingsListingWorkbook } from "@/lib/reports/savings-listing-report";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -23,9 +24,10 @@ async function handleReport(request: NextRequest, method: "GET" | "POST") {
     }
 
     const params = await parseParams(request, method);
+    const branchId = resolveBranchScope(session.user as any, params.branchId || undefined);
     const report = await buildSavingsListingReport(
       {
-        branchId: params.branchId,
+        branchId,
         productCode: params.productCode,
         status: params.status,
         minDaysInactive: params.minDaysInactive !== undefined ? Number(params.minDaysInactive) : undefined,

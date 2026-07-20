@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/config/useAuth";
 import { UserRole } from "@prisma/client";
 import { buildTrialBalanceReport } from "@/lib/reports/trial-balance-report";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +36,10 @@ async function handler(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const data = await buildTrialBalanceReport({
     user,
-    branchId: normalizeBranchId(searchParams.get("branchId") || undefined),
+    branchId: resolveBranchScope(
+      { role: user.role, branchId: user.branchId },
+      normalizeBranchId(searchParams.get("branchId") || undefined),
+    ),
     startDate: parseDate(searchParams.get("start_date") || searchParams.get("startDate") || undefined),
     endDate: parseDate(searchParams.get("end_date") || searchParams.get("endDate") || undefined),
   });
@@ -72,7 +76,10 @@ export async function POST(request: NextRequest) {
 
     const data = await buildTrialBalanceReport({
       user,
-      branchId: normalizeBranchId(body.branchId || undefined),
+      branchId: resolveBranchScope(
+        { role: user.role, branchId: user.branchId },
+        normalizeBranchId(body.branchId || undefined),
+      ),
       startDate: body.startDate || body.start_date || undefined,
       endDate: body.endDate || body.end_date || undefined,
     });

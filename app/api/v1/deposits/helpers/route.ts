@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/prisma/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
+import { UserRole } from "@prisma/client";
 
 // GET /api/v1/deposits/helpers - Get helper data for deposit forms
 export async function GET(request: NextRequest) {
@@ -15,6 +16,9 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const type = searchParams.get("type");
+    const user = session.user as any;
+    const branchScope =
+      user.role === UserRole.ADMIN ? undefined : user.branchId || undefined;
 
     // Get members with active accounts
     if (type === "members") {
@@ -23,8 +27,10 @@ export async function GET(request: NextRequest) {
           accounts: {
             some: {
               status: "ACTIVE",
+              ...(branchScope ? { branchId: branchScope } : {}),
             },
           },
+          ...(branchScope ? { user: { branchId: branchScope } } : {}),
         },
         select: {
           id: true,
@@ -71,8 +77,10 @@ export async function GET(request: NextRequest) {
           accounts: {
             some: {
               status: "ACTIVE",
+              ...(branchScope ? { branchId: branchScope } : {}),
             },
           },
+          ...(branchScope ? { user: { branchId: branchScope } } : {}),
         },
         select: {
           id: true,
@@ -120,6 +128,7 @@ export async function GET(request: NextRequest) {
         where: {
           memberId,
           status: "ACTIVE",
+          ...(branchScope ? { branchId: branchScope } : {}),
         },
         select: {
           id: true,
@@ -163,6 +172,7 @@ export async function GET(request: NextRequest) {
         where: {
           institutionId,
           status: "ACTIVE",
+          ...(branchScope ? { branchId: branchScope } : {}),
         },
         select: {
           id: true,

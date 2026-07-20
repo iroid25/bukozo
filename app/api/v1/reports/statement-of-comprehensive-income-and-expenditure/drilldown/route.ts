@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/config/useAuth";
 import { UserRole } from "@prisma/client";
 import { buildIncomeExpenseDrilldown } from "@/lib/reports/income-expense-report";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +37,7 @@ export async function GET(request: NextRequest) {
     const data = await buildIncomeExpenseDrilldown({
       user,
       accountCode,
-      branchId: normalizeBranchId(searchParams.get("branchId") || undefined),
+      branchId: normalizeBranchId(resolveBranchScope(user as any, searchParams.get("branchId") || undefined) || undefined),
       startDate: searchParams.get("start_date") || searchParams.get("startDate") || undefined,
       endDate: searchParams.get("end_date") || searchParams.get("endDate") || undefined,
     });

@@ -9,6 +9,7 @@ import { normalizeFingerprintTemplate } from "@/lib/fingerprint";
 import { buildAccountBalanceUpdate } from "@/lib/accounting-rules";
 import { CASH_AT_HAND_CODE, ensureAssetStructure } from "@/lib/services/asset-structure";
 import { ensureEquityStructure } from "@/lib/services/equity-structure";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -36,10 +37,11 @@ export async function GET(request: NextRequest) {
     }
 
     const statementType = new URL(request.url).searchParams.get("statement_type");
+    const branchId = resolveBranchScope(user, new URL(request.url).searchParams.get("branchId") || undefined);
     const data =
       statementType === "INCOME_EXPENSE"
         ? await listAccountsForIncomeExpense(user)
-        : await listAccountsForBalanceSheet(user);
+        : await listAccountsForBalanceSheet({ ...user, branchId } as any);
     return NextResponse.json({ success: true, data });
   } catch (error) {
     console.error("Accounts lookup error:", error);
@@ -70,6 +72,29 @@ export async function POST(request: NextRequest) {
     }
     if (data.memberId && data.institutionId) {
       return NextResponse.json({ error: "Account cannot be created for both member and institution" }, { status: 400 });
+    }
+
+    // Joint member validation
+    const jointMemberIds: string[] = data.jointMemberIds || [];
+    if (jointMemberIds.length > 0) {
+      if (data.institutionId) {
+        return NextResponse.json({ error: "Joint accounts are not available for institutions" }, { status: 400 });
+      }
+      if (!data.memberId) {
+        return NextResponse.json({ error: "Primary member is required for joint accounts" }, { status: 400 });
+      }
+      const allMemberIds = [data.memberId, ...jointMemberIds];
+      const uniqueIds = new Set(allMemberIds);
+      if (uniqueIds.size !== allMemberIds.length) {
+        return NextResponse.json({ error: "Duplicate members in joint account" }, { status: 400 });
+      }
+      const membersExist = await db.member.findMany({
+        where: { id: { in: allMemberIds } },
+        select: { id: true },
+      });
+      if (membersExist.length !== allMemberIds.length) {
+        return NextResponse.json({ error: "One or more joint members not found" }, { status: 400 });
+      }
     }
 
     if (data.memberId) {
@@ -122,6 +147,9 @@ export async function POST(request: NextRequest) {
       });
       if (voluntarySavings) finalBranchId = voluntarySavings.branchId;
     }
+    if (!finalBranchId && user.role !== UserRole.ADMIN) {
+      finalBranchId = user.branchId || undefined;
+    }
     if (!finalBranchId) return NextResponse.json({ error: "Branch not found or could not be determined" }, { status: 400 });
     const branch = await db.branch.findUnique({ where: { id: finalBranchId } });
     if (!branch) return NextResponse.json({ error: "Branch not found" }, { status: 404 });
@@ -135,7 +163,7 @@ export async function POST(request: NextRequest) {
         status: { not: AccountStatus.CLOSED },
       },
     });
-    if (existingAccount && !accountType.isShareAccount && !accountType.hasFixedPeriod) {
+    if (existingAccount && !accountType.isShareAccount && !accountType.hasFixedPeriod && jointMemberIds.length === 0) {
       return NextResponse.json(
         {
           error: data.memberId
@@ -349,6 +377,17 @@ export async function POST(request: NextRequest) {
           },
           include: { member: { include: { user: true } }, institution: { include: { user: true } }, accountType: true, branch: true },
         });
+
+        // Create joint member records
+        if (jointMemberIds.length > 0) {
+          await tx.accountMember.createMany({
+            data: jointMemberIds.map((jmId: string) => ({
+              accountId: targetAccount.id,
+              memberId: jmId,
+              role: "JOINT",
+            })),
+          });
+        }
 
         // Share account: create ShareAccount + ShareTransaction + GL entry
         if (accountType.isShareAccount && data.memberId && initialDeposit > 0) {

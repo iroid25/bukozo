@@ -4,11 +4,21 @@ import { TableLoading } from "@/components/ui/data-table";
 
 import { getAuthUser } from "@/config/useAuth";
 import { db } from "@/prisma/db";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 import AccountListing from "./components/AccountListing";
 
-async function fetchAccounts() {
+async function fetchAccounts(branchId?: string, isAdmin?: boolean) {
+  const branchFilter = isAdmin
+    ? branchId && branchId !== "all"
+      ? { branchId }
+      : {}
+    : branchId
+      ? { branchId }
+      : {};
+
   const [accounts, fixedDeposits] = await Promise.all([
     db.account.findMany({
+      where: branchFilter,
       include: {
         member: {
           include: {
@@ -22,6 +32,15 @@ async function fetchAccounts() {
         },
         accountType: true,
         branch: true,
+        jointMembers: {
+          include: {
+            member: {
+              include: {
+                user: true,
+              },
+            },
+          },
+        },
         _count: {
           select: {
             transactions: true,
@@ -35,6 +54,7 @@ async function fetchAccounts() {
       },
     }),
     db.fixedDeposit.findMany({
+      where: branchFilter,
       include: {
         member: {
           include: {
@@ -117,7 +137,12 @@ async function fetchAccounts() {
 // Create an async component for data fetching
 async function AccountListingWithData() {
   const user = await getAuthUser();
-  const accounts = await fetchAccounts();
+  if (!user) {
+    return null;
+  }
+
+  const branchId = resolveBranchScope(user, undefined);
+  const accounts = await fetchAccounts(branchId, user.role === "ADMIN");
 
   return (
     // <div className="p-10">

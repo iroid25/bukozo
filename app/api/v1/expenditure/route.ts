@@ -154,7 +154,7 @@ export async function PATCH(request: NextRequest) {
                   entryDate: new Date(),
                   reference: `EXP-${record.id.slice(0, 8)}`,
                   branchId: record.branchId || undefined,
-                  transactionId: record.id,
+                  transactionId: null,
                   createdByUserId: user.id,
                 },
               });
@@ -168,7 +168,7 @@ export async function PATCH(request: NextRequest) {
                   entryDate: new Date(),
                   reference: `EXP-${record.id.slice(0, 8)}`,
                   branchId: record.branchId || undefined,
-                  transactionId: record.id,
+                  transactionId: null,
                   createdByUserId: user.id,
                 },
               });

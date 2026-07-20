@@ -84,6 +84,15 @@ async function ensureLocationTables() {
     ADD COLUMN IF NOT EXISTS "constituencyId" TEXT;
   `);
 
+  // Older deployments created SubCounty with a plain UNIQUE("name") column
+  // constraint before "constituencyId" existed. Sub-county/town-council
+  // names legitimately repeat across different constituencies, so that
+  // global constraint is wrong and rejects valid creates — drop it if a
+  // prior migration left it behind.
+  await db.$executeRawUnsafe(`
+    ALTER TABLE "SubCounty" DROP CONSTRAINT IF EXISTS "SubCounty_name_key";
+  `);
+
   await db.$executeRawUnsafe(`
     CREATE UNIQUE INDEX IF NOT EXISTS "SubCounty_constituencyId_name_key"
     ON "SubCounty" ("constituencyId", "name");
@@ -120,10 +129,17 @@ function createId() {
   return crypto.randomUUID().replace(/-/g, "");
 }
 
+// Every INSERT below explicitly sets createdAt/updatedAt rather than
+// relying on column defaults: on this database (and potentially other
+// long-lived deployments), SubCounty and Parish were altered after initial
+// creation and ended up with an updatedAt column that has NO default,
+// causing a NOT NULL violation on every plain insert. Setting it explicitly
+// works regardless of whether a given environment's column default is
+// actually present.
 async function upsertDistrict(name: string) {
   const [record] = await db.$queryRawUnsafe<DistrictRecord[]>(`
-    INSERT INTO "District" ("id", "name")
-    VALUES ('${createId()}', '${escapeSqlValue(name)}')
+    INSERT INTO "District" ("id", "name", "createdAt", "updatedAt")
+    VALUES ('${createId()}', '${escapeSqlValue(name)}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     ON CONFLICT ("name")
     DO UPDATE SET "updatedAt" = CURRENT_TIMESTAMP
     RETURNING "id", "name";
@@ -134,8 +150,8 @@ async function upsertDistrict(name: string) {
 
 async function upsertConstituency(name: string) {
   const [record] = await db.$queryRawUnsafe<Pick<ConstituencyRecord, "id" | "name">[]>(`
-    INSERT INTO "Constituency" ("id", "name")
-    VALUES ('${createId()}', '${escapeSqlValue(name)}')
+    INSERT INTO "Constituency" ("id", "name", "createdAt", "updatedAt")
+    VALUES ('${createId()}', '${escapeSqlValue(name)}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     ON CONFLICT ("name")
     DO UPDATE SET "updatedAt" = CURRENT_TIMESTAMP
     RETURNING "id", "name";
@@ -146,12 +162,10 @@ async function upsertConstituency(name: string) {
 
 async function upsertSubCounty(constituencyId: string, name: string) {
   const [record] = await db.$queryRawUnsafe<Pick<SubCountyRecord, "id" | "name" | "constituencyId">[]>(`
-    INSERT INTO "SubCounty" ("id", "name", "constituencyId")
-    VALUES ('${createId()}', '${escapeSqlValue(name)}', '${constituencyId}')
-    ON CONFLICT ("name")
-    DO UPDATE SET
-      "constituencyId" = EXCLUDED."constituencyId",
-      "updatedAt" = CURRENT_TIMESTAMP
+    INSERT INTO "SubCounty" ("id", "name", "constituencyId", "createdAt", "updatedAt")
+    VALUES ('${createId()}', '${escapeSqlValue(name)}', '${constituencyId}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    ON CONFLICT ("constituencyId", "name")
+    DO UPDATE SET "updatedAt" = CURRENT_TIMESTAMP
     RETURNING "id", "name", "constituencyId";
   `);
 
@@ -160,8 +174,8 @@ async function upsertSubCounty(constituencyId: string, name: string) {
 
 async function upsertParish(subCountyId: string, name: string) {
   const [record] = await db.$queryRawUnsafe<ParishSeedRecord[]>(`
-    INSERT INTO "Parish" ("id", "name", "subCountyId")
-    VALUES ('${createId()}', '${escapeSqlValue(name)}', '${subCountyId}')
+    INSERT INTO "Parish" ("id", "name", "subCountyId", "createdAt", "updatedAt")
+    VALUES ('${createId()}', '${escapeSqlValue(name)}', '${subCountyId}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     ON CONFLICT ("subCountyId", "name")
     DO UPDATE SET "updatedAt" = CURRENT_TIMESTAMP
     RETURNING "id", "name", "subCountyId";
@@ -172,8 +186,8 @@ async function upsertParish(subCountyId: string, name: string) {
 
 async function upsertVillage(parishId: string, name: string) {
   const [record] = await db.$queryRawUnsafe<VillageRecord[]>(`
-    INSERT INTO "Village" ("id", "name", "parishId")
-    VALUES ('${createId()}', '${escapeSqlValue(name)}', '${parishId}')
+    INSERT INTO "Village" ("id", "name", "parishId", "createdAt", "updatedAt")
+    VALUES ('${createId()}', '${escapeSqlValue(name)}', '${parishId}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     ON CONFLICT ("parishId", "name")
     DO UPDATE SET "updatedAt" = CURRENT_TIMESTAMP
     RETURNING "id", "name", "parishId";

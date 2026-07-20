@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { UserRole } from "@prisma/client";
 import { getAuthUser } from "@/config/useAuth";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 import {
   buildPerformanceMonitoringReport,
   buildPerformanceMonitoringWorkbook,
@@ -9,11 +9,10 @@ import {
 export const dynamic = "force-dynamic";
 
 function resolveBranchId(user: { role?: string | null; branchId?: string | null }, branchId: string | null | undefined) {
-  const value = branchId?.trim();
-  if (user.role === UserRole.ADMIN) {
-    return value && value.toLowerCase() !== "all" ? value : undefined;
-  }
-  return user.branchId || undefined;
+  return resolveBranchScope(
+    { role: user.role || "", branchId: user.branchId },
+    branchId?.trim() && branchId.trim().toLowerCase() !== "all" ? branchId.trim() : undefined,
+  );
 }
 
 function parseQuery(request: NextRequest) {

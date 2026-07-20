@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 import { isDebitNormalBalance } from "@/lib/accounting-rules";
 import { db } from "@/prisma/db";
-import { UserRole } from "@prisma/client";
 import { getDirectBalanceSheetAccounts, getDirectIncomeExpenseAccounts, getSourceDrilldown, getDirectAccountsByCategory } from "@/lib/reports/direct-source";
 
 export const dynamic = "force-dynamic";
@@ -43,14 +43,12 @@ export async function GET(request: NextRequest) {
     endDate.setHours(23, 59, 59, 999);
 
     // Branch filter
-    let branchIdFilter: string | undefined;
-    if (user.role === UserRole.ADMIN) {
-      if (requestedBranchId && requestedBranchId !== "ALL" && requestedBranchId !== "all") {
-        branchIdFilter = requestedBranchId;
-      }
-    } else {
-      if (user.branchId) branchIdFilter = user.branchId;
-    }
+    const branchIdFilter = resolveBranchScope(
+      { role: user.role, branchId: user.branchId },
+      requestedBranchId && requestedBranchId !== "ALL" && requestedBranchId !== "all"
+        ? requestedBranchId
+        : undefined,
+    );
 
     // ============================================================================
     // CASE A: SPECIFIC ACCOUNT CODE — source-table drilldown

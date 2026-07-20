@@ -6,6 +6,7 @@ import {
   buildShareAccountsListingWorkbook,
   getShareAccountsListingReport,
 } from "@/lib/reports/share-portfolio-reports";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,7 @@ async function handleRequest(request: NextRequest) {
   }
 
   const params = await request.json();
+  const branchId = resolveBranchScope(session.user as any, params.branchId || undefined);
   const report = await getShareAccountsListingReport({
     user: session.user,
     reportDate: params.reportDate || params.report_date || undefined,
@@ -23,7 +25,7 @@ async function handleRequest(request: NextRequest) {
     status: params.status || undefined,
     minDaysInactive: params.minDaysInactive || params.min_days_inactive || undefined,
     search: params.search || undefined,
-    branchId: params.branchId || undefined,
+    branchId,
   });
 
   if ((params.format || "").toString().toLowerCase() !== "json") {

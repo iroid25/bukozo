@@ -516,7 +516,9 @@ export class IncomeService {
                 entryDate: new Date(),
                 reference: `INC-${incomeRecord.id.slice(0, 8)}`,
                 branchId: incomeRecord.branchId || undefined,
-                transactionId: incomeRecord.id,
+                // IncomeRecord is not a Transaction row, so leave the FK null.
+                // Reversal logic resolves these entries by the receipt/reference prefix.
+                transactionId: null,
                 createdByUserId: user.id,
               },
             });
@@ -530,7 +532,7 @@ export class IncomeService {
                 entryDate: new Date(),
                 reference: `INC-${incomeRecord.id.slice(0, 8)}`,
                 branchId: incomeRecord.branchId || undefined,
-                transactionId: incomeRecord.id,
+                transactionId: null,
                 createdByUserId: user.id,
               },
             });

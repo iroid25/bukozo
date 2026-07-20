@@ -2,6 +2,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
 import { db } from "@/prisma/db";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -15,11 +16,22 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const user = session.user as any;
     const { searchParams } = new URL(request.url);
+    const requestedBranchId = searchParams.get("branchId");
+    const branchId = resolveBranchScope(user, requestedBranchId);
+
+    if (!branchId && user.role !== "ADMIN") {
+      return NextResponse.json({ data: [], summary: { totalRecords: 0, totalMonthlyAmount: 0, activeOrders: 0, pausedOrders: 0 } });
+    }
+
     const status = searchParams.get("status");
 
     const standingOrders = await db.standingOrder.findMany({
-      where: status ? { status: status as any } : undefined,
+      where: {
+        ...(status ? { status: status as any } : {}),
+        ...(branchId ? { account: { branchId } } : {}),
+      },
       include: {
         account: {
           include: {

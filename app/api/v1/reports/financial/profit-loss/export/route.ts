@@ -4,6 +4,7 @@ import { getAuthUser } from "@/config/useAuth";
 import { buildProfitLossWorkbook } from "@/lib/reports/profit-loss-report";
 import { UserRole } from "@prisma/client";
 import { format } from "date-fns";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -26,9 +27,12 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get("startDate") ? new Date(searchParams.get("startDate")!) : new Date(new Date().getFullYear(), 0, 1);
     const endDate = searchParams.get("endDate") ? new Date(searchParams.get("endDate")!) : new Date();
     const requestedBranchId = searchParams.get("branchId") || undefined;
-    const branchId = requestedBranchId && requestedBranchId !== "all" && requestedBranchId !== "ALL"
-      ? requestedBranchId
-      : undefined;
+    const branchId = resolveBranchScope(
+      { role: user.role, branchId: user.branchId },
+      requestedBranchId && requestedBranchId !== "all" && requestedBranchId !== "ALL"
+        ? requestedBranchId
+        : undefined,
+    );
 
     const report = await getProfitAndLossStatementService(startDate, endDate, branchId, user);
     const buffer = await buildProfitLossWorkbook(report);

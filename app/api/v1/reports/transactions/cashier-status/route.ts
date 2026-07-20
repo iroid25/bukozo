@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
 import { db } from "@/prisma/db";
 import { getFloatOpeningBalanceSource } from "@/lib/float-session";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -16,7 +17,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const user = session.user as any;
     const { searchParams } = new URL(request.url);
+    const requestedBranchId = searchParams.get("branchId");
+    const branchId = resolveBranchScope(user, requestedBranchId);
+
+    if (!branchId && user.role !== "ADMIN") {
+      return NextResponse.json({ data: [], summary: { totalCashiers: 0, totalFloatBalance: 0, totalOpeningBalance: 0, totalCashIn: 0, totalCashOut: 0, activeCashiers: 0 } });
+    }
+
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
     const userId = searchParams.get("userId");
@@ -27,7 +36,10 @@ export async function GET(request: NextRequest) {
 
     // Get cashier/teller float status
     const userFloats = await db.userFloat.findMany({
-      where: userId ? { userId } : undefined,
+      where: {
+        ...(userId ? { userId } : {}),
+        ...(branchId ? { user: { branchId } } : {}),
+      },
       include: {
         user: {
           select: {

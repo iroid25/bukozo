@@ -3,6 +3,7 @@ import { UserRole } from "@prisma/client";
 
 import { getAuthUser } from "@/config/useAuth";
 import { getTransactionTellerOptions } from "@/lib/reports/transaction-journal-reports";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +33,10 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const branchId = normalizeBranchId(searchParams.get("branchId"));
+    const branchId = resolveBranchScope(
+      { role: user.role, branchId: user.branchId },
+      normalizeBranchId(searchParams.get("branchId")),
+    );
     const tellers = await getTransactionTellerOptions(user, branchId);
 
     return NextResponse.json({ success: true, data: tellers });

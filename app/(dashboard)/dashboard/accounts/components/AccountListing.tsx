@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Eye,
   User,
+  Users,
   CreditCard,
   Building,
   Building2,
@@ -139,6 +140,8 @@ export default function AccountListing({
         if (account.member) {
           const member = account.member;
           const user = member.user;
+          const jointMembers = (account as any).jointMembers || [];
+          const hasJointMembers = jointMembers.length > 0;
 
           return (
             <div className="flex items-center gap-3">
@@ -156,10 +159,17 @@ export default function AccountListing({
               <div className="flex flex-col">
                 <div className="flex items-center gap-2">
                   <span className="font-medium">{user.name}</span>
-                  <Badge variant="outline" className="text-xs">
-                    <User className="h-3 w-3 mr-1" />
-                    Member
-                  </Badge>
+                  {hasJointMembers ? (
+                    <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-800">
+                      <Users className="h-3 w-3 mr-1" />
+                      +{jointMembers.length} Joint
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-xs">
+                      <User className="h-3 w-3 mr-1" />
+                      Member
+                    </Badge>
+                  )}
                 </div>
                 <div className="flex items-center gap-1 text-sm text-gray-500">
                   <span>#{member.memberNumber}</span>

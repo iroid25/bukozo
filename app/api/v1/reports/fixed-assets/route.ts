@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
 import { db } from "@/prisma/db";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -15,7 +16,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { reportType, startDate, endDate, ...params } = await request.json();
+    const user = session.user as any;
+
+    const { reportType, startDate, endDate, branchId: requestedBranchId, ...params } = await request.json();
+    const branchId = resolveBranchScope(user, requestedBranchId);
 
     const start = startDate ? new Date(startDate) : new Date(new Date().setFullYear(new Date().getFullYear() - 1));
     const end = endDate ? new Date(endDate) : new Date();
@@ -25,16 +29,16 @@ export async function POST(request: NextRequest) {
 
     switch (reportType) {
       case "assets-registered":
-        data = await generateAssetsRegisteredReport(start, end);
+        data = await generateAssetsRegisteredReport(start, end, branchId);
         break;
       case "assets-listing":
-        data = await generateAssetsListingReport();
+        data = await generateAssetsListingReport(branchId);
         break;
       case "assets-depreciation":
-        data = await generateAssetsDepreciationReport(params.year || new Date().getFullYear());
+        data = await generateAssetsDepreciationReport(params.year || new Date().getFullYear(), branchId);
         break;
       case "assets-disposal":
-        data = await generateAssetsDisposalReport(start, end);
+        data = await generateAssetsDisposalReport(start, end, branchId);
         break;
       default:
         return NextResponse.json({ error: "Invalid report type" }, { status: 400 });
@@ -48,10 +52,11 @@ export async function POST(request: NextRequest) {
 }
 
 // Assets Registered During Period
-async function generateAssetsRegisteredReport(start: Date, end: Date) {
+async function generateAssetsRegisteredReport(start: Date, end: Date, branchId?: string) {
   const assets = await db.fixedAsset.findMany({
     where: {
       purchaseDate: { gte: start, lte: end },
+      ...(branchId ? { branchId } : {}),
     },
     include: {
       branch: true,
@@ -83,8 +88,9 @@ async function generateAssetsRegisteredReport(start: Date, end: Date) {
 }
 
 // Assets Listing
-async function generateAssetsListingReport() {
+async function generateAssetsListingReport(branchId?: string) {
   const assets = await db.fixedAsset.findMany({
+    ...(branchId ? { where: { branchId } } : {}),
     include: {
       branch: true,
       responsiblePerson: { select: { name: true } },
@@ -128,10 +134,11 @@ async function generateAssetsListingReport() {
 }
 
 // Assets Depreciation Schedule
-async function generateAssetsDepreciationReport(year: number) {
+async function generateAssetsDepreciationReport(year: number, branchId?: string) {
   const assets = await db.fixedAsset.findMany({
     where: {
       status: "ACTIVE",
+      ...(branchId ? { branchId } : {}),
     },
     include: {
       branch: true,
@@ -223,11 +230,12 @@ async function generateAssetsDepreciationReport(year: number) {
 }
 
 // Assets Disposal Report
-async function generateAssetsDisposalReport(start: Date, end: Date) {
+async function generateAssetsDisposalReport(start: Date, end: Date, branchId?: string) {
   const assets = await db.fixedAsset.findMany({
     where: {
       status: { in: ["DISPOSED", "WRITTEN_OFF"] },
       disposalDate: { gte: start, lte: end },
+      ...(branchId ? { branchId } : {}),
     },
     include: {
       branch: true,

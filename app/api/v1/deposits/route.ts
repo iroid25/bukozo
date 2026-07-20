@@ -14,10 +14,18 @@ export async function GET(req: NextRequest) {
     const memberId = searchParams.get("memberId") || undefined;
     const institutionId = searchParams.get("institutionId") || undefined;
     const limit = parseInt(searchParams.get("limit") || "100");
+    const branchId = searchParams.get("branchId") || undefined;
+    const branchScope =
+      user.role === UserRole.ADMIN
+        ? branchId && branchId !== "all" && branchId !== "ALL"
+          ? branchId
+          : undefined
+        : user.branchId || undefined;
 
     const whereClause: any = {
       type: "DEPOSIT",
       status: "COMPLETED",
+      ...(!memberId && !institutionId && branchScope ? { account: { branchId: branchScope } } : {}),
     };
     if (memberId) whereClause.memberId = memberId;
     if (institutionId) whereClause.institutionId = institutionId;

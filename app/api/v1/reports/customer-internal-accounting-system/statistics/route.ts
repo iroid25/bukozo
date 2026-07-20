@@ -1,6 +1,7 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 import { getCustomerInternalAccountingSummary } from "@/lib/reports/customer-internal-accounting-report";
 
 export const dynamic = "force-dynamic";
@@ -14,20 +15,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { searchParams } = new URL(request.url);
-    const requestedBranchId = searchParams.get("branchId") || undefined;
-    const branchId = requestedBranchId && requestedBranchId !== "all" && requestedBranchId !== "ALL"
-      ? requestedBranchId
-      : undefined;
-    const status = searchParams.get("status") || undefined;
+    const user = session.user as any;
+    const searchParams = request.nextUrl.searchParams;
+    const rawBranchId = searchParams.get("branchId") || undefined;
+    const branchId = resolveBranchScope(
+      { role: user.role, branchId: user.branchId },
+      rawBranchId && rawBranchId !== "all" && rawBranchId !== "ALL" ? rawBranchId : undefined,
+    );
 
     const summary = await getCustomerInternalAccountingSummary({
-      user: {
-        role: (session.user as any).role || "MEMBER",
-        branchId: (session.user as any).branchId || undefined,
-      },
+      user: { role: user.role, branchId: user.branchId },
       branchId,
-      status,
+      status: searchParams.get("status") || undefined,
     });
 
     return NextResponse.json({ data: summary });

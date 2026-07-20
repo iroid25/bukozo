@@ -3,6 +3,7 @@ import { UserRole } from "@prisma/client";
 
 import { getAuthUser } from "@/config/useAuth";
 import { buildGeneralTransactionRegisterReport } from "@/lib/reports/transaction-journal-reports";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +48,7 @@ export async function GET(request: NextRequest) {
       user,
       fromDate,
       toDate,
-      branchId: normalizeBranchId(pickParam(searchParams, "branchId")),
+      branchId: normalizeBranchId(resolveBranchScope(user, pickParam(searchParams, "branchId")) || undefined),
       userName: pickParam(searchParams, "userName", "user_name"),
       glAccount: pickParam(searchParams, "glAccount", "gl_account"),
       trxCode: pickParam(searchParams, "trxCode", "trx_code"),

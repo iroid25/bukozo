@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 import { db } from "@/prisma/db";
-import { UserRole } from "@prisma/client";
 import { startOfDay, endOfDay, startOfMonth } from "date-fns";
+import { UserRole } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
@@ -26,14 +27,12 @@ export async function GET(request: NextRequest) {
     const endDate = endOfDay(parseDate(params.get("endDate"), new Date()));
     const requestedBranchId = params.get("branchId");
 
-    let branchIdFilter: string | undefined;
-    if (user.role === UserRole.ADMIN) {
-      if (requestedBranchId && requestedBranchId !== "ALL" && requestedBranchId !== "all") {
-        branchIdFilter = requestedBranchId;
-      }
-    } else if (user.branchId) {
-      branchIdFilter = user.branchId;
-    }
+    const branchIdFilter = resolveBranchScope(
+      { role: user.role, branchId: user.branchId },
+      requestedBranchId && requestedBranchId !== "ALL" && requestedBranchId !== "all"
+        ? requestedBranchId
+        : undefined,
+    );
 
     const agentWhere = {
       role: UserRole.AGENT,

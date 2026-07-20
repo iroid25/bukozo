@@ -62,6 +62,7 @@ import SubmitButton from "@/components/FormInputs/SubmitButton";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { AGENT_WITHDRAWAL_FEES } from "@/config/fees";
+import { isJointSavingsAccountType } from "@/lib/accounting/account-type-rules";
 
 // Types for API Transfer
 export interface WithdrawalVerificationDTO {
@@ -78,6 +79,7 @@ export interface WithdrawalVerificationDTO {
   recipientPhone?: string;
   recipientRelation?: string;
   verifiedSignatories?: string[];
+  verifiedJointMembers?: string[];
   verifiedAgent?: boolean;
 }
 
@@ -111,6 +113,18 @@ interface Member {
       withdrawalFeePercentage?: number | null;
       withdrawalFeeTiers?: string | null;
     };
+    jointMembers?: Array<{
+      id: string;
+      memberId: string;
+      member: {
+        id: string;
+        memberNumber: string;
+        user: {
+          name: string;
+          image: string | null;
+        };
+      };
+    }>;
     branch: {
       name: string;
     };
@@ -185,6 +199,18 @@ interface Account {
     withdrawalFeePercentage?: number | null;
     withdrawalFeeTiers?: string | null;
   };
+  jointMembers?: Array<{
+    id: string;
+    memberId: string;
+    member: {
+      id: string;
+      memberNumber: string;
+      user: {
+        name: string;
+        image: string | null;
+      };
+    };
+  }>;
   branch: {
     name: string;
     location: string;
@@ -492,6 +518,8 @@ export default function WithdrawalCreateForm({
   );
   const [signatoryFingerprintStates, setSignatoryFingerprintStates] = useState<Record<string, { captured: boolean; score: number; template: string | null }>>({});
   const [verifiedAgent, setVerifiedAgent] = useState(false);
+  const [verifiedJointMembers, setVerifiedJointMembers] = useState<Set<string>>(new Set());
+  const [jointMemberFingerprintStates, setJointMemberFingerprintStates] = useState<Record<string, { captured: boolean; score: number; template: string | null }>>({});
   const [accountHold, setAccountHold] = useState<any>(null);
   const [checkingHold, setCheckingHold] = useState(false);
 
@@ -1135,6 +1163,53 @@ export default function WithdrawalCreateForm({
     });
   };
 
+  // ── Handle joint member verification ──────────────────────────────────
+  const handleJointMemberVerified = (memberId: string, checked: boolean) => {
+    const newSet = new Set(verifiedJointMembers);
+    if (checked) {
+      newSet.add(memberId);
+    } else {
+      newSet.delete(memberId);
+    }
+    setVerifiedJointMembers(newSet);
+  };
+
+  const handleJointMemberFingerprintCapture = async (memberId: string, capture: FingerprintCapture) => {
+    const account = getSelectedAccount();
+    const jm = account?.jointMembers?.find((j) => j.memberId === memberId);
+    const fpTemplate = jm?.member?.user?.fingerprintTemplate;
+    if (!fpTemplate) return;
+    if (!capture.NativeTemplateBase64) {
+      toast.error(capture.bridgeError || "Fingerprint bridge not running — start fingerprint-bridge/server.js");
+      return;
+    }
+    try {
+      const result = await matchFingerprintCapture(fpTemplate, capture);
+      if (result.needsReEnrollment) {
+        toast.error("Re-enrollment required", { description: "Joint member fingerprint needs re-enrollment." });
+        return;
+      }
+      if (result.ErrorCode !== 0) {
+        throw new Error(`Matching failed (code ${result.ErrorCode}).`);
+      }
+      setJointMemberFingerprintStates((prev) => ({
+        ...prev,
+        [memberId]: { captured: true, score: result.MatchingScore ?? 0, template: capture.NativeTemplateBase64 },
+      }));
+      toast.success(`Joint member fingerprint verified (score: ${result.MatchingScore})`);
+    } catch (err: any) {
+      toast.error(err.message || "Fingerprint verification failed");
+    }
+  };
+
+  const handleJointMemberFingerprintReset = (memberId: string) => {
+    setJointMemberFingerprintStates((prev) => {
+      const next = { ...prev };
+      delete next[memberId];
+      return next;
+    });
+  };
+
   const agentName =
     selectedInstitution?.user?.name ||
     selectedInstitution?.institutionName ||
@@ -1165,6 +1240,31 @@ export default function WithdrawalCreateForm({
       ) {
         toast.error("Please verify the institution representative/agent");
         return;
+      }
+
+      // Joint savings: require all joint members to be verified
+      if (withdrawalType === "MEMBER") {
+        const account = getSelectedAccount();
+        if (account && isJointSavingsAccountType(account.accountType)) {
+          const jointMembers = account.jointMembers || [];
+          if (jointMembers.length > 0) {
+            const requiredIds = new Set(jointMembers.map((jm) => jm.memberId));
+            const verifiedIds = verifiedJointMembers;
+            const missing = jointMembers.filter((jm) => !verifiedIds.has(jm.memberId));
+            if (missing.length > 0) {
+              const names = missing.map((jm) => jm.member.user.name).join(", ");
+              toast.error(`All joint members must verify this withdrawal. Missing: ${names}`);
+              return;
+            }
+            // All verified IDs must be valid joint members
+            for (const vid of verifiedIds) {
+              if (!requiredIds.has(vid)) {
+                toast.error("Verified member is not a joint member of this account");
+                return;
+              }
+            }
+          }
+        }
       }
 
       if (!selectedAccount || !selectedChannel) {
@@ -1239,6 +1339,10 @@ export default function WithdrawalCreateForm({
             : undefined,
         verifiedAgent:
           withdrawalType === "INSTITUTION" ? verifiedAgent : undefined,
+        verifiedJointMembers:
+          withdrawalType === "MEMBER" && verifiedJointMembers.size > 0
+            ? Array.from(verifiedJointMembers)
+            : undefined,
         signatoryFingerprints:
           withdrawalType === "INSTITUTION"
             ? Object.fromEntries(
@@ -1417,6 +1521,8 @@ export default function WithdrawalCreateForm({
     setRecipientRelation("");
     setVerifiedSignatories(new Set());
     setVerifiedAgent(false);
+    setVerifiedJointMembers(new Set());
+    setJointMemberFingerprintStates({});
     setAccountHold(null);
     setCurrentStep(WithdrawalStep.FORM);
     onClose();
@@ -2277,6 +2383,9 @@ export default function WithdrawalCreateForm({
                     setOption={(option) => {
                       setSelectedAccount(option);
                       setValue("accountId", option?.value || "");
+                      // Reset joint member verification when account changes
+                      setVerifiedJointMembers(new Set());
+                      setJointMemberFingerprintStates({});
                     }}
                     toolTipText="Select the account to withdraw from"
                   />
@@ -2303,6 +2412,119 @@ export default function WithdrawalCreateForm({
                     </div>
                   )}
                 </div>
+
+                {/* Joint Savings: Joint Member Verification */}
+                {withdrawalType === "MEMBER" &&
+                  selectedAccount &&
+                  getSelectedAccount() &&
+                  isJointSavingsAccountType(getSelectedAccount()!.accountType) &&
+                  (() => {
+                    const account = getSelectedAccount()!;
+                    const jointMembers = account.jointMembers || [];
+                    return jointMembers.length > 0 ? (
+                      <div className="space-y-4 mt-6 p-4 border border-amber-200 rounded-lg bg-amber-50">
+                        <div className="flex items-center gap-2 pb-2 border-b border-amber-200">
+                          <Shield className="h-5 w-5 text-amber-600" />
+                          <h3 className="text-lg font-semibold text-gray-900">
+                            Joint Account Verification
+                          </h3>
+                          <Badge className="ml-auto bg-amber-100 text-amber-800 border-amber-300">
+                            {verifiedJointMembers.size}/{jointMembers.length} Verified
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-amber-700">
+                          All joint account holders must verify this withdrawal.
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {jointMembers.map((jm) => {
+                            const fpState = jointMemberFingerprintStates[jm.memberId];
+                            const isVerified = verifiedJointMembers.has(jm.memberId);
+                            return (
+                              <div
+                                key={jm.id}
+                                className={`flex flex-col gap-3 p-4 rounded-lg border ${
+                                  isVerified
+                                    ? "border-green-300 bg-green-50"
+                                    : "border-gray-200 bg-white"
+                                }`}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-3">
+                                    <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center overflow-hidden">
+                                      {jm.member.user.image ? (
+                                        <img
+                                          src={jm.member.user.image}
+                                          alt={jm.member.user.name}
+                                          className="h-10 w-10 object-cover"
+                                        />
+                                      ) : (
+                                        <User className="h-5 w-5 text-amber-600" />
+                                      )}
+                                    </div>
+                                    <div>
+                                      <p className="font-medium text-gray-900 text-sm">
+                                        {jm.member.user.name}
+                                      </p>
+                                      <p className="text-xs text-gray-500">
+                                        #{jm.member.memberNumber}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <input
+                                    type="checkbox"
+                                    checked={isVerified}
+                                    onChange={(e) =>
+                                      handleJointMemberVerified(
+                                        jm.memberId,
+                                        e.target.checked,
+                                      )
+                                    }
+                                    className="h-5 w-5 rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                                  />
+                                </div>
+
+                                {/* Fingerprint verification for joint member */}
+                                {!fpState?.captured ? (
+                                  <div className="flex items-center gap-2">
+                                    <FingerprintScanner
+                                      onCapture={(capture) =>
+                                        handleJointMemberFingerprintCapture(
+                                          jm.memberId,
+                                          capture,
+                                        )
+                                      }
+                                    />
+                                    {isVerified && !fpState?.captured && (
+                                      <span className="text-xs text-amber-600">
+                                        (verified manually)
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs text-green-600">
+                                      Fingerprint verified (score: {fpState.score})
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleJointMemberFingerprintReset(
+                                          jm.memberId,
+                                        )
+                                      }
+                                      className="text-xs text-red-500 hover:underline"
+                                    >
+                                      Reset
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : null;
+                  })()}
 
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 pb-2 border-b border-blue-200">

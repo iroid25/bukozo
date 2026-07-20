@@ -195,8 +195,15 @@ export async function reverseJournalEntriesForRecord(
   entryDate?: Date,
   branchId?: string,
 ) {
+  const shortId = recordId.slice(0, 8);
   const entries = await tx.journalEntry.findMany({
-    where: { transactionId: recordId },
+    where: {
+      OR: [
+        { transactionId: recordId },
+        { reference: { startsWith: `INC-${shortId}` } },
+        { reference: { startsWith: `EXP-${shortId}` } },
+      ],
+    },
   });
 
   if (entries.length === 0) return;

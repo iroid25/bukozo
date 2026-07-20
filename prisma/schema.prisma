@@ -408,6 +408,7 @@ model Member {
   transactions               Transaction[]            @relation("MemberTransactions")
   withdrawals                Withdrawal[]             @relation("MemberWithdrawals")
   withdrawalVerifications    WithdrawalVerification[]
+  accountMembers             AccountMember[]
 
   @@index([memberNumber])
   @@index([registrationDate])
@@ -486,6 +487,7 @@ model Account {
   transactions                  Transaction[]
   withdrawals                   Withdrawal[]
   withdrawalVerifications       WithdrawalVerification[]
+  jointMembers                  AccountMember[]
 
   @@index([accountNumber])
   @@index([memberId])
@@ -493,6 +495,21 @@ model Account {
   @@index([accountTypeId])
   @@index([branchId])
   @@index([guardianMemberId])
+}
+
+model AccountMember {
+  id        String   @id @default(cuid())
+  accountId String
+  memberId  String
+  role      String   @default("JOINT")
+  createdAt DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  member  Member  @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, memberId])
+  @@index([accountId])
+  @@index([memberId])
 }
 
 model Transaction {

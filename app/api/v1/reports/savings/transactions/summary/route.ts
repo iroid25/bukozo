@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
 
 import { buildSavingsTransactionsReport } from "@/lib/reports/savings-transactions-report";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -19,9 +20,10 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
+    const branchId = resolveBranchScope(session.user as any, searchParams.get("branchId") || undefined);
     const report = await buildSavingsTransactionsReport({
       user: session.user,
-      branchId: normalizeBranchId(searchParams.get("branchId")),
+      branchId: normalizeBranchId(branchId || undefined),
       productCode: searchParams.get("productCode") || searchParams.get("product_code") || undefined,
       dateFrom: searchParams.get("dateFrom") || searchParams.get("date_from") || undefined,
       dateTo: searchParams.get("dateTo") || searchParams.get("date_to") || undefined,

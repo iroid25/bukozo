@@ -1,7 +1,7 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { getBalanceSheetService } from "@/lib/services/financial-reports";
 import { getAuthUser } from "@/config/useAuth";
-import { UserRole } from "@prisma/client";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -28,12 +28,12 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const asOfStr = searchParams.get("asOf") || searchParams.get("endDate") || undefined;
     const requestedBranchId = searchParams.get("branchId") || undefined;
-    const branchId =
-      user.role === UserRole.ADMIN
-        ? requestedBranchId && requestedBranchId !== "all" && requestedBranchId !== "ALL"
-          ? requestedBranchId
-          : undefined
-        : user.branchId || undefined;
+    const branchId = resolveBranchScope(
+      { role: user.role, branchId: user.branchId },
+      requestedBranchId && requestedBranchId !== "all" && requestedBranchId !== "ALL"
+        ? requestedBranchId
+        : undefined,
+    );
     const filters = parseFilters(searchParams);
 
     const asOf = asOfStr ? new Date(asOfStr) : new Date();
@@ -58,12 +58,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const asOfStr = body.asOf || body.endDate || undefined;
     const requestedBranchId = body.branchId || undefined;
-    const branchId =
-      user.role === UserRole.ADMIN
-        ? requestedBranchId && requestedBranchId !== "all" && requestedBranchId !== "ALL"
-          ? requestedBranchId
-          : undefined
-        : user.branchId || undefined;
+    const branchId = resolveBranchScope(
+      { role: user.role, branchId: user.branchId },
+      requestedBranchId && requestedBranchId !== "all" && requestedBranchId !== "ALL"
+        ? requestedBranchId
+        : undefined,
+    );
     const filters = parseFilters(body);
 
     const asOf = asOfStr ? new Date(asOfStr) : new Date();

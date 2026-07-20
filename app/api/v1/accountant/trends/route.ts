@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/prisma/db";
 import { getAuthUser } from "@/config/useAuth";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 import { UserRole, TransactionStatus } from "@prisma/client";
 import { subMonths, format } from "date-fns";
 
@@ -35,7 +36,12 @@ export async function GET(request: NextRequest) {
 
     // Get query parameters
     const searchParams = request.nextUrl.searchParams;
-    const period = searchParams.get("period") || "6months"; // 6months, 12months, ytd
+    const period = searchParams.get("period") || "6months";
+    const rawBranchId = searchParams.get("branchId") || undefined;
+    const branchId = resolveBranchScope(
+      { role: user.role, branchId: user.branchId },
+      rawBranchId && rawBranchId !== "all" && rawBranchId !== "ALL" ? rawBranchId : undefined,
+    ); // 6months, 12months, ytd
 
     let monthsBack = 6;
     if (period === "12months") monthsBack = 12;

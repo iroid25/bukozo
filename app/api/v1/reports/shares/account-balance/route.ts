@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/config/auth';
 import { ReportExporter } from '@/lib/reports';
 import { ShareAccountBalanceGenerator } from '@/lib/reports/generators/share-account-balance';
+import { resolveBranchScope } from '@/lib/services/branch-scope';
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -15,7 +16,8 @@ export async function POST(request: NextRequest) {
 
     const params = await request.json();
     const generator = new ShareAccountBalanceGenerator();
-    const reportData = await generator.generateData({ ...params, user: session.user });
+    const branchId = resolveBranchScope(session.user as any, params.branchId || undefined);
+    const reportData = await generator.generateData({ ...params, branchId, user: session.user });
 
     if (params.format && params.format !== 'JSON') {
       return await ReportExporter.export(reportData, params.format, {

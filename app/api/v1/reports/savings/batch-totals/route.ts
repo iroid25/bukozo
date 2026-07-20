@@ -1,5 +1,6 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/config/useAuth';
+import { resolveBranchScope } from '@/lib/services/branch-scope';
 import { ReportExporter } from '@/lib/reports';
 import { SavingsBatchTotalsGenerator, buildSavingsBatchTotalsWorkbook } from '@/lib/reports/generators/savings-batch-totals';
 
@@ -15,7 +16,7 @@ export async function POST(request: NextRequest) {
     }
 
     const params = await request.json();
-    params.branchId = user.role !== "ADMIN" ? user.branchId : (params.branchId || undefined);
+    params.branchId = resolveBranchScope(user, params.branchId);
     const generator = new SavingsBatchTotalsGenerator();
     const reportData = await generator.generateData({ ...params, user });
 
