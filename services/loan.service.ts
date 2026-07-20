@@ -106,6 +106,123 @@ function buildRemainingScheduleBreakdown(loan: {
 
 export class LoanService {
   /**
+   * A repayment-start-date override (whether from the request body or a
+   * stored application field) is only usable if it's both parseable AND
+   * within a plausible window of the disbursement date. `isNaN` alone
+   * accepts any technically-valid Date, including corrupted values like a
+   * timestamp mistakenly stored as a far-future year — that value then
+   * propagates straight into the repayment schedule and fails at the
+   * database layer (dates outside roughly year 4713 BC-294276 AD aren't
+   * representable, and even ordinary Postgres `timestamp` columns choke
+   * well before that). Grace periods are at most a few months in real
+   * loan products, so 5 years past disbursement is a generous upper bound.
+   */
+  private static isSaneRepaymentStartDate(
+    date: Date,
+    disbursementDate: Date,
+  ): boolean {
+    if (isNaN(date.getTime())) return false;
+    const maxAllowed = new Date(disbursementDate);
+    maxAllowed.setFullYear(maxAllowed.getFullYear() + 5);
+    return date > disbursementDate && date <= maxAllowed;
+  }
+
+  /**
+   * Coerce values coming from request payloads, Prisma serialization, or
+   * legacy stored data into a real Date object. If the value is invalid or
+   * wildly out of range, fall back to the provided safe date.
+   */
+  private static coerceDate(value: unknown, fallback: Date): Date {
+    const fallbackDate =
+      fallback instanceof Date && !isNaN(fallback.getTime()) && fallback.getFullYear() >= 1970 && fallback.getFullYear() <= 9999
+        ? new Date(fallback)
+        : new Date();
+
+    const candidates: unknown[] = [value];
+    if (value && typeof value === "object") {
+      const maybeValue = (value as { value?: unknown }).value;
+      const maybeDate = (value as { date?: unknown }).date;
+      if (maybeValue !== undefined) candidates.unshift(maybeValue);
+      if (maybeDate !== undefined) candidates.unshift(maybeDate);
+    }
+
+    const unwrapDateString = (input: unknown): string | null => {
+      if (typeof input !== "string") return null;
+      const trimmed = input.trim();
+      if (!trimmed) return null;
+
+      const wrapped = trimmed.match(/^String\((.*)\)$/i);
+      if (wrapped?.[1]) {
+        const inner = wrapped[1].trim().replace(/^['"]|['"]$/g, "");
+        if (inner) return inner;
+      }
+
+      const quoted = trimmed.match(/^['"](.*)['"]$/);
+      if (quoted?.[1]) return quoted[1];
+
+      return trimmed;
+    };
+
+    for (const candidate of candidates) {
+      if (candidate instanceof Date) {
+        if (!isNaN(candidate.getTime()) && candidate.getFullYear() >= 1970 && candidate.getFullYear() <= 9999) {
+          return new Date(candidate);
+        }
+        continue;
+      }
+
+      if (typeof candidate === "string" || typeof candidate === "number") {
+        const raw = unwrapDateString(candidate);
+        if (!raw) continue;
+
+        const parsed = new Date(raw);
+        if (!isNaN(parsed.getTime()) && parsed.getFullYear() >= 1970 && parsed.getFullYear() <= 9999) {
+          return parsed;
+        }
+      }
+    }
+
+    return fallbackDate;
+  }
+
+  private static buildScheduledDueDate(
+    baseDate: Date,
+    period: number,
+    frequency: ScheduleFrequency = "MONTHLY",
+  ): Date {
+    const start = LoanService.coerceDate(baseDate, new Date());
+    const safePeriod = Math.max(1, Math.floor(Number(period) || 1));
+    const dueDate = new Date(start);
+
+    for (let i = 1; i < safePeriod; i++) {
+      switch (frequency) {
+        case "BI_WEEKLY":
+          dueDate.setDate(dueDate.getDate() + 14);
+          break;
+        case "EVERY_TWO_MONTHS":
+          dueDate.setMonth(dueDate.getMonth() + 2);
+          break;
+        case "QUARTERLY":
+          dueDate.setMonth(dueDate.getMonth() + 3);
+          break;
+        case "HALF_YEAR":
+          dueDate.setMonth(dueDate.getMonth() + 6);
+          break;
+        case "MONTHLY":
+        default:
+          dueDate.setMonth(dueDate.getMonth() + 1);
+          break;
+      }
+    }
+
+    if (isNaN(dueDate.getTime()) || dueDate.getFullYear() < 1970 || dueDate.getFullYear() > 9999) {
+      return new Date(start);
+    }
+
+    return dueDate;
+  }
+
+  /**
    * Get all active loan products
    */
   static async getProducts() {
@@ -576,12 +693,16 @@ export class LoanService {
             calculatedStartDate.getDate() + 30 + gracePeriodDays,
           );
 
-          const repaymentStartDate = overrides.repaymentStartDate
-            ? new Date(overrides.repaymentStartDate)
-            : app.repaymentStartDate &&
-                new Date(app.repaymentStartDate) > disbursementDate
-              ? new Date(app.repaymentStartDate)
-              : calculatedStartDate;
+          let repaymentStartDate: Date;
+          const overrideRepaymentStart = LoanService.coerceDate(overrides.repaymentStartDate, calculatedStartDate);
+          const appRepaymentStart = LoanService.coerceDate(app.repaymentStartDate, calculatedStartDate);
+          if (LoanService.isSaneRepaymentStartDate(overrideRepaymentStart, disbursementDate)) {
+            repaymentStartDate = overrideRepaymentStart;
+          } else if (LoanService.isSaneRepaymentStartDate(appRepaymentStart, disbursementDate)) {
+            repaymentStartDate = appRepaymentStart;
+          } else {
+            repaymentStartDate = calculatedStartDate;
+          }
 
           const rawInterestRate = loan.interestRate;
           let defaultInterestType: "FLAT_RATE" | "REDUCING_BALANCE" =
@@ -619,8 +740,25 @@ export class LoanService {
               ? rawInterestRate / 12
               : rawInterestRate;
 
+          // Clamp to a sane range so a corrupted or out-of-range
+          // repaymentPeriodMonths/gracePeriod value can never push setMonth()
+          // past the representable Date range and produce an Invalid Date
+          // (the fallback below must use the same clamped values, or a
+          // pathological input makes the fallback invalid too).
+          const _safePeriodMonths = Math.min(1200, Math.max(1, Number(periodMonths) || productPeriodMonths || 1));
+          const _safeGrace = Math.min(1200, Math.max(0, Number(gracePeriod) || 0));
           const dueDate = new Date(repaymentStartDate);
-          dueDate.setMonth(dueDate.getMonth() + periodMonths + gracePeriod - 1);
+          dueDate.setMonth(dueDate.getMonth() + _safePeriodMonths + _safeGrace - 1);
+          if (isNaN(dueDate.getTime())) {
+            const fallbackDue = new Date(disbursementDate);
+            fallbackDue.setMonth(fallbackDue.getMonth() + _safePeriodMonths + _safeGrace);
+            dueDate.setTime(fallbackDue.getTime());
+          }
+          if (isNaN(dueDate.getTime())) {
+            const finalFallback = new Date();
+            finalFallback.setMonth(finalFallback.getMonth() + 12);
+            dueDate.setTime(finalFallback.getTime());
+          }
 
           // --- 2. Calculate Deductions ---
           const grossAmount = amountGranted;
@@ -1169,15 +1307,19 @@ export class LoanService {
             where: { loanId: loan.id, status: "PENDING" },
           });
 
+          const scheduleDisbursementDate2 =
+            repaymentStartDate instanceof Date && !isNaN(repaymentStartDate.getTime())
+              ? repaymentStartDate
+              : disbursementDate;
           const scheduleFrequency =
             (app.modeOfRepayment as ScheduleFrequency) || "MONTHLY";
           const calcResult = calculateLoanSchedule({
             amountGranted,
             interestRate: rawInterestRate,
-            repaymentPeriodMonths: periodMonths,
+            repaymentPeriodMonths: _safePeriodMonths,
             interestType: effectiveInterestType,
             gracePeriod: 0,
-            disbursementDate: repaymentStartDate,
+            disbursementDate: scheduleDisbursementDate2,
             interestPeriod: interestPeriod === "ANNUAL" ? "ANNUAL" : "MONTHLY",
             payments: [],
             scheduleFrequency,
@@ -1195,7 +1337,7 @@ export class LoanService {
               totalAmountDue,
               outstandingBalance: totalAmountDue,
               dueDate,
-              gracePeriod,
+              gracePeriod: _safeGrace,
               interestAmount: totalInterest,
               interestType: effectiveInterestType,
               interestPeriod,
@@ -1208,7 +1350,11 @@ export class LoanService {
               data: calcResult.schedule.map((s) => ({
                 loanId: loan.id,
                 period: s.period,
-                dueDate: s.dueDate,
+                dueDate: LoanService.buildScheduledDueDate(
+                  repaymentStartDate,
+                  s.period,
+                  scheduleFrequency,
+                ),
                 principalPayment: s.principalPayment,
                 interestPayment: s.interestPayment,
                 totalPayment: s.totalPayment,
@@ -1242,9 +1388,9 @@ export class LoanService {
               disbursedAt: new Date(),
               status: LoanStatus.DISBURSED,
               approvedAmount: amountGranted,
-              repaymentPeriodMonths: periodMonths,
+              repaymentPeriodMonths: _safePeriodMonths,
               repaymentStartDate,
-              gracePeriod,
+              gracePeriod: _safeGrace,
             },
           });
 
@@ -1617,10 +1763,16 @@ export class LoanService {
             calculatedStartDate.getDate() + gracePeriodDays,
           );
 
-          const repaymentStartDate =
-            overrides.repaymentStartDate ||
-            app.repaymentStartDate ||
-            calculatedStartDate;
+          let repaymentStartDate: Date;
+          const overrideRepaymentStart = LoanService.coerceDate(overrides.repaymentStartDate, calculatedStartDate);
+          const appRepaymentStart = LoanService.coerceDate(app.repaymentStartDate, calculatedStartDate);
+          if (LoanService.isSaneRepaymentStartDate(overrideRepaymentStart, disbursementDate)) {
+            repaymentStartDate = overrideRepaymentStart;
+          } else if (LoanService.isSaneRepaymentStartDate(appRepaymentStart, disbursementDate)) {
+            repaymentStartDate = appRepaymentStart;
+          } else {
+            repaymentStartDate = calculatedStartDate;
+          }
 
           const rawInterestRate = loan.interestRate;
           let recoveryInterest = 0;
@@ -1633,8 +1785,19 @@ export class LoanService {
             app.interestPeriod || app.loanProduct.interestPeriod || "MONTHLY",
           );
 
-          const dueDate = new Date(repaymentStartDate);
-          dueDate.setMonth(dueDate.getMonth() + periodMonths + gracePeriod - 1);
+          // Clamp to a sane range (1-1200 months / 0-1200 months grace) so a
+          // corrupted or out-of-range repaymentPeriodMonths/gracePeriod value
+          // on the application record can never push setMonth() past the
+          // representable Date range and produce an Invalid Date.
+          const _safePeriodMonths = Math.min(1200, Math.max(1, Number(periodMonths) || 12));
+          const _safeGrace = Math.min(1200, Math.max(0, Number(gracePeriod) || 0));
+          const dueDate = new Date();
+          dueDate.setMonth(dueDate.getMonth() + _safePeriodMonths + _safeGrace);
+          if (isNaN(dueDate.getTime())) {
+            const fallbackDue = new Date();
+            fallbackDue.setMonth(fallbackDue.getMonth() + 12);
+            dueDate.setTime(fallbackDue.getTime());
+          }
 
           let totalDeductions = 0;
           const deductions = {
@@ -2045,16 +2208,20 @@ export class LoanService {
             },
           });
 
+          const scheduleDisbursementDate =
+            repaymentStartDate instanceof Date && !isNaN(repaymentStartDate.getTime())
+              ? repaymentStartDate
+              : disbursementDate;
           const instCalcResult = calculateLoanSchedule({
             amountGranted,
             interestRate: rawInterestRate,
-            repaymentPeriodMonths: periodMonths,
+            repaymentPeriodMonths: _safePeriodMonths,
             interestType:
               app.interestType === "REDUCING_BALANCE"
                 ? "REDUCING_BALANCE"
                 : "FLAT_RATE",
             gracePeriod: 0,
-            disbursementDate: repaymentStartDate,
+            disbursementDate: scheduleDisbursementDate,
             interestPeriod: interestPeriod === "ANNUAL" ? "ANNUAL" : "MONTHLY",
             payments: [],
           });
@@ -2079,7 +2246,11 @@ export class LoanService {
               data: instCalcResult.schedule.map((s) => ({
                 loanId: loan.id,
                 period: s.period,
-                dueDate: s.dueDate,
+                dueDate: LoanService.buildScheduledDueDate(
+                  repaymentStartDate,
+                  s.period,
+                  ((app.loanProduct as any)?.modeOfRepayment as ScheduleFrequency) || "MONTHLY",
+                ),
                 principalPayment: s.principalPayment,
                 interestPayment: s.interestPayment,
                 totalPayment: s.totalPayment,

@@ -177,9 +177,8 @@ export async function POST(request: NextRequest) {
           ledgerType: "LIABILITIES",
           isActive: true,
           OR: [
+            { accountCode: "201001" },
             { accountCode: "201003" },
-            { accountCode: "201100" },
-            { accountCode: "2014" },
             { accountName: { contains: "FIXED DEPOSIT", mode: "insensitive" } },
           ],
         },
@@ -230,19 +229,19 @@ export async function POST(request: NextRequest) {
     if (!fdLiabilityAccount) {
       try {
         fdLiabilityAccount = await db.chartOfAccount.upsert({
-          where: { accountCode: "201003" },
+          where: { accountCode: "201001" },
           update: {
-            accountName: "Member Fixed Deposits",
-            fullCode: "201003",
+            accountName: "Fixed Savings",
+            fullCode: "201001",
             ledgerType: "LIABILITIES",
             isActive: true,
             isSystem: true,
-            description: "Liability account for member fixed deposit accounts",
+            description: "Liability account for fixed savings accounts",
           },
           create: {
-            accountCode: "201003",
-            fullCode: "201003",
-            accountName: "Member Fixed Deposits",
+            accountCode: "201001",
+            fullCode: "201001",
+            accountName: "Fixed Savings",
             level: 3,
             ledgerType: "LIABILITIES",
             isActive: true,
@@ -250,7 +249,7 @@ export async function POST(request: NextRequest) {
             debitBalance: 0,
             creditBalance: 0,
             balance: 0,
-            description: "Liability account for member fixed deposit accounts (auto-created)",
+            description: "Liability account for fixed savings accounts (auto-created)",
           },
         });
       } catch (error: any) {
@@ -259,6 +258,7 @@ export async function POST(request: NextRequest) {
             ledgerType: "LIABILITIES",
             isActive: true,
             OR: [
+              { accountCode: "201001" },
               { accountCode: "201003" },
               { accountCode: "201100" },
               { accountCode: "2014" },

@@ -632,16 +632,19 @@ model WithdrawalVerification {
 }
 
 model FingerprintLog {
-  id        Int      @id @default(autoincrement())
-  memberId  String
-  action    String
-  quality   Int?
-  score     Int?
-  ipAddress String?
-  createdAt DateTime @default(now())
-  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  id                      Int                       @id @default(autoincrement())
+  memberId                String?
+  institutionSignatoryId  String?
+  action                  String
+  quality                 Int?
+  score                   Int?
+  ipAddress               String?
+  createdAt               DateTime                  @default(now())
+  member                  Member?                   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  institutionSignatory    InstitutionSignatory?     @relation(fields: [institutionSignatoryId], references: [id], onDelete: Cascade)
 
   @@index([memberId])
+  @@index([institutionSignatoryId])
   @@index([action])
   @@index([createdAt])
 }
@@ -1361,12 +1364,18 @@ model InstitutionSignatory {
   phone               String?
   email               String?
   signatureImage      String?
+  photoImage          String?
+  fingerprintTemplate String?
+  fingerprintQuality  Int?
+  fingerprintEnrolledAt DateTime?
+  fingerprintUpdatedAt  DateTime?
   isPrimary           Boolean                  @default(false)
   status              String                   @default("ACTIVE")
   createdAt           DateTime                 @default(now())
   updatedAt           DateTime                 @updatedAt
   institution         Institution              @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   withdrawalsVerified WithdrawalVerification[]
+  fingerprintLogs     FingerprintLog[]
 
   @@index([institutionId])
 }

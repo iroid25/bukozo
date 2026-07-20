@@ -29,6 +29,8 @@ import {
   Building,
   PenLine,
   ImageIcon,
+  Fingerprint,
+  Smartphone,
 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
@@ -164,6 +166,7 @@ interface Signatory {
   isPrimary: boolean;
   photoImage?: string | null;
   signatureImage?: string | null;
+  fingerprintTemplate?: string | null;
 }
 
 interface Account {
@@ -263,8 +266,12 @@ interface SignatoryVerificationProps {
   isPrimary: boolean;
   photoImage?: string | null;
   storedSignatureImage?: string | null;
+  fingerprintTemplate?: string | null;
   isVerified: boolean;
   onVerifiedChange: (id: string, checked: boolean) => void;
+  fingerprintState?: { captured: boolean; score: number; template: string | null };
+  onFingerprintCapture?: (id: string, capture: string) => void;
+  onFingerprintReset?: (id: string) => void;
 }
 
 function SignatoryVerificationCard({
@@ -274,8 +281,12 @@ function SignatoryVerificationCard({
   isPrimary,
   photoImage,
   storedSignatureImage,
+  fingerprintTemplate,
   isVerified,
   onVerifiedChange,
+  fingerprintState,
+  onFingerprintCapture,
+  onFingerprintReset,
 }: SignatoryVerificationProps) {
   const initials = signatoryName
     .split(" ")
@@ -367,6 +378,41 @@ function SignatoryVerificationCard({
           </div>
         </div>
 
+        {/* Fingerprint scan for signatory */}
+        {fingerprintTemplate && (
+          <div className="mt-3 border-t pt-3">
+            <p className="text-xs font-medium text-gray-500 mb-2 flex items-center gap-1">
+              <Fingerprint className="h-3 w-3" />
+              Fingerprint Verification
+            </p>
+            {fingerprintState?.captured ? (
+              <div className="flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 text-green-600" />
+                <span className="text-xs text-green-700 font-medium">
+                  Verified (score: {fingerprintState.score})
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="ml-auto h-6 text-xs"
+                  onClick={() => onFingerprintReset?.(signatoryId)}
+                >
+                  Retake
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <FingerprintScanner
+                  label={`Scan ${signatoryName}'s Fingerprint`}
+                  onCapture={(capture) => onFingerprintCapture?.(signatoryId, capture)}
+                  onReset={() => onFingerprintReset?.(signatoryId)}
+                />
+              </div>
+            )}
+          </div>
+        )}
+
         {!isVerified && (
           <p className="text-xs text-purple-600 mt-2 flex items-center gap-1">
             <Info className="h-3 w-3 flex-shrink-0" />
@@ -421,7 +467,7 @@ export default function WithdrawalCreateForm({
     useState<VerificationData | null>(null);
   const [verificationCode, setVerificationCode] = useState("");
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
-  const [verificationMode, setVerificationMode] = useState<"fingerprint" | "code">("fingerprint");
+  const [verificationMode, setVerificationMode] = useState<"fingerprint" | "email" | "sms">("fingerprint");
   const [fingerprintCapture, setFingerprintCapture] =
     useState<FingerprintCapture | null>(null);
   const [fingerprintChecking, setFingerprintChecking] = useState(false);
@@ -444,6 +490,7 @@ export default function WithdrawalCreateForm({
   const [verifiedSignatories, setVerifiedSignatories] = useState<Set<string>>(
     new Set(),
   );
+  const [signatoryFingerprintStates, setSignatoryFingerprintStates] = useState<Record<string, { captured: boolean; score: number; template: string | null }>>({});
   const [verifiedAgent, setVerifiedAgent] = useState(false);
   const [accountHold, setAccountHold] = useState<any>(null);
   const [checkingHold, setCheckingHold] = useState(false);
@@ -654,6 +701,13 @@ export default function WithdrawalCreateForm({
       const required = getMandateRequirement();
       if (verifiedSignatories.size < required) return false;
 
+      // Signatories with enrolled fingerprints must also fingerprint-verify
+      const signatoriesWithFingerprints = selectedInstitution.signatories?.filter(s => s.fingerprintTemplate) ?? [];
+      for (const sig of signatoriesWithFingerprints) {
+        const fpState = signatoryFingerprintStates[sig.id];
+        if (!fpState?.captured) return false;
+      }
+
       if (!verifiedAgent) return false;
     }
 
@@ -722,7 +776,7 @@ export default function WithdrawalCreateForm({
     setVerificationMode(
       withdrawalType === "MEMBER" && selectedMember?.fingerprintTemplate
         ? "fingerprint"
-        : "code",
+        : "email",
     );
   }, [selectedMember, withdrawalType]);
 
@@ -1044,6 +1098,43 @@ export default function WithdrawalCreateForm({
     setVerifiedSignatories(newSet);
   };
 
+  const handleSignatoryFingerprintCapture = async (signatoryId: string, capture: FingerprintCapture) => {
+    const sig = selectedInstitution?.signatories?.find((s) => s.id === signatoryId);
+    if (!sig?.fingerprintTemplate) return;
+    if (!capture.NativeTemplateBase64) {
+      toast.error(capture.bridgeError || "Fingerprint bridge not running — start fingerprint-bridge/server.js");
+      return;
+    }
+    try {
+      const result = await matchFingerprintCapture(
+        sig.fingerprintTemplate,
+        capture,
+      );
+      if (result.needsReEnrollment) {
+        toast.error("Re-enrollment required", { description: "Signatory fingerprint needs re-enrollment." });
+        return;
+      }
+      if (result.ErrorCode !== 0) {
+        throw new Error(`Matching failed (code ${result.ErrorCode}).`);
+      }
+      setSignatoryFingerprintStates((prev) => ({
+        ...prev,
+        [signatoryId]: { captured: true, score: result.MatchingScore ?? 0, template: capture.NativeTemplateBase64 },
+      }));
+      toast.success(`Signatory fingerprint verified (score: ${result.MatchingScore})`);
+    } catch (err: any) {
+      toast.error(err.message || "Fingerprint verification failed");
+    }
+  };
+
+  const handleSignatoryFingerprintReset = (signatoryId: string) => {
+    setSignatoryFingerprintStates((prev) => {
+      const next = { ...prev };
+      delete next[signatoryId];
+      return next;
+    });
+  };
+
   const agentName =
     selectedInstitution?.user?.name ||
     selectedInstitution?.institutionName ||
@@ -1148,6 +1239,15 @@ export default function WithdrawalCreateForm({
             : undefined,
         verifiedAgent:
           withdrawalType === "INSTITUTION" ? verifiedAgent : undefined,
+        signatoryFingerprints:
+          withdrawalType === "INSTITUTION"
+            ? Object.fromEntries(
+                Object.entries(signatoryFingerprintStates).map(([id, state]) => [
+                  id,
+                  { captured: state.captured, score: state.score },
+                ]),
+              )
+            : undefined,
       };
       const skipDelivery =
         withdrawalType === "MEMBER" &&
@@ -1158,7 +1258,11 @@ export default function WithdrawalCreateForm({
       const res = await fetch("/api/v1/withdrawals/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...formData, skipDelivery }),
+        body: JSON.stringify({
+          ...formData,
+          skipDelivery,
+        verificationMethod: verificationMode,
+      }),
       });
 
       const result = await res.json();
@@ -1756,80 +1860,137 @@ export default function WithdrawalCreateForm({
                         <div className="flex items-start justify-between gap-4">
                           <div>
                             <h4 className="font-semibold text-blue-900">
-                              Step 1.5: Verify Member Fingerprint
+                              Step 1.5: Authenticate Withdrawal
                             </h4>
                             <p className="text-sm text-blue-800 mt-1">
-                              Scan the enrolled fingerprint first. If the scan
-                              fails, you can switch to verification-code
-                              fallback.
+                              Choose an authentication method to verify this withdrawal.
                             </p>
                           </div>
                           <Badge
                             variant={
-                              fingerprintVerified ? "default" : "secondary"
+                              verificationMode === "fingerprint"
+                                ? (fingerprintVerified ? "default" : "secondary")
+                                : "default"
                             }
                           >
-                            {fingerprintVerified ? "Verified" : "Pending"}
+                            {verificationMode === "fingerprint" && fingerprintVerified
+                              ? "Verified"
+                              : "Pending"}
                           </Badge>
                         </div>
 
-                        <div className="mt-4">
-                          <FingerprintScanner
-                            label="Member Fingerprint Scan"
-                            onCapture={handleFingerprintCapture}
-                            onReset={() => {
-                              setFingerprintCapture(null);
-                              setFingerprintChecking(false);
+                        {/* Auth Method Selector */}
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          {selectedMemberHasFingerprint && (
+                            <Button
+                              type="button"
+                              variant={verificationMode === "fingerprint" ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => {
+                                setVerificationMode("fingerprint");
+                              }}
+                              className="gap-1.5"
+                            >
+                              <Fingerprint className="h-4 w-4" />
+                              Fingerprint
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            variant={verificationMode === "email" ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => {
+                              setVerificationMode("email");
                               setFingerprintVerified(false);
-                              setFingerprintScore(null);
-                              setFingerprintError("");
-                              setVerificationMode("fingerprint");
                             }}
-                            disabled={fingerprintChecking}
-                          />
+                            className="gap-1.5"
+                          >
+                            <Mail className="h-4 w-4" />
+                            Email OTP
+                          </Button>
+                          <Button
+                            type="button"
+                            variant={verificationMode === "sms" ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => {
+                              setVerificationMode("sms");
+                              setFingerprintVerified(false);
+                            }}
+                            className="gap-1.5"
+                          >
+                            <Smartphone className="h-4 w-4" />
+                            SMS OTP
+                          </Button>
                         </div>
 
-                        {fingerprintScore !== null && fingerprintVerified && (
-                          <div className="mt-3 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
-                            Fingerprint verified with score {fingerprintScore}/199.
-                          </div>
-                        )}
-
-                        {fingerprintError && (
-                          <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800 space-y-3">
-                            <p>{fingerprintError}</p>
-                            <div className="flex flex-wrap gap-2">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                onClick={useVerificationCodeFallback}
-                              >
-                                Use Verification Code Instead
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                onClick={() => {
+                        {/* Fingerprint scanner - only shown in fingerprint mode */}
+                        {verificationMode === "fingerprint" && selectedMemberHasFingerprint && (
+                          <>
+                            <div className="mt-4">
+                              <FingerprintScanner
+                                label="Member Fingerprint Scan"
+                                onCapture={handleFingerprintCapture}
+                                onReset={() => {
                                   setFingerprintCapture(null);
-                                  setFingerprintError("");
-                                  setFingerprintScore(null);
+                                  setFingerprintChecking(false);
                                   setFingerprintVerified(false);
+                                  setFingerprintScore(null);
+                                  setFingerprintError("");
+                                  setVerificationMode("fingerprint");
                                 }}
-                              >
-                                Retry Fingerprint
-                              </Button>
+                                disabled={fingerprintChecking}
+                              />
                             </div>
+
+                            {fingerprintScore !== null && fingerprintVerified && (
+                              <div className="mt-3 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+                                Fingerprint verified with score {fingerprintScore}/199.
+                              </div>
+                            )}
+
+                            {fingerprintError && (
+                              <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800 space-y-3">
+                                <p>{fingerprintError}</p>
+                                <div className="flex flex-wrap gap-2">
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={useVerificationCodeFallback}
+                                  >
+                                    Use Verification Code Instead
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    onClick={() => {
+                                      setFingerprintCapture(null);
+                                      setFingerprintError("");
+                                      setFingerprintScore(null);
+                                      setFingerprintVerified(false);
+                                    }}
+                                  >
+                                    Retry Fingerprint
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        )}
+
+                        {/* Email OTP info */}
+                        {verificationMode === "email" && (
+                          <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+                            A verification code will be sent to the member's registered email address. The teller will enter the code in the next step.
                           </div>
                         )}
 
-                        {verificationMode === "code" &&
-                          selectedMemberHasFingerprint && (
-                            <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
-                              Verification code fallback is active. The next
-                              submission will send a verification code to the
-                              member by email or SMS.
-                            </div>
-                          )}
+                        {/* SMS OTP info */}
+                        {verificationMode === "sms" && (
+                          <div className="mt-4 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+                            A verification code will be sent to the member's registered phone number via SMS. The teller will enter the code in the next step.
+                          </div>
+                        )}
+
                       </div>
                     )}
                   </div>
@@ -1964,8 +2125,12 @@ export default function WithdrawalCreateForm({
                               isPrimary={sig.isPrimary}
                               photoImage={sig.photoImage || null}
                               storedSignatureImage={sig.signatureImage}
+                              fingerprintTemplate={sig.fingerprintTemplate}
                               isVerified={verifiedSignatories.has(sig.id)}
                               onVerifiedChange={handleSignatoryVerified}
+                              fingerprintState={signatoryFingerprintStates[sig.id]}
+                              onFingerprintCapture={handleSignatoryFingerprintCapture}
+                              onFingerprintReset={handleSignatoryFingerprintReset}
                             />
                           ))
                         ) : (

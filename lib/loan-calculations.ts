@@ -58,6 +58,9 @@ function advanceDateByFrequency(
   date: Date,
   frequency: ScheduleFrequency,
 ): void {
+  if (isNaN(date.getTime())) {
+    date.setTime(Date.now());
+  }
   switch (frequency) {
     case "BI_WEEKLY":
       date.setDate(date.getDate() + 14);
@@ -74,6 +77,9 @@ function advanceDateByFrequency(
     case "HALF_YEAR":
       date.setMonth(date.getMonth() + 6);
       break;
+  }
+  if (isNaN(date.getTime())) {
+    date.setTime(Date.now());
   }
 }
 
@@ -383,29 +389,37 @@ export function calculateLoanSchedule({
   payments?: LoanPayment[];
   scheduleFrequency?: ScheduleFrequency;
 }): LoanCalculationResult {
+  const safeDisbursementDate =
+    disbursementDate instanceof Date && !isNaN(disbursementDate.getTime())
+      ? disbursementDate
+      : new Date();
+
   const effectiveMonthlyRate =
     interestPeriod === "ANNUAL" ? interestRate / 12 : interestRate;
 
-  // Convert grace period from days to months
+  const safeRepaymentPeriodMonths = Math.max(1, Math.min(600, Number(repaymentPeriodMonths) || 12));
+  const safeAmountGranted = Math.max(0, Number(amountGranted) || 0);
+  const safeInterestRate = Math.max(0, Number(interestRate) || 0);
+
   const gracePeriodMonths = Math.floor(gracePeriod / 30);
 
   if (interestType === "REDUCING_BALANCE") {
     return calculateReducingBalanceSchedule(
-      amountGranted,
-      effectiveMonthlyRate,
-      repaymentPeriodMonths,
+      safeAmountGranted,
+      safeInterestRate,
+      safeRepaymentPeriodMonths,
       gracePeriodMonths,
-      disbursementDate,
+      safeDisbursementDate,
       payments,
       scheduleFrequency,
     );
   }
   return calculateFlatRateSchedule(
-    amountGranted,
-    effectiveMonthlyRate,
-    repaymentPeriodMonths,
+    safeAmountGranted,
+    safeInterestRate,
+    safeRepaymentPeriodMonths,
     gracePeriodMonths,
-    disbursementDate,
+    safeDisbursementDate,
     payments,
     scheduleFrequency,
   );

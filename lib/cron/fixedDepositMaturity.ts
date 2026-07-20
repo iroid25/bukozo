@@ -20,9 +20,8 @@ async function resolveFdLiabilityAccount(tx: any) {
       ledgerType: "LIABILITIES",
       isActive: true,
       OR: [
+        { accountCode: "201001" },
         { accountCode: "201003" },
-        { accountCode: "201100" },
-        { accountCode: "2014" },
         { accountName: { contains: "FIXED DEPOSIT", mode: "insensitive" } },
       ],
     },
@@ -485,6 +484,7 @@ export async function processMaturedFixedDeposits() {
                   ledgerType: "LIABILITIES",
                   isActive: true,
                   OR: [
+                    { accountCode: "201001" },
                     { accountCode: "201003" },
                     { accountName: { contains: "FIXED DEPOSIT", mode: "insensitive" } },
                   ],

@@ -57,8 +57,8 @@ interface LinkedAccountType {
 
 interface LiabilityGroupItem {
   id: string;
-  sourceType: "ACCOUNT_TYPE" | "INSURANCE_POOL";
-  source?: "SAVINGS_ACCOUNT_TYPE" | "INSURANCE_POOL";
+  sourceType: "ACCOUNT_TYPE" | "INSURANCE_POOL" | "FIXED_DEPOSITS";
+  source?: "SAVINGS_ACCOUNT_TYPE" | "INSURANCE_POOL" | "FIXED_DEPOSITS";
   accountTypeId?: string;
   ledgerAccountId?: string | null;
   accountId?: string;
@@ -67,6 +67,10 @@ interface LiabilityGroupItem {
   rawName?: string;
   amount: number;
   accountCount?: number;
+  code?: string;
+  balance?: number;
+  totalValue?: number;
+  status?: string;
 }
 
 interface LiabilityGroups {
@@ -77,6 +81,11 @@ interface LiabilityGroups {
       total: number;
     };
     loanInsurance: {
+      title: string;
+      items: LiabilityGroupItem[];
+      total: number;
+    };
+    fixedDeposits: {
       title: string;
       items: LiabilityGroupItem[];
       total: number;
@@ -98,6 +107,7 @@ interface LiabilityGroups {
     currentTotal: number;
     nonCurrentTotal: number;
     savingsTotal: number;
+    fixedDepositsTotal?: number;
     loanInsuranceTotal: number;
   };
 }
@@ -130,6 +140,25 @@ interface SavingsSourcesPayload {
   sourceCount: number;
   sourceTotal: number;
   sources: SavingsSourceRow[];
+}
+
+interface FdSourceRow {
+  depositId: string;
+  accountNumber: string;
+  ownerName: string;
+  ownerNumber: string;
+  branchName: string;
+  principalAmount: number;
+  maturityAmount: number;
+  status: string;
+  startDate: string;
+  maturityDate: string;
+}
+
+interface FdSourcesPayload {
+  sourceCount: number;
+  sourceTotal: number;
+  sources: FdSourceRow[];
 }
 
 interface InsuranceSourceRow {
@@ -174,6 +203,8 @@ export default function LiabilitiesPage() {
   const [expandedProductRows, setExpandedProductRows] = useState<Record<string, boolean>>({});
   const [savingsSources, setSavingsSources] = useState<Record<string, SavingsSourcesPayload>>({});
   const [savingsSourcesLoading, setSavingsSourcesLoading] = useState<Record<string, boolean>>({});
+  const [fdSources, setFdSources] = useState<Record<string, FdSourcesPayload>>({});
+  const [fdSourcesLoading, setFdSourcesLoading] = useState<Record<string, boolean>>({});
   const insuranceBranchKey = isAdmin && selectedBranchId !== "all" ? selectedBranchId : "all";
   const [insuranceSources, setInsuranceSources] = useState<Record<string, InsuranceSourcesPayload>>({});
   const [insuranceSourcesLoading, setInsuranceSourcesLoading] = useState<Record<string, boolean>>({});
@@ -333,6 +364,42 @@ export default function LiabilitiesPage() {
     }
   };
 
+  const loadFdSources = async (accountTypeId: string) => {
+    if (fdSources[accountTypeId] || fdSourcesLoading[accountTypeId]) {
+      return;
+    }
+
+    try {
+      setFdSourcesLoading((prev) => ({ ...prev, [accountTypeId]: true }));
+      const response = await fetch(
+        `/api/v1/accounts/liabilities/fd-sources?accountTypeId=${accountTypeId}`,
+        {
+          credentials: "include",
+          cache: "no-store",
+        },
+      );
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "Failed to fetch fixed deposit sources");
+      }
+
+      setFdSources((prev) => ({
+        ...prev,
+        [accountTypeId]: result.data,
+      }));
+    } catch (loadError) {
+      console.error("Error loading fixed deposit sources:", loadError);
+      toast.error(
+        loadError instanceof Error
+          ? loadError.message
+          : "Failed to fetch fixed deposit sources",
+      );
+    } finally {
+      setFdSourcesLoading((prev) => ({ ...prev, [accountTypeId]: false }));
+    }
+  };
+
   const loadInsuranceSources = async () => {
     const branchKey = insuranceBranchKey;
     if (insuranceSources[branchKey] || insuranceSourcesLoading[branchKey]) {
@@ -394,6 +461,9 @@ export default function LiabilitiesPage() {
               onClick={() => {
                 if (!isExpanded && item.accountTypeId) {
                   void loadSavingsSources(item.accountTypeId);
+                  if (item.accountCode === "201001") {
+                    void loadFdSources(item.accountTypeId);
+                  }
                 }
                 toggleProductRow(rowKey);
               }}
@@ -402,10 +472,13 @@ export default function LiabilitiesPage() {
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7 rounded-lg"
-                onClick={(event) => {
+                  onClick={(event) => {
                   event.stopPropagation();
                   if (!isExpanded && item.accountTypeId) {
                     void loadSavingsSources(item.accountTypeId);
+                    if (item.accountCode === "201001") {
+                      void loadFdSources(item.accountTypeId);
+                    }
                   }
                   toggleProductRow(rowKey);
                 }}
@@ -545,10 +618,95 @@ export default function LiabilitiesPage() {
                       </TableBody>
                     </Table>
                   </div>
-                ) : (
+                  ) : (
                   <div className="rounded-md border border-dashed bg-background px-4 py-4 text-xs text-muted-foreground">
                     No active source accounts found for this savings product.
                   </div>
+                )}
+
+                {item.accountCode === "201001" && (
+                  <>
+                    <div className="mt-4 border-t border-slate-200 pt-4">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                            Fixed Deposit Sources
+                          </p>
+                          <p className="text-sm font-medium text-foreground">
+                            {fdSources[item.accountTypeId!]?.sourceCount ?? item.accountCount ?? 0} deposit
+                            {((fdSources[item.accountTypeId!]?.sourceCount ?? item.accountCount ?? 0) === 1) ? "" : "s"}{" "}
+                            contributing to this total
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                            Deposit Total
+                          </p>
+                          <p className="font-mono text-sm font-bold text-foreground">
+                            {formatCurrency(fdSources[item.accountTypeId!]?.sourceTotal ?? 0)}
+                          </p>
+                        </div>
+                      </div>
+
+                      {fdSourcesLoading[item.accountTypeId!] ? (
+                        <div className="flex items-center justify-center py-6 text-muted-foreground">
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Loading fixed deposit sources...
+                        </div>
+                      ) : fdSources[item.accountTypeId!] && fdSources[item.accountTypeId!].sources.length > 0 ? (
+                        <div className="overflow-hidden rounded-md border bg-background">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Account No.</TableHead>
+                                <TableHead>Owner</TableHead>
+                                <TableHead>No.</TableHead>
+                                <TableHead>Branch</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead className="text-right">Principal</TableHead>
+                                <TableHead className="text-right">Maturity</TableHead>
+                                <TableHead>Maturity Date</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {fdSources[item.accountTypeId!].sources.map((dep) => (
+                                <TableRow key={dep.depositId}>
+                                  <TableCell className="font-mono text-xs">
+                                    {dep.accountNumber}
+                                  </TableCell>
+                                  <TableCell className="text-sm font-medium">
+                                    {dep.ownerName}
+                                  </TableCell>
+                                  <TableCell className="text-xs text-muted-foreground">
+                                    {dep.ownerNumber}
+                                  </TableCell>
+                                  <TableCell className="text-xs text-muted-foreground">
+                                    {dep.branchName}
+                                  </TableCell>
+                                  <TableCell className="text-xs text-muted-foreground">
+                                    {dep.status}
+                                  </TableCell>
+                                  <TableCell className="text-right font-mono text-sm">
+                                    {formatCurrency(dep.principalAmount)}
+                                  </TableCell>
+                                  <TableCell className="text-right font-mono text-sm">
+                                    {formatCurrency(dep.maturityAmount)}
+                                  </TableCell>
+                                  <TableCell className="text-xs text-muted-foreground">
+                                    {new Date(dep.maturityDate).toLocaleDateString("en-UG")}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      ) : (
+                        <div className="rounded-md border border-dashed bg-background px-4 py-4 text-xs text-muted-foreground">
+                          No fixed deposit sources loaded. Click to expand.
+                        </div>
+                      )}
+                    </div>
+                  </>
                 )}
               </div>
             </div>
@@ -735,6 +893,31 @@ export default function LiabilitiesPage() {
       );
     }
 
+    if (item.sourceType === "FIXED_DEPOSITS") {
+      return (
+        <div key={item.id} className="rounded-lg border bg-card p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                {item.accountCode ? (
+                  <span className="rounded-md bg-muted px-2 py-1 font-mono text-xs font-semibold text-muted-foreground">
+                    {item.accountCode}
+                  </span>
+                ) : null}
+                <p className="font-medium">{item.name}</p>
+              </div>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {item.accountCount || 0} deposit account{item.accountCount === 1 ? "" : "s"}
+              </p>
+            </div>
+            <p className="font-semibold text-lg">
+              UGX {item.amount.toLocaleString()}
+            </p>
+          </div>
+        </div>
+      );
+    }
+
     return null;
   };
 
@@ -749,6 +932,9 @@ export default function LiabilitiesPage() {
     const savingsItems = items.filter((item) => item.sourceType === "ACCOUNT_TYPE");
     const insurancePoolItems = items.filter(
       (item) => item.sourceType === "INSURANCE_POOL",
+    );
+    const fixedDepositItems = items.filter(
+      (item) => item.sourceType === "FIXED_DEPOSITS",
     );
 
     return (
@@ -787,6 +973,7 @@ export default function LiabilitiesPage() {
               <div className="space-y-3">
                 {savingsItems.map(renderLiabilityGroupItem)}
                 {insurancePoolItems.map(renderLiabilityGroupItem)}
+                {fixedDepositItems.map(renderLiabilityGroupItem)}
               </div>
             ) : (
               <div className="rounded-2xl border border-dashed border-muted-foreground/20 bg-background px-6 py-8 text-sm text-muted-foreground">

@@ -546,7 +546,11 @@ export async function POST(request: NextRequest) {
       recipientRelation,
       verifiedSignatories, // string[]
       verifiedAgent,
+      signatoryFingerprints, // Record<string, {captured: boolean; score: number}>
       skipDelivery,
+      // Auth method selection
+      verificationMethod,
+      thumbprintImage,
     } = body;
 
     // â”€â”€ 1. Basic field validation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -753,6 +757,18 @@ export async function POST(request: NextRequest) {
           { status: 400 },
         );
       }
+
+      // Signatories with enrolled fingerprints must provide fingerprint verification
+      const fpSignatories = (inst.signatories || []).filter((s: any) => s.fingerprintTemplate);
+      for (const sig of fpSignatories) {
+        const fpState = (signatoryFingerprints as Record<string, { captured: boolean; score: number }> | undefined)?.[sig.id];
+        if (!fpState?.captured) {
+          return NextResponse.json(
+            { error: `Signatory "${sig.name}" requires fingerprint verification for this transaction.` },
+            { status: 400 },
+          );
+        }
+      }
     }
 
     // â”€â”€ 8. Calculate fee â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -834,7 +850,9 @@ export async function POST(request: NextRequest) {
           fee,
           totalDeduction,
           handlerRole: user.role,
-          // Institution audit data â€” stored for the confirm endpoint to use
+          verificationMethod: verificationMethod || (skipDelivery ? "fingerprint" : "email"),
+          ...(thumbprintImage && { thumbprintImage }),
+          // Institution audit data — stored for the confirm endpoint to use
           ...(isInstitution && {
             recipientName: bodyRecipientName?.trim(),
             recipientIdNumber: recipientIdNumber?.trim(),
@@ -918,39 +936,57 @@ export async function POST(request: NextRequest) {
     // â”€â”€ 13. Send OTP email via Resend â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     let emailSent = false;
     let smsSent = false;
+    const method = verificationMethod || (skipDelivery ? "fingerprint" : "email");
 
-    if (resend && recipientEmail) {
+    // Send SMS OTP when method is "sms"
+    if (method === "sms" && recipientPhoneNumber) {
       try {
-        const emailResult = await resend.emails.send({
-          from: resendFromAddress,
-          to: recipientEmail,
-          subject: "Withdrawal Verification Code",
-          react: WithdrawalVerificationEmail({
-            memberName: recipientName,
-            amount: Number(amount),
-            accountNumber: account.accountNumber,
-            verificationCode: code,
-            expiresInMinutes: 10,
-            fee,
-            total: Number(amount) + fee,
-            channel,
-          }),
-        });
-
-
-        if (emailResult?.data?.id || (emailResult as any)?.id) {
-          emailSent = true;
-        } else if (emailResult.error) {
-          console.error("Resend API error:", emailResult.error);
+        const { sendWithdrawalVerificationSMS } = await import("@/lib/sms");
+        const smsResult = await sendWithdrawalVerificationSMS(
+          recipientPhoneNumber,
+          recipientName,
+          code,
+          Number(amount),
+        );
+        if (smsResult.success) {
+          smsSent = true;
+        } else {
+          console.error("SMS delivery failed:", smsResult.error);
         }
       } catch (err) {
-        console.error("Failed to send verification email:", err);
+        console.error("Failed to send verification SMS:", err);
       }
-    } else {
-      console.log("ℹ️ No delivery channel available for verification", {
-        resendExists: !!resend,
-        emailProvided: !!recipientEmail,
-      });
+    }
+
+    // Send email OTP when method is "email" (or as fallback when SMS was primary but failed)
+    if (method === "email" || (method === "sms" && !smsSent)) {
+      if (resend && recipientEmail) {
+        try {
+          const emailResult = await resend.emails.send({
+            from: resendFromAddress,
+            to: recipientEmail,
+            subject: "Withdrawal Verification Code",
+            react: WithdrawalVerificationEmail({
+              memberName: recipientName,
+              amount: Number(amount),
+              accountNumber: account.accountNumber,
+              verificationCode: code,
+              expiresInMinutes: 10,
+              fee,
+              total: Number(amount) + fee,
+              channel,
+            }),
+          });
+
+          if (emailResult?.data?.id || (emailResult as any)?.id) {
+            emailSent = true;
+          } else if (emailResult.error) {
+            console.error("Resend API error:", emailResult.error);
+          }
+        } catch (err) {
+          console.error("Failed to send verification email:", err);
+        }
+      }
     }
 
     // â”€â”€ 14. Update delivery flags â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -964,19 +1000,26 @@ export async function POST(request: NextRequest) {
     // Expose the code to the handler when email delivery fails so the teller
     // can manually read it to the member. The teller is the initiator and is
     // trusted to do so — this is equivalent to a bank teller showing a PIN slip.
-    const debugVerificationCode = !emailSent && !smsSent ? code : undefined;
+    // Thumbprint method: teller captures thumbprint, then enters OTP shown on screen
+    // For thumbprint, expose the code since it's verified physically, not via delivery
+    const debugVerificationCode = method === "thumbprint" ? code : (!emailSent && !smsSent ? code : undefined);
 
     // â”€â”€ 15. Return (OTP is never exposed) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     return NextResponse.json({
       success: true,
       message: emailSent
         ? "Verification code sent to member's email."
-        : "Verification code generated, but email delivery failed. Please check contact details and your configured sender address.",
+        : smsSent
+          ? "Verification code sent to member's phone via SMS."
+          : method === "thumbprint"
+            ? "Thumbprint recorded. Please verify the code displayed."
+            : "Verification code generated, but delivery failed. Please check contact details.",
       data: {
         id: verification.id,
         expiresAt: verification.expiresAt.toISOString(),
         emailSent,
         smsSent,
+        verificationMethod: method,
         amount: Number(amount),
         fee,
         totalDeduction,

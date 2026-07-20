@@ -183,9 +183,16 @@ export async function POST(
         });
       }
 
-      // 6. GL journal entry: Dr FD Liability (201003) / Cr Destination Savings
+      // 6. GL journal entry: Dr FD Liability (201001) / Cr Destination Savings
       const fdLiabilityAccount = await tx.chartOfAccount.findFirst({
-        where: { accountCode: "201003", isActive: true },
+        where: {
+          isActive: true,
+          OR: [
+            { accountCode: "201001" },
+            { accountCode: "201003" },
+            { accountName: { contains: "FIXED DEPOSIT", mode: "insensitive" } },
+          ],
+        },
       });
       if (fdLiabilityAccount) {
         const fdEntryNum = `JE-FD-${isEarlyWithdrawal ? "EWD" : "MAT"}-${Date.now()}`;

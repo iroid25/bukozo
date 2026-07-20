@@ -234,9 +234,16 @@ export async function DELETE(
           },
         });
 
-        // GL reversal entry: Dr FD Liability (201003) / Cr Source Account
+        // GL reversal entry: Dr FD Liability (201001) / Cr Source Account
         const fdLiabilityAccount = await tx.chartOfAccount.findFirst({
-          where: { accountCode: "201003", isActive: true },
+          where: {
+            isActive: true,
+            OR: [
+              { accountCode: "201001" },
+              { accountCode: "201003" },
+              { accountName: { contains: "FIXED DEPOSIT", mode: "insensitive" } },
+            ],
+          },
         });
         if (fdLiabilityAccount) {
           const reversalEntryNum = `JE-FD-REV-${Date.now()}`;

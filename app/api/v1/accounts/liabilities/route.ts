@@ -135,22 +135,46 @@ export async function GET(request: NextRequest) {
       ]),
     );
 
-    const savingsItems = savingsAccountTypes.map((accountType) => {
-      const aggregate = balanceMap.get(accountType.id) || { amount: 0, count: 0 };
-      return {
-        id: `SAVINGS_ACCOUNT_TYPE:${accountType.id}`,
-        sourceType: "ACCOUNT_TYPE",
-        source: "SAVINGS_ACCOUNT_TYPE",
-        isManualLedger: false,
-        accountTypeId: accountType.id,
-        ledgerAccountId: accountType.ledgerAccountId,
-        accountCode: getCanonicalSavingsLedgerCode(accountType.name),
-        name: getAccountTypeDisplayName(accountType.name),
-        rawName: accountType.name,
-        amount: aggregate.amount,
-        accountCount: aggregate.count,
-      };
-    });
+// --- Fixed Deposits (from FixedDeposit table, not Account) ---
+const fdAgg = await db.fixedDeposit.aggregate({
+  where: {
+    status: { in: ["ACTIVE", "MATURED"] },
+    isReversed: false,
+    ...(scopedBranchId ? { branchId: scopedBranchId } : {}),
+  },
+  _sum: { principalAmount: true },
+  _count: { _all: true },
+});
+
+const fdTotal = Number(fdAgg._sum.principalAmount || 0);
+const fdCount =
+  typeof fdAgg._count === "object" && "_all" in fdAgg._count
+    ? Number(fdAgg._count._all || 0)
+    : 0;
+
+const savingsItems = savingsAccountTypes.map((accountType) => {
+  const aggregate = balanceMap.get(accountType.id) || { amount: 0, count: 0 };
+  const canonicalCode = getCanonicalSavingsLedgerCode(accountType.name);
+  let amount = aggregate.amount;
+  let count = aggregate.count;
+  if (canonicalCode === "201001" && fdCount > 0) {
+    amount += fdTotal;
+    count += fdCount;
+  }
+  return {
+    id: `SAVINGS_ACCOUNT_TYPE:${accountType.id}`,
+    sourceType: "ACCOUNT_TYPE",
+    source: "SAVINGS_ACCOUNT_TYPE",
+    isManualLedger: false,
+    accountTypeId: accountType.id,
+    ledgerAccountId: accountType.ledgerAccountId,
+    accountCode: canonicalCode,
+    name: getAccountTypeDisplayName(accountType.name),
+    rawName: accountType.name,
+    amount,
+    accountCount: count,
+  };
+});
 
     const savingsTotal = savingsItems.reduce((sum, item) => sum + item.amount, 0);
     const insuranceTotal = insurancePoolItem.reduce((sum, item) => sum + item.amount, 0);
@@ -184,6 +208,7 @@ export async function GET(request: NextRequest) {
         currentTotal: savingsTotal + insuranceTotal,
         nonCurrentTotal: 0,
         savingsTotal,
+        fixedDepositsTotal: fdTotal,
         loanInsuranceTotal: insuranceTotal,
         insurancePoolTotal: insuranceTotal,
       },

@@ -28,12 +28,12 @@ async function main() {
 
   // 2. Create Fixed Deposit Liability account
   const fdLiabilityAccount = await prisma.chartOfAccount.upsert({
-    where: { accountCode: "201003" },
+    where: { accountCode: "201001" },
     update: {},
     create: {
-      accountCode: "201003",
-      fullCode: "201003",
-      accountName: "Member Fixed Deposits",
+      accountCode: "201001",
+      fullCode: "201001",
+      accountName: "Fixed Savings",
       level: 3,
       ledgerType: "LIABILITIES",
       isActive: true,
@@ -41,7 +41,7 @@ async function main() {
       debitBalance: 0,
       creditBalance: 0,
       balance: 0,
-      description: "Liability account for member fixed deposit accounts",
+      description: "Liability account for fixed savings accounts",
     },
   });
   console.log("✅ Created/Updated Fixed Deposit Liability account:", fdLiabilityAccount.accountCode);
