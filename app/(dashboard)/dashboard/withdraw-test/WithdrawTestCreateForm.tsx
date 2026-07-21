@@ -31,6 +31,7 @@ import {
   ImageIcon,
   Fingerprint,
   Smartphone,
+  Users,
 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
@@ -100,6 +101,8 @@ interface Member {
   accounts: Array<{
     id: string;
     accountNumber: string;
+    accountName?: string | null;
+    withdrawalMandate?: string | null;
     balance: number;
     customFlatWithdrawalFee?: number | null;
     customWithdrawalFeePercentage?: number | null;
@@ -119,6 +122,9 @@ interface Member {
       member: {
         id: string;
         memberNumber: string;
+        applicantSignature?: string | null;
+        passportPhoto?: string | null;
+        fingerprintTemplate?: string | null;
         user: {
           name: string;
           image: string | null;
@@ -128,6 +134,12 @@ interface Member {
     branch: {
       name: string;
     };
+  }>;
+  // Accounts this member co-holds as a joint member without being the
+  // primary owner (Account.memberId points to someone else).
+  accountMembers?: Array<{
+    id: string;
+    account: Member["accounts"][number];
   }>;
 }
 
@@ -186,6 +198,8 @@ interface Signatory {
 interface Account {
   id: string;
   accountNumber: string;
+  accountName?: string | null;
+  withdrawalMandate?: string | null;
   balance: number;
   customFlatWithdrawalFee?: number | null;
   customWithdrawalFeePercentage?: number | null;
@@ -205,6 +219,9 @@ interface Account {
     member: {
       id: string;
       memberNumber: string;
+      applicantSignature?: string | null;
+      passportPhoto?: string | null;
+      fingerprintTemplate?: string | null;
       user: {
         name: string;
         image: string | null;
@@ -475,7 +492,7 @@ export default function WithdrawalCreateForm({
   const [memberAccounts, setMemberAccounts] = useState<Account[]>([]);
 
   const [withdrawalType, setWithdrawalType] = useState<
-    "MEMBER" | "INSTITUTION"
+    "MEMBER" | "INSTITUTION" | "JOINT"
   >("MEMBER");
   const [memberSearchOpen, setMemberSearchOpen] = useState(false);
   const [institutionSearchOpen, setInstitutionSearchOpen] = useState(false);
@@ -556,6 +573,30 @@ export default function WithdrawalCreateForm({
 
   const institutionsWithWithdrawableAccounts = institutions.filter(
     (institution) => getWithdrawableAccounts(institution).length > 0,
+  );
+
+  // A joint account is discoverable via ANY of its holders — the member who
+  // primarily owns it (member.accounts) or a co-holder who isn't the primary
+  // owner (member.accountMembers[].account). Combine and de-dupe both.
+  const getJointAccounts = (member: Member | null | undefined) => {
+    if (!member) return [];
+    const owned = Array.isArray(member.accounts) ? member.accounts : [];
+    const coHeld = Array.isArray(member.accountMembers)
+      ? member.accountMembers.map((am) => am.account).filter(Boolean)
+      : [];
+    const seen = new Set<string>();
+    return [...owned, ...coHeld].filter((account) => {
+      if (!isWithdrawableAccount(account) || !isJointSavingsAccountType(account.accountType)) {
+        return false;
+      }
+      if (seen.has(account.id)) return false;
+      seen.add(account.id);
+      return true;
+    });
+  };
+
+  const membersWithJointAccounts = members.filter(
+    (member) => getJointAccounts(member).length > 0,
   );
 
   // Timer for verification countdown
@@ -648,7 +689,7 @@ export default function WithdrawalCreateForm({
     }
 
     const fallbackTiers =
-      withdrawalType === "MEMBER"
+      withdrawalType === "MEMBER" || withdrawalType === "JOINT"
         ? systemRates?.memberRates
         : systemRates?.institutionRates;
     const fallbackTiersJson = fallbackTiers
@@ -679,7 +720,7 @@ export default function WithdrawalCreateForm({
 
   const selectedMemberHasFingerprint = Boolean(selectedMember?.fingerprintTemplate);
   const selectedMemberFingerprintMissing =
-    withdrawalType === "MEMBER" &&
+    (withdrawalType === "MEMBER" || withdrawalType === "JOINT") &&
     !!selectedMember &&
     !selectedMemberHasFingerprint;
 
@@ -701,6 +742,25 @@ export default function WithdrawalCreateForm({
     if (mandate === "ANY_3_SIGNATORIES") return 3;
     if (mandate === "ALL_SIGNATORIES") return count;
     return count;
+  };
+
+  // Joint account mandate math, shared by validation, submission, and the
+  // verification panel so all three always agree on what's required. The
+  // holder who searched/selected this account authenticates separately via
+  // the Step 1.5 fingerprint/OTP flow — that counts as one approving holder,
+  // so the on-screen checklist of the account's OTHER holders only needs
+  // (required - 1) of them checked off.
+  const getJointMandateInfo = (account: Account | null | undefined) => {
+    const jointMembers = account?.jointMembers || [];
+    const totalHolders = 1 + jointMembers.length;
+    const mandate = account?.withdrawalMandate || "ALL_SIGNATORIES";
+    let required = totalHolders;
+    if (mandate === "ANY_1_SIGNATORY") required = 1;
+    else if (mandate === "ANY_2_SIGNATORIES") required = 2;
+    else if (mandate === "ANY_3_SIGNATORIES") required = 3;
+    required = Math.min(required, totalHolders);
+    const requiredCoHolders = Math.max(0, required - 1);
+    return { totalHolders, required, requiredCoHolders, jointMembers };
   };
 
   const canSubmitForm = () => {
@@ -744,12 +804,22 @@ export default function WithdrawalCreateForm({
     }
 
     if (
-      withdrawalType === "MEMBER" &&
+      (withdrawalType === "MEMBER" || withdrawalType === "JOINT") &&
       selectedMemberHasFingerprint &&
       verificationMode === "fingerprint" &&
       !fingerprintVerified
     ) {
       return false;
+    }
+
+    if (withdrawalType === "MEMBER" || withdrawalType === "JOINT") {
+      const account = getSelectedAccount();
+      if (account && isJointSavingsAccountType(account.accountType)) {
+        const { jointMembers, requiredCoHolders } = getJointMandateInfo(account);
+        if (jointMembers.length > 0 && verifiedJointMembers.size < requiredCoHolders) {
+          return false;
+        }
+      }
     }
 
     const fee = getWithdrawalFee();
@@ -793,6 +863,10 @@ export default function WithdrawalCreateForm({
     } else if (withdrawalType === "INSTITUTION" && selectedInstitution) {
       loadAccounts(selectedInstitution.id, "INSTITUTION");
     }
+    // JOINT is intentionally not refetched here: memberAccounts is set
+    // directly (to that member's joint accounts) at selection time, because
+    // /api/v1/deposits/accounts only returns accounts the member primarily
+    // owns and would drop joint accounts they merely co-hold.
   }, [selectedMember, selectedInstitution, withdrawalType]);
 
   useEffect(() => {
@@ -802,7 +876,8 @@ export default function WithdrawalCreateForm({
     setFingerprintScore(null);
     setFingerprintError("");
     setVerificationMode(
-      withdrawalType === "MEMBER" && selectedMember?.fingerprintTemplate
+      (withdrawalType === "MEMBER" || withdrawalType === "JOINT") &&
+        selectedMember?.fingerprintTemplate
         ? "fingerprint"
         : "email",
     );
@@ -875,11 +950,18 @@ export default function WithdrawalCreateForm({
           accounts: Array.isArray(member.accounts)
             ? member.accounts.filter((account) => isWithdrawableAccount(account))
             : [],
+          accountMembers: Array.isArray(member.accountMembers)
+            ? member.accountMembers.filter(
+                (am) => am.account && isWithdrawableAccount(am.account),
+              )
+            : [],
         }));
 
         setMembers(
           normalizedMembers.filter(
-            (member) => getWithdrawableAccounts(member).length > 0,
+            (member) =>
+              getWithdrawableAccounts(member).length > 0 ||
+              getJointAccounts(member).length > 0,
           ),
         );
       }
@@ -1088,7 +1170,7 @@ export default function WithdrawalCreateForm({
           return isWithdrawableAccount(acc);
         })
         .map((acc) => ({
-          label: `${acc.accountNumber} - ${getAccountTypeDisplayName(acc.accountType.name)} (${formatCurrency(acc.balance)})`,
+          label: `${acc.accountName ? `${acc.accountName} — ` : ""}${acc.accountNumber} - ${getAccountTypeDisplayName(acc.accountType.name)} (${formatCurrency(acc.balance)})${isJointSavingsAccountType(acc.accountType) ? " 🏷️ JOINT" : ""}`,
           value: acc.id,
         }))
     : [];
@@ -1177,7 +1259,7 @@ export default function WithdrawalCreateForm({
   const handleJointMemberFingerprintCapture = async (memberId: string, capture: FingerprintCapture) => {
     const account = getSelectedAccount();
     const jm = account?.jointMembers?.find((j) => j.memberId === memberId);
-    const fpTemplate = jm?.member?.user?.fingerprintTemplate;
+    const fpTemplate = jm?.member?.fingerprintTemplate;
     if (!fpTemplate) return;
     if (!capture.NativeTemplateBase64) {
       toast.error(capture.bridgeError || "Fingerprint bridge not running — start fingerprint-bridge/server.js");
@@ -1221,8 +1303,15 @@ export default function WithdrawalCreateForm({
     try {
       setLoading(true);
 
-      if (withdrawalType === "MEMBER" && !selectedMember) {
-        toast.error("Please select a member");
+      if (
+        (withdrawalType === "MEMBER" || withdrawalType === "JOINT") &&
+        !selectedMember
+      ) {
+        toast.error(
+          withdrawalType === "JOINT"
+            ? "Please select a joint account holder"
+            : "Please select a member",
+        );
         return;
       }
       if (withdrawalType === "INSTITUTION" && !selectedInstitution) {
@@ -1242,26 +1331,27 @@ export default function WithdrawalCreateForm({
         return;
       }
 
-      // Joint savings: require all joint members to be verified
-      if (withdrawalType === "MEMBER") {
+      // Joint savings: require the mandate's minimum number of holders to verify
+      if (withdrawalType === "MEMBER" || withdrawalType === "JOINT") {
         const account = getSelectedAccount();
         if (account && isJointSavingsAccountType(account.accountType)) {
-          const jointMembers = account.jointMembers || [];
+          const { jointMembers, required, totalHolders, requiredCoHolders } =
+            getJointMandateInfo(account);
           if (jointMembers.length > 0) {
             const requiredIds = new Set(jointMembers.map((jm) => jm.memberId));
             const verifiedIds = verifiedJointMembers;
-            const missing = jointMembers.filter((jm) => !verifiedIds.has(jm.memberId));
-            if (missing.length > 0) {
-              const names = missing.map((jm) => jm.member.user.name).join(", ");
-              toast.error(`All joint members must verify this withdrawal. Missing: ${names}`);
-              return;
-            }
             // All verified IDs must be valid joint members
             for (const vid of verifiedIds) {
               if (!requiredIds.has(vid)) {
                 toast.error("Verified member is not a joint member of this account");
                 return;
               }
+            }
+            if (verifiedIds.size < requiredCoHolders) {
+              toast.error(
+                `This account requires ${required} of ${totalHolders} holders to approve. ${verifiedIds.size}/${requiredCoHolders} additional co-holder(s) have verified so far.`,
+              );
+              return;
             }
           }
         }
@@ -1299,7 +1389,7 @@ export default function WithdrawalCreateForm({
       }
 
       if (
-        withdrawalType === "MEMBER" &&
+        (withdrawalType === "MEMBER" || withdrawalType === "JOINT") &&
         selectedMemberHasFingerprint &&
         verificationMode === "fingerprint" &&
         !fingerprintVerified
@@ -1311,7 +1401,10 @@ export default function WithdrawalCreateForm({
       }
 
       const formData: WithdrawalVerificationDTO = {
-        memberId: withdrawalType === "MEMBER" ? selectedMember!.id : undefined,
+        memberId:
+          withdrawalType === "MEMBER" || withdrawalType === "JOINT"
+            ? selectedMember!.id
+            : undefined,
         institutionId:
           withdrawalType === "INSTITUTION"
             ? selectedInstitution!.id
@@ -1340,7 +1433,8 @@ export default function WithdrawalCreateForm({
         verifiedAgent:
           withdrawalType === "INSTITUTION" ? verifiedAgent : undefined,
         verifiedJointMembers:
-          withdrawalType === "MEMBER" && verifiedJointMembers.size > 0
+          (withdrawalType === "MEMBER" || withdrawalType === "JOINT") &&
+          verifiedJointMembers.size > 0
             ? Array.from(verifiedJointMembers)
             : undefined,
         signatoryFingerprints:
@@ -1354,7 +1448,7 @@ export default function WithdrawalCreateForm({
             : undefined,
       };
       const skipDelivery =
-        withdrawalType === "MEMBER" &&
+        (withdrawalType === "MEMBER" || withdrawalType === "JOINT") &&
         selectedMemberHasFingerprint &&
         verificationMode === "fingerprint" &&
         fingerprintVerified;
@@ -1380,7 +1474,7 @@ export default function WithdrawalCreateForm({
 
       if (result.processed && result.success && result.data) {
         const memberName =
-          withdrawalType === "MEMBER"
+          withdrawalType === "MEMBER" || withdrawalType === "JOINT"
             ? selectedMember?.user.name || "Member"
             : selectedInstitution?.institutionName || "Institution";
         setVerificationData({
@@ -1680,6 +1774,8 @@ export default function WithdrawalCreateForm({
               <div className="flex items-center gap-2 pb-2 border-b border-blue-200">
                 {withdrawalType === "MEMBER" ? (
                   <User className="h-5 w-5 text-blue-600" />
+                ) : withdrawalType === "JOINT" ? (
+                  <Users className="h-5 w-5 text-amber-600" />
                 ) : (
                   <Building className="h-5 w-5 text-purple-600" />
                 )}
@@ -1714,6 +1810,29 @@ export default function WithdrawalCreateForm({
 
                 <div
                   onClick={() => {
+                    setWithdrawalType("JOINT");
+                    setMemberAccounts([]);
+                    setSelectedAccount(null);
+                  }}
+                  className={`flex-1 p-3 border rounded-lg cursor-pointer transition-all ${withdrawalType === "JOINT" ? "border-amber-500 bg-amber-50 ring-1 ring-amber-500" : "border-gray-200 hover:border-amber-300"}`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <Users
+                      className={`h-4 w-4 ${withdrawalType === "JOINT" ? "text-amber-600" : "text-gray-500"}`}
+                    />
+                    <span
+                      className={`font-semibold ${withdrawalType === "JOINT" ? "text-amber-700" : "text-gray-700"}`}
+                    >
+                      Joint Account
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Withdraw from a joint savings account
+                  </p>
+                </div>
+
+                <div
+                  onClick={() => {
                     setWithdrawalType("INSTITUTION");
                     setMemberAccounts([]);
                     setSelectedAccount(null);
@@ -1740,15 +1859,19 @@ export default function WithdrawalCreateForm({
                 <Label className="text-base font-medium">
                   {withdrawalType === "MEMBER"
                     ? "Select Member *"
-                    : "Select Institution *"}
+                    : withdrawalType === "JOINT"
+                      ? "Select Joint Account Holder *"
+                      : "Select Institution *"}
                 </Label>
                 <p className="text-xs text-gray-500">
                   {withdrawalType === "MEMBER"
                     ? "Only members with at least one withdrawable account are shown. Share accounts are excluded."
-                    : "Only institutions with at least one withdrawable account are shown. Share accounts are excluded."}
+                    : withdrawalType === "JOINT"
+                      ? "Search by any holder of the joint account — the primary owner or a co-holder. Only joint savings accounts are shown."
+                      : "Only institutions with at least one withdrawable account are shown. Share accounts are excluded."}
                 </p>
 
-                {withdrawalType === "MEMBER" ? (
+                {withdrawalType !== "INSTITUTION" ? (
                   <Popover
                     open={memberSearchOpen}
                     onOpenChange={setMemberSearchOpen}
@@ -1798,19 +1921,31 @@ export default function WithdrawalCreateForm({
                           className="h-12"
                         />
                         <CommandEmpty>
-                          {membersWithWithdrawableAccounts.length === 0
-                            ? "No members with withdrawable accounts available"
+                          {(withdrawalType === "JOINT"
+                            ? membersWithJointAccounts
+                            : membersWithWithdrawableAccounts
+                          ).length === 0
+                            ? withdrawalType === "JOINT"
+                              ? "No members with a joint account available"
+                              : "No members with withdrawable accounts available"
                             : "No members found"}
                         </CommandEmpty>
                         <CommandGroup className="max-h-80 overflow-y-auto">
-                          {membersWithWithdrawableAccounts.map((member) => (
+                          {(withdrawalType === "JOINT"
+                            ? membersWithJointAccounts
+                            : membersWithWithdrawableAccounts
+                          ).map((member) => (
                             <CommandItem
                               key={member.id}
                               onSelect={() => {
                                 setSelectedMember(member);
                                 setValue("memberId", member.id);
                                 setSelectedAccount(null);
-                                setMemberAccounts(getWithdrawableAccounts(member));
+                                setMemberAccounts(
+                                  withdrawalType === "JOINT"
+                                    ? getJointAccounts(member)
+                                    : getWithdrawableAccounts(member),
+                                );
                                 setMemberSearchOpen(false);
                               }}
                               className="p-4 cursor-pointer"
@@ -1936,7 +2071,7 @@ export default function WithdrawalCreateForm({
                 )}
 
                 {/* ── Institution details panel ── */}
-                {withdrawalType === "MEMBER" && selectedMember && (
+                {(withdrawalType === "MEMBER" || withdrawalType === "JOINT") && selectedMember && (
                   <div className="mt-4 space-y-4">
                     {selectedMemberFingerprintMissing ? (
                       <Alert className="border-amber-300 bg-amber-50">
@@ -2414,13 +2549,14 @@ export default function WithdrawalCreateForm({
                 </div>
 
                 {/* Joint Savings: Joint Member Verification */}
-                {withdrawalType === "MEMBER" &&
+                {(withdrawalType === "MEMBER" || withdrawalType === "JOINT") &&
                   selectedAccount &&
                   getSelectedAccount() &&
                   isJointSavingsAccountType(getSelectedAccount()!.accountType) &&
                   (() => {
                     const account = getSelectedAccount()!;
-                    const jointMembers = account.jointMembers || [];
+                    const { jointMembers, required, totalHolders, requiredCoHolders } =
+                      getJointMandateInfo(account);
                     return jointMembers.length > 0 ? (
                       <div className="space-y-4 mt-6 p-4 border border-amber-200 rounded-lg bg-amber-50">
                         <div className="flex items-center gap-2 pb-2 border-b border-amber-200">
@@ -2429,98 +2565,34 @@ export default function WithdrawalCreateForm({
                             Joint Account Verification
                           </h3>
                           <Badge className="ml-auto bg-amber-100 text-amber-800 border-amber-300">
-                            {verifiedJointMembers.size}/{jointMembers.length} Verified
+                            {verifiedJointMembers.size}/{requiredCoHolders} Verified
                           </Badge>
                         </div>
                         <p className="text-sm text-amber-700">
-                          All joint account holders must verify this withdrawal.
+                          This account requires {required} of {totalHolders} holders to
+                          approve. The holder authenticating above counts as one — so{" "}
+                          {requiredCoHolders === 0
+                            ? "no additional co-holders need to verify."
+                            : `${requiredCoHolders} more co-holder${requiredCoHolders > 1 ? "s" : ""} must also verify below.`}
                         </p>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {jointMembers.map((jm) => {
-                            const fpState = jointMemberFingerprintStates[jm.memberId];
-                            const isVerified = verifiedJointMembers.has(jm.memberId);
-                            return (
-                              <div
-                                key={jm.id}
-                                className={`flex flex-col gap-3 p-4 rounded-lg border ${
-                                  isVerified
-                                    ? "border-green-300 bg-green-50"
-                                    : "border-gray-200 bg-white"
-                                }`}
-                              >
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-3">
-                                    <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center overflow-hidden">
-                                      {jm.member.user.image ? (
-                                        <img
-                                          src={jm.member.user.image}
-                                          alt={jm.member.user.name}
-                                          className="h-10 w-10 object-cover"
-                                        />
-                                      ) : (
-                                        <User className="h-5 w-5 text-amber-600" />
-                                      )}
-                                    </div>
-                                    <div>
-                                      <p className="font-medium text-gray-900 text-sm">
-                                        {jm.member.user.name}
-                                      </p>
-                                      <p className="text-xs text-gray-500">
-                                        #{jm.member.memberNumber}
-                                      </p>
-                                    </div>
-                                  </div>
-                                  <input
-                                    type="checkbox"
-                                    checked={isVerified}
-                                    onChange={(e) =>
-                                      handleJointMemberVerified(
-                                        jm.memberId,
-                                        e.target.checked,
-                                      )
-                                    }
-                                    className="h-5 w-5 rounded border-gray-300 text-amber-600 focus:ring-amber-500"
-                                  />
-                                </div>
-
-                                {/* Fingerprint verification for joint member */}
-                                {!fpState?.captured ? (
-                                  <div className="flex items-center gap-2">
-                                    <FingerprintScanner
-                                      onCapture={(capture) =>
-                                        handleJointMemberFingerprintCapture(
-                                          jm.memberId,
-                                          capture,
-                                        )
-                                      }
-                                    />
-                                    {isVerified && !fpState?.captured && (
-                                      <span className="text-xs text-amber-600">
-                                        (verified manually)
-                                      </span>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-xs text-green-600">
-                                      Fingerprint verified (score: {fpState.score})
-                                    </span>
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        handleJointMemberFingerprintReset(
-                                          jm.memberId,
-                                        )
-                                      }
-                                      className="text-xs text-red-500 hover:underline"
-                                    >
-                                      Reset
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
+                          {jointMembers.map((jm) => (
+                            <SignatoryVerificationCard
+                              key={jm.id}
+                              signatoryId={jm.memberId}
+                              signatoryName={jm.member.user.name}
+                              signatoryTitle={`Joint holder — #${jm.member.memberNumber}`}
+                              isPrimary={false}
+                              photoImage={jm.member.passportPhoto || jm.member.user.image}
+                              storedSignatureImage={jm.member.applicantSignature}
+                              fingerprintTemplate={jm.member.fingerprintTemplate}
+                              isVerified={verifiedJointMembers.has(jm.memberId)}
+                              onVerifiedChange={handleJointMemberVerified}
+                              fingerprintState={jointMemberFingerprintStates[jm.memberId]}
+                              onFingerprintCapture={handleJointMemberFingerprintCapture}
+                              onFingerprintReset={handleJointMemberFingerprintReset}
+                            />
+                          ))}
                         </div>
                       </div>
                     ) : null;

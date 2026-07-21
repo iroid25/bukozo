@@ -799,17 +799,7 @@ export async function POST(request: NextRequest) {
       const verifiedIds: string[] = Array.isArray(verifiedJointMembers) ? verifiedJointMembers : [];
       const verifiedSet = new Set(verifiedIds);
 
-      // All joint members must be verified
-      for (const jm of jointMembers) {
-        if (!verifiedSet.has(jm.memberId)) {
-          return NextResponse.json(
-            { error: `All joint members must verify this withdrawal. Missing verification for member #${jm.member.memberNumber}.` },
-            { status: 400 },
-          );
-        }
-      }
-
-      // All verified members must be valid joint members
+      // All verified members must actually be joint members of this account
       const jointMemberIds = new Set(jointMembers.map((jm: any) => jm.memberId));
       for (const vid of verifiedIds) {
         if (!jointMemberIds.has(vid)) {
@@ -818,6 +808,29 @@ export async function POST(request: NextRequest) {
             { status: 400 },
           );
         }
+      }
+
+      // Withdrawal mandate: how many of the account's holders must approve.
+      // The holder actually completing this withdrawal (memberId) has
+      // already authenticated via the fingerprint/OTP step above — that
+      // counts as one approving holder, so the joint-member checklist only
+      // needs (required - 1) additional co-holders checked off.
+      const totalHolders = 1 + jointMembers.length;
+      const mandate = (account as any).withdrawalMandate || "ALL_SIGNATORIES";
+      let required = totalHolders;
+      if (mandate === "ANY_1_SIGNATORY") required = 1;
+      else if (mandate === "ANY_2_SIGNATORIES") required = 2;
+      else if (mandate === "ANY_3_SIGNATORIES") required = 3;
+      required = Math.min(required, totalHolders);
+      const requiredCoHolders = Math.max(0, required - 1);
+
+      if (verifiedSet.size < requiredCoHolders) {
+        return NextResponse.json(
+          {
+            error: `This account's withdrawal mandate requires ${required} of ${totalHolders} holders to approve. In addition to the holder completing this withdrawal, ${requiredCoHolders} co-holder(s) must also verify — only ${verifiedSet.size} did.`,
+          },
+          { status: 400 },
+        );
       }
     }
 

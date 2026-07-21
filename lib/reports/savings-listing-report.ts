@@ -89,6 +89,7 @@ const PRODUCT_DEFINITIONS = [
   { code: "201002", name: "JUNIOR SAVINGS A/C" },
   { code: "201003", name: "VOLUNTARY SAVINGS" },
   { code: "201004", name: "COMPULSORY SAVINGS" },
+  { code: "201006", name: "JOINT SAVINGS" },
   { code: "200600", name: "LOAN INSURANCE" },
 ] as const;
 
@@ -97,6 +98,7 @@ const PRODUCT_NAMES: Record<string, string> = {
   "201002": "JUNIOR SAVINGS A/C",
   "201003": "VOLUNTARY SAVINGS",
   "201004": "COMPULSORY SAVINGS",
+  "201006": "JOINT SAVINGS",
   "200600": "LOAN INSURANCE",
 };
 
@@ -105,6 +107,7 @@ const PRODUCT_KEYWORDS: Array<{ test: RegExp; code: string }> = [
   { test: /junior/i, code: "201002" },
   { test: /voluntary/i, code: "201003" },
   { test: /compulsory/i, code: "201004" },
+  { test: /joint/i, code: "201006" },
   { test: /insurance|loan\s*insurance/i, code: "200600" },
 ];
 
@@ -187,6 +190,7 @@ function resolveProductCodeFromAccount(record: AccountListingRecord) {
   if (normalizedName.includes("fixed")) return "201001";
   if (normalizedName.includes("junior")) return "201002";
   if (normalizedName.includes("compulsory")) return "201004";
+  if (normalizedName.includes("joint")) return "201006";
   if (normalizedName.includes("insurance")) return "200600";
 
   if (code && PRODUCT_NAMES[code]) return code;

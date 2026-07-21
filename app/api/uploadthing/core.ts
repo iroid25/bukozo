@@ -79,6 +79,12 @@ export const ourFileRouter = {
     .middleware(async () => auth())
     .onUploadComplete(async ({ file }) => ({ url: file.url })),
 
+  memberSignature: f({
+    image: { maxFileSize: "1MB", maxFileCount: 1 },
+  })
+    .middleware(async () => auth())
+    .onUploadComplete(async ({ file }) => ({ url: file.url })),
+
   fileUploads: f({
     image: { maxFileSize: "1MB", maxFileCount: 4 },
     pdf: { maxFileSize: "1MB", maxFileCount: 4 },

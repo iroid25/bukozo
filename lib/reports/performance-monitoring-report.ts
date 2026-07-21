@@ -433,7 +433,7 @@ function buildSnapshot(data: SnapshotData, asOfDate: Date) {
   const totalSavingsAccounts = data.savingsAccounts.filter((account) => ["ACTIVE", "DORMANT", "ON_HOLD", "FROZEN"].includes(String(account.status || "").toUpperCase()));
   const voluntarySavings = totalSavingsAccounts.filter((account) => {
     const name = cleanMemberType(account.accountType?.name);
-    return name.includes("voluntary") || (account.accountType?.isShareAccount === false && !name.includes("compulsory"));
+    return name.includes("voluntary") || (account.accountType?.isShareAccount === false && !name.includes("compulsory") && !name.includes("joint"));
   });
   const compulsorySavings = totalSavingsAccounts.filter((account) => cleanMemberType(account.accountType?.name).includes("compulsory"));
   const savingsClientIds = new Set(totalSavingsAccounts.map((account) => account.memberId));

@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
         where: manualEntryWhere,
         orderBy: { date: 'desc' },
       }),
-      getRetainedEarnings(),
+      getRetainedEarnings(branchId ? { branchId } : {}),
       getShareCapitalSummary(branchId),
     ]);
 

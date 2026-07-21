@@ -291,7 +291,7 @@ export async function buildFinancialYearBalanceSheetReport(input: BuildInput): P
   const periodWhere = {
     recordDate: { gte: fromDate, lte: toDate },
     status: { in: [TransactionStatus.COMPLETED, TransactionStatus.APPROVED] as TransactionStatus[] },
-    ...(branchId ? { member: { user: { branchId } } } : {}),
+    ...(branchId ? { branchId } : {}),
   };
   const [incomeAgg, expenditureAgg, insuranceAgg] = await Promise.all([
     db.incomeRecord.aggregate({

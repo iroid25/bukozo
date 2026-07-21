@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/config/auth";
 import { buildFinancialYearBalanceSheetReport } from "@/lib/reports/financial-year-balance-sheet-report";
+import { resolveBranchScope } from "@/lib/services/branch-scope";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -22,7 +23,10 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const report = await buildFinancialYearBalanceSheetReport({
       user: session.user,
-      branchId: normalizeBranchId(searchParams.get("branchId") || undefined),
+      branchId: resolveBranchScope(
+        { role: (session.user as any).role, branchId: (session.user as any).branchId },
+        normalizeBranchId(searchParams.get("branchId") || undefined),
+      ),
       financialYearId: searchParams.get("financialYearId") || searchParams.get("financial_year_id") || undefined,
       year: searchParams.get("year") ? Number(searchParams.get("year")) : undefined,
       fromDate: searchParams.get("fromDate") || searchParams.get("from_date") || undefined,

@@ -59,6 +59,8 @@ export async function GET(request: NextRequest) {
           select: {
             id: true,
             accountNumber: true,
+            accountName: true,
+            withdrawalMandate: true,
             balance: true,
             customFlatWithdrawalFee: true,
             customWithdrawalFeePercentage: true,
@@ -90,10 +92,80 @@ export async function GET(request: NextRequest) {
                   select: {
                     id: true,
                     memberNumber: true,
+                    applicantSignature: true,
+                    passportPhoto: true,
+                    fingerprintTemplate: true,
                     user: {
                       select: {
                         name: true,
                         image: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        // Accounts where this member is a joint co-holder but not the
+        // primary owner (Account.memberId points to someone else) — without
+        // this, a joint holder who isn't the primary owner can't be found
+        // by searching their own name.
+        accountMembers: {
+          where: {
+            account: {
+              status: "ACTIVE",
+              ...(userRole !== UserRole.ADMIN && { branchId: userBranchId }),
+            },
+          },
+          select: {
+            id: true,
+            account: {
+              select: {
+                id: true,
+                accountNumber: true,
+                accountName: true,
+                withdrawalMandate: true,
+                balance: true,
+                customFlatWithdrawalFee: true,
+                customWithdrawalFeePercentage: true,
+                customWithdrawalFeeTiers: true,
+                accountType: {
+                  select: {
+                    id: true,
+                    name: true,
+                    minBalance: true,
+                    flatWithdrawalFee: true,
+                    withdrawalFeePercentage: true,
+                    withdrawalFeeTiers: true,
+                    isShareAccount: true,
+                    canWithdraw: true,
+                  },
+                },
+                branch: {
+                  select: {
+                    id: true,
+                    name: true,
+                    location: true,
+                  },
+                },
+                jointMembers: {
+                  select: {
+                    id: true,
+                    memberId: true,
+                    member: {
+                      select: {
+                        id: true,
+                        memberNumber: true,
+                        applicantSignature: true,
+                        passportPhoto: true,
+                        fingerprintTemplate: true,
+                        user: {
+                          select: {
+                            name: true,
+                            image: true,
+                          },
+                        },
                       },
                     },
                   },

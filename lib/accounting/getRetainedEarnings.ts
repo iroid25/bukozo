@@ -30,6 +30,7 @@ export async function getRetainedEarnings(
   params: {
     periodId?: string | null;
     db?: PrismaClient;
+    branchId?: string | null;
   } = {},
 ): Promise<{
   totalIncome: number;
@@ -47,6 +48,9 @@ export async function getRetainedEarnings(
   if (params.periodId) {
     expenditureWhere.periodId = params.periodId;
   }
+  if (params.branchId) {
+    expenditureWhere.branchId = params.branchId;
+  }
 
   const expenditureAgg = await client.expenditureRecord.aggregate({
     where: expenditureWhere,
@@ -63,6 +67,9 @@ export async function getRetainedEarnings(
   };
   if (params.periodId) {
     incomeWhere.periodId = params.periodId;
+  }
+  if (params.branchId) {
+    incomeWhere.branchId = params.branchId;
   }
 
   const directRecords = await client.incomeRecord.findMany({

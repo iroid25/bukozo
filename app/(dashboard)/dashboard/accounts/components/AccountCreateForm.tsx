@@ -38,6 +38,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import TextInput from "@/components/FormInputs/TextInput";
 import SubmitButton from "@/components/FormInputs/SubmitButton";
 import { toast } from "sonner";
+import { useUploadThing } from "@/lib/uploadthing";
 
 import { useRouter } from "next/navigation";
 import { AccountCreateDTO } from "@/types/accounts";
@@ -46,6 +47,7 @@ import FormSelectInput from "@/components/FormInputs/FormSelectInput";
 interface Member {
   id: string;
   memberNumber: string;
+  applicantSignature?: string | null;
   user: {
     name: string;
     email: string | null;
@@ -151,6 +153,111 @@ export default function AccountCreateForm({
   const [selectedMember, setSelectedMember] = useState<Option | null>(null);
   const [selectedGuardian, setSelectedGuardian] = useState<Option | null>(null);
   const [jointMembers, setJointMembers] = useState<Option[]>([]);
+  const [jointAccountName, setJointAccountName] = useState("");
+  const [jointAccountNameTouched, setJointAccountNameTouched] = useState(false);
+  const [jointWithdrawalMandate, setJointWithdrawalMandate] = useState<
+    "ANY_1_SIGNATORY" | "ANY_2_SIGNATORIES" | "ANY_3_SIGNATORIES" | "ALL_SIGNATORIES"
+  >("ALL_SIGNATORIES");
+
+  // Signature specimens captured while opening a Joint Savings account —
+  // keyed by memberId, holding a freshly-uploaded URL for this session.
+  // Falls back to a member's existing Member.applicantSignature (captured at
+  // onboarding) when they already have one on file, same as institution
+  // admins get their signature captured once at InstitutionSignatory setup.
+  const [jointMemberSignatures, setJointMemberSignatures] = useState<
+    Record<string, string>
+  >({});
+  const [signatureUploadingFor, setSignatureUploadingFor] = useState<
+    string | null
+  >(null);
+  const { startUpload: startMemberSignatureUpload } =
+    useUploadThing("memberSignature");
+
+  const getMemberSignature = (memberId: string): string | null => {
+    if (jointMemberSignatures[memberId]) return jointMemberSignatures[memberId];
+    return members.find((m) => m.id === memberId)?.applicantSignature || null;
+  };
+
+  const handleMemberSignatureUpload = async (memberId: string, file: File) => {
+    if (file.size > 1 * 1024 * 1024) {
+      toast.error("Signature file must be under 1MB");
+      return;
+    }
+    const validTypes = ["image/jpeg", "image/jpg", "image/png"];
+    if (!validTypes.includes(file.type)) {
+      toast.error("Only JPG or PNG files are allowed");
+      return;
+    }
+
+    setSignatureUploadingFor(memberId);
+    try {
+      const uploadPromise = startMemberSignatureUpload([file]);
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        window.setTimeout(() => reject(new Error("Upload timed out")), 20000);
+      });
+      const res = await Promise.race([uploadPromise, timeoutPromise]);
+      const uploadedUrl = res?.[0]?.url;
+      if (!uploadedUrl) throw new Error("Upload failed - no URL returned");
+      setJointMemberSignatures((prev) => ({ ...prev, [memberId]: uploadedUrl }));
+      toast.success("Signature uploaded");
+    } catch (error) {
+      console.error("Signature upload error:", error);
+      // Fall back to embedding the file directly so the teller isn't blocked
+      // by a flaky upload service — mirrors the institution signature flow.
+      try {
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result || ""));
+          reader.onerror = () => reject(new Error("Failed to read file"));
+          reader.readAsDataURL(file);
+        });
+        setJointMemberSignatures((prev) => ({ ...prev, [memberId]: dataUrl }));
+        toast.warning("Signature upload fell back to local storage.");
+      } catch {
+        toast.error("Failed to capture signature");
+      }
+    } finally {
+      setSignatureUploadingFor(null);
+    }
+  };
+
+  const renderSignatureUploader = (memberId: string, memberName: string) => {
+    const signature = getMemberSignature(memberId);
+    const isUploading = signatureUploadingFor === memberId;
+    const inputId = `signature-upload-${memberId}`;
+    return (
+      <div key={memberId} className="flex items-center gap-3 p-2 bg-white rounded-lg border">
+        <div className="h-12 w-24 flex-shrink-0 border rounded bg-gray-50 overflow-hidden flex items-center justify-center">
+          {signature ? (
+            <img src={signature} alt={`${memberName} signature`} className="h-full w-full object-contain" />
+          ) : (
+            <span className="text-[10px] text-gray-400 text-center px-1">No signature</span>
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-gray-800 truncate">{memberName}</p>
+          <label
+            htmlFor={inputId}
+            className="text-xs text-amber-700 underline cursor-pointer"
+          >
+            {isUploading ? "Uploading…" : signature ? "Replace signature" : "Upload signature"}
+          </label>
+          <input
+            id={inputId}
+            type="file"
+            accept="image/png,image/jpeg"
+            className="hidden"
+            disabled={isUploading}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleMemberSignatureUpload(memberId, file);
+              e.target.value = "";
+            }}
+          />
+        </div>
+      </div>
+    );
+  };
 
   const [selectedInstitution, setSelectedInstitution] = useState<Option | null>(
     null,
@@ -163,6 +270,32 @@ export default function AccountCreateForm({
   const currentInstitution = institutions.find(
     (i) => i.id === selectedInstitution?.value,
   );
+
+  // Auto-suggest a joint account name from the holders' first names, e.g.
+  // "MUHINDO & MUMBERE Joint A/C" — editable, and only overwritten while the
+  // teller hasn't manually changed it, since a straight concatenation won't
+  // always be the name staff actually want (same-surname holders, 3+ people).
+  const firstToken = (fullName: string | undefined | null) =>
+    (fullName || "").trim().split(/\s+/)[0] || "";
+
+  useEffect(() => {
+    if (selectedAccountType?.name !== "Joint Savings" || jointAccountNameTouched) {
+      return;
+    }
+    const names = [
+      firstToken(currentMember?.user.name),
+      ...jointMembers.map((jm) =>
+        firstToken(members.find((m) => m.id === jm.value)?.user.name),
+      ),
+    ].filter(Boolean);
+    if (names.length === 0) {
+      setJointAccountName("");
+    } else if (names.length <= 2) {
+      setJointAccountName(`${names.join(" & ")} Joint A/C`);
+    } else {
+      setJointAccountName(`${names[0]} & ${names[1]} +${names.length - 2} Joint A/C`);
+    }
+  }, [selectedAccountType, currentMember, jointMembers, members, jointAccountNameTouched]);
 
   const router = useRouter();
   const watchedValues = watch();
@@ -379,6 +512,19 @@ export default function AccountCreateForm({
           selectedAccountType.name === "Joint Savings"
             ? jointMembers.map((m) => m.value)
             : undefined,
+        accountName:
+          selectedAccountType.name === "Joint Savings"
+            ? jointAccountName.trim() || undefined
+            : undefined,
+        withdrawalMandate:
+          selectedAccountType.name === "Joint Savings"
+            ? jointWithdrawalMandate
+            : undefined,
+        signatures:
+          selectedAccountType.name === "Joint Savings" &&
+          Object.keys(jointMemberSignatures).length > 0
+            ? jointMemberSignatures
+            : undefined,
       };
 
       const response = await fetch("/api/v1/accounts", {
@@ -414,6 +560,10 @@ export default function AccountCreateForm({
       setSelectedMember(null);
       setSelectedGuardian(null);
       setJointMembers([]);
+      setJointAccountName("");
+      setJointAccountNameTouched(false);
+      setJointWithdrawalMandate("ALL_SIGNATORIES");
+      setJointMemberSignatures({});
       setSelectedInstitution(null);
       setSelectedAccountType(null);
       setSelectedBranch(null);
@@ -431,6 +581,10 @@ export default function AccountCreateForm({
     setSelectedMember(null);
     setSelectedGuardian(null);
     setJointMembers([]);
+    setJointAccountName("");
+    setJointAccountNameTouched(false);
+    setJointWithdrawalMandate("ALL_SIGNATORIES");
+    setJointMemberSignatures({});
     setSelectedInstitution(null);
     setSelectedAccountType(null);
     setSelectedBranch(null);
@@ -642,7 +796,6 @@ export default function AccountCreateForm({
                     </div>
                     <p className="text-sm text-amber-700">
                       Select additional members who will co-own this account.
-                      All joint members must be present and verify for withdrawals.
                     </p>
                     <FormSelectInput
                       label="Primary Member"
@@ -677,6 +830,76 @@ export default function AccountCreateForm({
                         </div>
                       </div>
                     )}
+
+                    <div className="space-y-2 pt-2 border-t border-amber-200">
+                      <Label>Holder Signatures</Label>
+                      <p className="text-xs text-amber-700">
+                        Each account holder must put down a signature specimen,
+                        same as institution signatories — this is what the
+                        teller compares against at withdrawal time.
+                      </p>
+                      <div className="space-y-2">
+                        {selectedMember &&
+                          renderSignatureUploader(selectedMember.value, `${selectedMember.label} (Primary)`)}
+                        {jointMembers.map((jm) => renderSignatureUploader(jm.value, jm.label))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 pt-2 border-t border-amber-200">
+                      <Label htmlFor="jointAccountName">Account Name</Label>
+                      <input
+                        id="jointAccountName"
+                        type="text"
+                        value={jointAccountName}
+                        onChange={(e) => {
+                          setJointAccountName(e.target.value);
+                          setJointAccountNameTouched(true);
+                        }}
+                        placeholder="Suggested from holder names — edit if needed"
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                      />
+                      <p className="text-xs text-amber-700">
+                        Auto-suggested from the holders' names — change it to
+                        whatever the account should be called.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="jointWithdrawalMandate">
+                        Who can authorize a withdrawal?
+                      </Label>
+                      <Select
+                        value={jointWithdrawalMandate}
+                        onValueChange={(value) =>
+                          setJointWithdrawalMandate(value as typeof jointWithdrawalMandate)
+                        }
+                      >
+                        <SelectTrigger id="jointWithdrawalMandate">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ANY_1_SIGNATORY">
+                            Any 1 holder can withdraw alone
+                          </SelectItem>
+                          <SelectItem value="ANY_2_SIGNATORIES">
+                            Any 2 holders must approve
+                          </SelectItem>
+                          {1 + jointMembers.length >= 3 && (
+                            <SelectItem value="ANY_3_SIGNATORIES">
+                              Any 3 holders must approve
+                            </SelectItem>
+                          )}
+                          <SelectItem value="ALL_SIGNATORIES">
+                            All {1 + jointMembers.length} holders must approve
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-amber-700">
+                        At withdrawal time, the holder present authenticates in
+                        person; this decides how many of the remaining
+                        co-holders must also verify before cash is released.
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>

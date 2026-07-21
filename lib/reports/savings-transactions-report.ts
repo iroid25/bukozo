@@ -226,6 +226,7 @@ const PRODUCT_NAMES: Record<string, string> = {
   "201002": "JUNIOR SAVINGS A/C",
   "201003": "VOLUNTARY SAVINGS",
   "201004": "COMPULSORY SAVINGS",
+  "201006": "JOINT SAVINGS",
   "200600": "LOAN INSURANCE",
 };
 
@@ -234,6 +235,7 @@ const PRODUCT_NAME_KEYWORDS: Record<string, string> = {
   "201002": "junior",
   "201003": "voluntary",
   "201004": "compulsory",
+  "201006": "joint",
   "200600": "insurance",
 };
 

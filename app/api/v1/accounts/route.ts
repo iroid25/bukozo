@@ -3,7 +3,7 @@ import { getAuthUser } from "@/config/useAuth";
 import { listAccountsForBalanceSheet } from "@/lib/reports/statement-of-comprehensive-balance-sheet";
 import { listAccountsForIncomeExpense } from "@/lib/reports/income-expense-report";
 import { db } from "@/prisma/db";
-import { AccountStatus, TransactionType, TransactionStatus, UserRole } from "@prisma/client";
+import { AccountStatus, TransactionType, TransactionStatus, UserRole, WithdrawalMandate } from "@prisma/client";
 import { getMemberTransactEligibility } from "@/lib/member-transact-eligibility";
 import { normalizeFingerprintTemplate } from "@/lib/fingerprint";
 import { buildAccountBalanceUpdate } from "@/lib/accounting-rules";
@@ -95,6 +95,37 @@ export async function POST(request: NextRequest) {
       if (membersExist.length !== allMemberIds.length) {
         return NextResponse.json({ error: "One or more joint members not found" }, { status: 400 });
       }
+    }
+
+    // Withdrawal mandate — how many of the account's holders must approve a
+    // withdrawal. Only meaningful for joint accounts; capped to the actual
+    // number of holders so e.g. ANY_2 can't be set on a 2-person account in
+    // a way that's equivalent to requiring everyone anyway without saying so.
+    let withdrawalMandate: WithdrawalMandate | undefined;
+    if (jointMemberIds.length > 0) {
+      const totalHolders = 1 + jointMemberIds.length;
+      const requested = (data.withdrawalMandate as WithdrawalMandate) || WithdrawalMandate.ALL_SIGNATORIES;
+      const allowedMandates: WithdrawalMandate[] = [
+        WithdrawalMandate.ANY_1_SIGNATORY,
+        WithdrawalMandate.ANY_2_SIGNATORIES,
+        WithdrawalMandate.ANY_3_SIGNATORIES,
+        WithdrawalMandate.ALL_SIGNATORIES,
+      ];
+      if (!allowedMandates.includes(requested)) {
+        return NextResponse.json({ error: "Invalid withdrawal mandate" }, { status: 400 });
+      }
+      const mandateMinHolders: Partial<Record<WithdrawalMandate, number>> = {
+        [WithdrawalMandate.ANY_2_SIGNATORIES]: 2,
+        [WithdrawalMandate.ANY_3_SIGNATORIES]: 3,
+      };
+      const minHolders = mandateMinHolders[requested];
+      if (minHolders && totalHolders < minHolders) {
+        return NextResponse.json(
+          { error: `${requested.replace(/_/g, " ")} requires at least ${minHolders} account holders (this account has ${totalHolders}).` },
+          { status: 400 },
+        );
+      }
+      withdrawalMandate = requested;
     }
 
     if (data.memberId) {
@@ -374,6 +405,8 @@ export async function POST(request: NextRequest) {
             fixingEndDate: data.fixingEndDate ?? null,
             expectedInterest: data.expectedInterest ?? null,
             fundingSourceAccountId: data.fundingSourceAccountId ?? null,
+            accountName: data.accountName?.trim() || null,
+            ...(withdrawalMandate ? { withdrawalMandate } : {}),
           },
           include: { member: { include: { user: true } }, institution: { include: { user: true } }, accountType: true, branch: true },
         });
@@ -387,6 +420,25 @@ export async function POST(request: NextRequest) {
               role: "JOINT",
             })),
           });
+        }
+
+        // Persist signature specimens captured for this account's holders —
+        // same purpose as InstitutionSignatory.signatureImage, stored on the
+        // member's own record since a person's signature isn't account-
+        // specific. Only allow writing to members who are actually part of
+        // this account (the primary owner or one of its joint members), so
+        // a crafted request can't overwrite an unrelated member's signature.
+        if (jointMemberIds.length > 0 && data.signatures && typeof data.signatures === "object") {
+          const allowedSignerIds = new Set([data.memberId, ...jointMemberIds]);
+          const signatureEntries = Object.entries(data.signatures as Record<string, string>).filter(
+            ([memberId, url]) => allowedSignerIds.has(memberId) && typeof url === "string" && url.trim(),
+          );
+          for (const [memberId, url] of signatureEntries) {
+            await tx.member.update({
+              where: { id: memberId },
+              data: { applicantSignature: (url as string).trim() },
+            });
+          }
         }
 
         // Share account: create ShareAccount + ShareTransaction + GL entry

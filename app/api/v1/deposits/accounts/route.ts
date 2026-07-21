@@ -36,6 +36,22 @@ export async function GET(request: NextRequest) {
             canWithdraw: true,
           },
         },
+        jointMembers: {
+          select: {
+            id: true,
+            memberId: true,
+            member: {
+              select: {
+                id: true,
+                memberNumber: true,
+                applicantSignature: true,
+                passportPhoto: true,
+                fingerprintTemplate: true,
+                user: { select: { name: true, image: true } },
+              },
+            },
+          },
+        },
       },
       orderBy: {
         accountNumber: "asc",

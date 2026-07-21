@@ -24,7 +24,6 @@ export interface DirectAccount {
 const ASSET_ROOT = "100000";
 const FIXED_ASSETS_PARENT = "101000";
 const CURRENT_ASSETS_PARENT = "102000";
-const CASH_AT_HAND = "101100";
 const LOAN_PORTFOLIO = "107000";
 
 const LIABILITY_ROOT = "200000";
@@ -86,11 +85,10 @@ async function getDirectAssets(asOfDate: Date, branchId?: string): Promise<Direc
   // Fixed Assets = FixedAsset.currentValue WHERE assetType=FIXED, status!=DISPOSED
   // Current Assets = FixedAsset.currentValue WHERE assetType=CURRENT, status!=DISPOSED
   // Loans = Loan.outstandingBalance WHERE outstandingBalance>0, status!=WRITTEN_OFF
-  // Cash at Hand = ChartOfAccount.balance WHERE accountCode='101100'
-  // Vault = ChartOfAccount.balance WHERE accountCode='102005'
+  // Cash in Vault = Vault.balance WHERE isActive=true
   // Float = UserFloat.balance WHERE isActiveForDay=true
 
-  const [fixedAssetGroups, currentAssetGroups, loanAgg, institutionLoanAgg, cashAtHandAcct, vaultAcct, floatAgg] = await Promise.all([
+  const [fixedAssetGroups, currentAssetGroups, loanAgg, institutionLoanAgg, vaultAgg, floatAgg] = await Promise.all([
     db.fixedAsset.groupBy({
       by: ["category"],
       where: {
@@ -124,16 +122,18 @@ async function getDirectAssets(asOfDate: Date, branchId?: string): Promise<Direc
       },
       _sum: { outstandingBalance: true },
     }),
-    db.chartOfAccount.findFirst({
-      where: { accountCode: "101100", isActive: true },
-      select: { balance: true },
-    }),
-    db.chartOfAccount.findFirst({
-      where: { accountCode: "102005", isActive: true },
-      select: { balance: true },
+    db.vault.aggregate({
+      where: {
+        isActive: true,
+        ...(branchId ? { branchId } : {}),
+      },
+      _sum: { balance: true },
     }),
     db.userFloat.aggregate({
-      where: { isActiveForDay: true },
+      where: {
+        isActiveForDay: true,
+        ...(branchId ? { user: { branchId } } : {}),
+      },
       _sum: { balance: true },
     }),
   ]);
@@ -145,8 +145,7 @@ async function getDirectAssets(asOfDate: Date, branchId?: string): Promise<Direc
     (sum, row) => sum + Number(row._sum.currentValue || 0), 0,
   );
   const loanPortfolio = Number(loanAgg._sum.outstandingBalance || 0) + Number(institutionLoanAgg._sum.outstandingBalance || 0);
-  const cashAtHand = Number(cashAtHandAcct?.balance || 0);
-  const vaultBalance = Number(vaultAcct?.balance || 0);
+  const vaultBalance = Number(vaultAgg._sum.balance || 0);
   const floatBalance = Number(floatAgg._sum.balance || 0);
 
   const assets: DirectAccount[] = [
@@ -186,7 +185,6 @@ async function getDirectAssets(asOfDate: Date, branchId?: string): Promise<Direc
   }
 
   assets.push(leaf(LOAN_PORTFOLIO, "Loans and Receivables", "ASSETS", vid(CURRENT_ASSETS_PARENT), loanPortfolio, 3));
-  assets.push(leaf(CASH_AT_HAND, "Cash at Hand", "ASSETS", vid(CURRENT_ASSETS_PARENT), cashAtHand, 3));
   assets.push(leaf(VAULT_CODE, "Cash in Vault", "ASSETS", vid(CURRENT_ASSETS_PARENT), vaultBalance, 3));
   assets.push(leaf(FLOAT_CODE, "Teller Float", "ASSETS", vid(CURRENT_ASSETS_PARENT), floatBalance, 3));
 
@@ -280,12 +278,12 @@ async function getDirectLiabilities(asOfDate: Date, branchId?: string): Promise<
 
 async function getDirectEquity(asOfDate: Date, branchId?: string): Promise<DirectAccount[]> {
   // Match the Equity page (/api/v1/equity) exactly:
-  // Manual entries: include both branch-specific AND SACCO-wide (branchId=null) entries
+  // Manual entries: scoped to branch if requested
   // Share Capital: status = "ACTIVE" only
   // Retained Earnings: getRetainedEarnings() — same shared function
 
   const manualEntryWhere = branchId
-    ? { date: { lte: asOfDate }, OR: [{ branchId }, { branchId: null }] }
+    ? { date: { lte: asOfDate }, branchId }
     : { date: { lte: asOfDate } };
 
   const [reserveAgg, grantAgg, shareAgg, instShareAgg] = await Promise.all([
@@ -319,7 +317,7 @@ async function getDirectEquity(asOfDate: Date, branchId?: string): Promise<Direc
   ]);
 
   const { getRetainedEarnings } = await import("@/lib/accounting/getRetainedEarnings");
-  const re = await getRetainedEarnings();
+  const re = await getRetainedEarnings(branchId ? { branchId } : {});
 
   const reserves = Number(reserveAgg._sum?.amount || 0);
   const grants = Number(grantAgg._sum?.amount || 0);

@@ -474,6 +474,8 @@ model Account {
   initialDepositReceiptNo       String?
   sharesCount                   Int?
   guardianMemberId              String?
+  accountName                   String?
+  withdrawalMandate             WithdrawalMandate?       @default(ALL_SIGNATORIES)
   accountType                   AccountType              @relation(fields: [accountTypeId], references: [id], onDelete: Cascade)
   branch                        Branch                   @relation(fields: [branchId], references: [id], onDelete: Cascade)
   guardian                      Member?                  @relation("AccountGuardian", fields: [guardianMemberId], references: [id])
