@@ -35,9 +35,9 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!data.institutionEmail || !data.institutionPhone) {
+    if (!data.institutionPhone) {
       return NextResponse.json(
-        { error: "Institution email and phone are required", data: null },
+        { error: "Institution phone is required", data: null },
         { status: 400 }
       );
     }
@@ -90,16 +90,18 @@ export async function POST(req: Request) {
       );
     }
 
-    // Check if email already exists
-    const existingEmail = await db.user.findUnique({
-      where: { email: normalizedEmail },
-    });
+    // Check if email already exists (only if provided)
+    if (normalizedEmail) {
+      const existingEmail = await db.user.findUnique({
+        where: { email: normalizedEmail },
+      });
 
-    if (existingEmail) {
-      return NextResponse.json(
-        { error: "Email address is already registered", data: null },
-        { status: 409 }
-      );
+      if (existingEmail) {
+        return NextResponse.json(
+          { error: "Email address is already registered", data: null },
+          { status: 409 }
+        );
+      }
     }
 
     // Check if phone already exists
@@ -139,13 +141,15 @@ export async function POST(req: Request) {
         : [];
 
       // ... (rest of the creation logic remains similar but safe) ...
-      // Create User
+      // Create User — generate a placeholder email if none provided (User.email is @unique)
+      const userEmail = normalizedEmail || `noemail-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@placeholder.local`;
+
       const user = await tx.user.create({
         data: {
           firstName: data.institutionName,
           lastName: data.institutionType,
           name: data.institutionName,
-          email: normalizedEmail,
+          email: userEmail,
           phone: normalizedPhone,
           password: hashedPassword,
           role: UserRole.INSTITUTION,

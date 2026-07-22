@@ -81,6 +81,7 @@ export default function InstitutionsListing({
   branchId,
   role,
   branches,
+  onDataChange,
 }: {
   institutions: InstitutionRow[];
   title: string;
@@ -88,6 +89,7 @@ export default function InstitutionsListing({
   branchId: string;
   role: UserRole | string;
   branches: Branch[];
+  onDataChange?: () => void;
 }) {
   const router = useRouter();
   const [approvingId, setApprovingId] = useState<string | null>(null);
@@ -104,7 +106,6 @@ export default function InstitutionsListing({
     inst.user.isActive &&
     !!inst.primaryContactPerson?.trim() &&
     !!inst.primaryContactPhone?.trim() &&
-    !!inst.institutionEmail?.trim() &&
     !!inst.institutionPhone?.trim() &&
     (inst.signatories ?? []).some(
       (sig) => sig.status === "ACTIVE" && !!sig.signatureImage?.trim() && !!sig.phone?.trim(),
@@ -261,6 +262,7 @@ export default function InstitutionsListing({
       }
 
       toast.success("Institution approved");
+      onDataChange?.();
       router.refresh();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to approve institution");
@@ -282,6 +284,7 @@ export default function InstitutionsListing({
         toast.success(`"${institutionName}" disabled`);
         setDeleteDialogOpen(false);
         setDeleteItem(null);
+        onDataChange?.();
         router.refresh();
       }
     } finally {
@@ -320,6 +323,7 @@ export default function InstitutionsListing({
         onClose={() => {
           setModalOpen(false);
           setEditing(null);
+          onDataChange?.();
         }}
         mode={editing ? "edit" : "create"}
         branches={branches}
@@ -340,7 +344,7 @@ export default function InstitutionsListing({
         columns={columns}
         keyField="id"
         isLoading={false}
-        onRefresh={() => router.refresh()}
+        onRefresh={() => onDataChange?.()}
         actions={{
           onAdd: handleAddNew,
           onExport: handleExport,

@@ -64,14 +64,33 @@ export function validateCsrf(request: NextRequest): boolean {
   const pathname = request.nextUrl.pathname;
   if (isCsrfExempt(pathname)) return true;
 
-  // First-party same-origin requests are safe (GET doesn't need CSRF)
-  // Check for the CSRF token header sent by the client
+  // Same-origin check: if the Origin or Referer header matches the server's
+  // host, the request is safe — browsers enforce same-origin policy and won't
+  // send cross-origin requests with cookies unless CORS explicitly allows it.
+  const origin = request.headers.get("origin");
+  const referer = request.headers.get("referer");
+  const host = request.headers.get("host");
+
+  if (origin) {
+    try {
+      const originHost = new URL(origin).host;
+      if (host && originHost === host) return true;
+    } catch {}
+  }
+
+  if (referer) {
+    try {
+      const refererHost = new URL(referer).host;
+      if (host && refererHost === host) return true;
+    } catch {}
+  }
+
+  // Fallback: check for CSRF token header + cookie (for programmatic clients)
   const headerToken = request.headers.get(CSRF_HEADER);
   const cookieToken = request.cookies.get(CSRF_COOKIE)?.value;
 
   if (!headerToken || !cookieToken) return false;
 
-  // Timing-safe comparison using Web Crypto
   try {
     const headerBuf = hexToUint8Array(headerToken);
     const cookieBuf = hexToUint8Array(cookieToken);

@@ -19,7 +19,7 @@ import {
   CreditCard,
   Building,
   Building2,
-  Settings,
+  Lock,
   DollarSign,
   Calendar,
   RefreshCcw,
@@ -403,20 +403,6 @@ export default function AccountListing({
               <Eye className="h-4 w-4 mr-1" />
               View
             </Button>
-            {account.status !== AccountStatus.CLOSED &&
-              userRole === "ADMIN" && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    router.push(
-                      `/dashboard/accounts/manage${account.accountTypeId}`
-                    )
-                  }
-                >
-                  <Settings className="h-4 w-4" />
-                </Button>
-              )}
           </div>
         );
       },
@@ -670,22 +656,10 @@ export default function AccountListing({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() =>
-                    router.push(`/dashboard/accounts/manage${item.accountTypeId}`)
-                  }
-                >
-                  <Settings className="h-4 w-4" />
-                </Button>
-              )}
-
-              {item.status !== AccountStatus.CLOSED && userRole === "ADMIN" && (
-                <Button
-                  variant="outline"
-                  size="sm"
                   onClick={() => handleCloseAccountClick(item)}
                   className="text-destructive"
                 >
-                  <Settings className="h-4 w-4 mr-1" />
+                  <Lock className="h-4 w-4 mr-1" />
                   Close
                 </Button>
               )}

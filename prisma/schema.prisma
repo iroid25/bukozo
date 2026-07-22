@@ -1331,7 +1331,7 @@ model Institution {
   primaryContactPhone         String
   primaryContactEmail         String?
   institutionPhone            String
-  institutionEmail            String
+  institutionEmail            String?
   bankName                    String?
   bankAccountNumber           String?
   accountTitle                String?

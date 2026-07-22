@@ -2779,12 +2779,6 @@ export default function InstitutionFormModal({
         return;
       }
 
-      if (!form.institutionEmail.trim()) {
-        toast.error("Institution email is required");
-        setIsSubmitting(false);
-        return;
-      }
-
       if (!form.institutionPhone.trim()) {
         toast.error("Institution phone is required");
         setIsSubmitting(false);
@@ -2832,7 +2826,7 @@ export default function InstitutionFormModal({
           institutionName: form.institutionName.trim(),
           institutionType: form.institutionType,
           institutionPhone: form.institutionPhone.trim(),
-          institutionEmail: form.institutionEmail.trim().toLowerCase(),
+          institutionEmail: form.institutionEmail.trim().toLowerCase() || undefined,
           primaryContactPerson: form.primaryContactPerson.trim(),
           primaryContactPhone: form.primaryContactPhone.trim(),
           branchId:
@@ -2892,7 +2886,7 @@ export default function InstitutionFormModal({
           registrationDate:
             initial.registrationDate || new Date().toISOString(),
           institutionPhone: form.institutionPhone.trim(),
-          institutionEmail: form.institutionEmail.trim().toLowerCase(),
+          institutionEmail: form.institutionEmail.trim().toLowerCase() || undefined,
           primaryContactPerson: form.primaryContactPerson.trim(),
           primaryContactPhone: form.primaryContactPhone.trim(),
           branchId:
@@ -3090,7 +3084,7 @@ export default function InstitutionFormModal({
 
                   <div className="space-y-2">
                     <Label htmlFor="institutionEmail">
-                      Institution Email <span className="text-red-500">*</span>
+                      Institution Email <span className="text-muted-foreground text-sm">(optional)</span>
                     </Label>
                     <Input
                       id="institutionEmail"
@@ -3098,7 +3092,6 @@ export default function InstitutionFormModal({
                       type="email"
                       value={form.institutionEmail}
                       onChange={handleChange}
-                      required
                       placeholder="institution@example.com"
                     />
                   </div>

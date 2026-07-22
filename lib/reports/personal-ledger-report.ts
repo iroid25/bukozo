@@ -83,7 +83,7 @@ export type PersonalLedgerInstitutionProfile = {
   primary_contact_phone: string;
   primary_contact_email: string | null;
   institution_phone: string;
-  institution_email: string;
+  institution_email: string | null;
   member_since: string;
   approval_status: "Verified" | "Pending" | "Incomplete";
   is_active: boolean;
@@ -510,7 +510,7 @@ function buildInstitutionProfile(
     primary_contact_phone: institution.primaryContactPhone,
     primary_contact_email: institution.primaryContactEmail || null,
     institution_phone: institution.institutionPhone,
-    institution_email: institution.institutionEmail,
+    institution_email: institution.institutionEmail || null,
     member_since: memberSince,
     approval_status: institution.isApproved || institution.approvalDate ? "Verified" : institution.rejectionReason ? "Incomplete" : "Pending",
     is_active: institution.user?.isActive ?? true,

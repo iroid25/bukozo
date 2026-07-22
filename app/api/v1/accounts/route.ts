@@ -149,8 +149,7 @@ export async function POST(request: NextRequest) {
       const hasRequiredContacts =
         !!institution.primaryContactPerson?.trim() &&
         !!institution.primaryContactPhone?.trim() &&
-        !!institution.institutionPhone?.trim() &&
-        !!institution.institutionEmail?.trim();
+        !!institution.institutionPhone?.trim();
       const hasSignedDirector = institution.signatories.some(
         (s) => s.status === "ACTIVE" && !!s.signatureImage?.trim() && !!s.phone?.trim(),
       );

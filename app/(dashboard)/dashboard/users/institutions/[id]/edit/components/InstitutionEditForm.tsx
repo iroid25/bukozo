@@ -65,7 +65,7 @@ const institutionEditSchema = z.object({
     .optional()
     .or(z.literal("")),
   institutionPhone: z.string().min(10, "Institution phone is required"),
-  institutionEmail: z.string().email("Invalid email"),
+  institutionEmail: z.string().email("Invalid email").optional().or(z.literal("")),
 
   // Physical Address
   plotNumber: z.string().optional(),

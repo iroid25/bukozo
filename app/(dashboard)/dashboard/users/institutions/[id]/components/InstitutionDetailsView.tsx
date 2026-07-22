@@ -96,8 +96,7 @@ export default function InstitutionDetailsView({
   const hasRequiredContacts =
     !!institution.primaryContactPerson?.trim() &&
     !!institution.primaryContactPhone?.trim() &&
-    !!institution.institutionPhone?.trim() &&
-    !!institution.institutionEmail?.trim();
+    !!institution.institutionPhone?.trim();
   const profileReady =
     institution.isApproved &&
     institution.user.isActive &&

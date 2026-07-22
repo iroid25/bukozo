@@ -309,7 +309,7 @@ export default function DataTable<T>({
               <TableRow>
                 <TableCell
                   colSpan={columns.length + (renderRowActions ? 1 : 0)}
-                  className="text-center py-6"
+                  className="text-center py-16 text-muted-foreground"
                 >
                   {emptyState ||
                     (searchQuery || dateFilter.option !== "lifetime"
