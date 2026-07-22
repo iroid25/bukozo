@@ -61,11 +61,16 @@ export async function GET(request: NextRequest) {
         _count: true,
       }),
 
-      // 2. Loan Applications
+      // 2. Loan Applications (individual + institution — an institution's
+      // applications live in a separate model and were previously excluded,
+      // understating the admin-wide pipeline numbers)
       Promise.all([
         db.loanApplication.count(),
         db.loanApplication.count({ where: { status: "PENDING" } }),
         db.loanApplication.count({ where: { status: "APPROVED" } }),
+        db.institutionLoanApplication.count(),
+        db.institutionLoanApplication.count({ where: { status: "PENDING" } }),
+        db.institutionLoanApplication.count({ where: { status: "APPROVED" } }),
       ]),
 
       // 3. User Stats
@@ -75,14 +80,22 @@ export async function GET(request: NextRequest) {
         db.user.count({ where: { isActive: true } }),
       ]),
 
-      // 4. Loan Portfolio
+      // 4. Loan Portfolio (individual + institution — InstitutionLoan is a
+      // separate model and was previously excluded, materially understating
+      // the system-wide disbursed/outstanding totals)
       Promise.all([
-        db.loan.aggregate({ 
+        db.loan.aggregate({
           where: { status: "DISBURSED" },
-          _sum: { amountGranted: true, outstandingBalance: true } 
+          _sum: { amountGranted: true, outstandingBalance: true }
         }),
         db.loan.count({ where: { status: "DISBURSED" } }),
         db.loan.count({ where: { status: "OVERDUE" } }),
+        db.institutionLoan.aggregate({
+          where: { status: "DISBURSED" },
+          _sum: { amountGranted: true, outstandingBalance: true },
+        }),
+        db.institutionLoan.count({ where: { status: "DISBURSED" } }),
+        db.institutionLoan.count({ where: { status: "OVERDUE" } }),
       ]),
 
       // 5. Recent Data
@@ -91,6 +104,7 @@ export async function GET(request: NextRequest) {
         orderBy: { transactionDate: "desc" },
         include: {
           member: { include: { user: true } },
+          institution: true,
           account: true,
         },
       }),
@@ -128,9 +142,9 @@ export async function GET(request: NextRequest) {
           },
         },
         loanApps: {
-          total: loanAppStats[0],
-          pending: loanAppStats[1],
-          approved: loanAppStats[2],
+          total: loanAppStats[0] + loanAppStats[3],
+          pending: loanAppStats[1] + loanAppStats[4],
+          approved: loanAppStats[2] + loanAppStats[5],
         },
         users: {
           members: userStats[0],
@@ -138,10 +152,14 @@ export async function GET(request: NextRequest) {
           active: userStats[2],
         },
         portfolio: {
-          activeDisbursedCount: loanPortfolioStats[1],
-          overdueCount: loanPortfolioStats[2],
-          totalDisbursedAmount: Number(loanPortfolioStats[0]._sum.amountGranted || 0),
-          outstandingBalance: Number(loanPortfolioStats[0]._sum.outstandingBalance || 0),
+          activeDisbursedCount: loanPortfolioStats[1] + loanPortfolioStats[4],
+          overdueCount: loanPortfolioStats[2] + loanPortfolioStats[5],
+          totalDisbursedAmount:
+            Number(loanPortfolioStats[0]._sum.amountGranted || 0) +
+            Number(loanPortfolioStats[3]._sum.amountGranted || 0),
+          outstandingBalance:
+            Number(loanPortfolioStats[0]._sum.outstandingBalance || 0) +
+            Number(loanPortfolioStats[3]._sum.outstandingBalance || 0),
         },
         recentTransactions,
         recentLoans,

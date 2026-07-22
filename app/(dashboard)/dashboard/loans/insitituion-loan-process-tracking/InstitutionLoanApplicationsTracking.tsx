@@ -56,6 +56,7 @@ interface LoanApplication {
   loanProduct: {
     name: string;
     interestRate: number;
+    interestPeriod?: "MONTHLY" | "ANNUAL" | string | null;
   };
   institutionLoan?: {
     id: string;
@@ -112,10 +113,12 @@ export default function InstitutionLoanApplicationsTracking({
   const calculateLoanDetails = (
     principal: number,
     rate: number,
-    months: number
+    months: number,
+    interestPeriod: "MONTHLY" | "ANNUAL" | string | null | undefined
   ) => {
-    const annualInterest = (principal * rate) / 100;
-    const periodInterest = (annualInterest * months) / 12;
+    const effectiveMonthlyRate =
+      interestPeriod === "ANNUAL" ? rate / 12 : rate;
+    const periodInterest = principal * (effectiveMonthlyRate / 100) * months;
     const totalDue = principal + periodInterest;
     const monthlyPayment = totalDue / months;
 
@@ -229,11 +232,17 @@ export default function InstitutionLoanApplicationsTracking({
 
     if (app.repaymentPeriodMonths) {
       details.push(["Repayment Period:", `${app.repaymentPeriodMonths} months`]);
+      const principal = app.approvedAmount || app.amountApplied;
       const loanDetails = calculateLoanDetails(
-        app.amountApplied,
+        principal,
         app.loanProduct.interestRate,
-        app.repaymentPeriodMonths
+        app.repaymentPeriodMonths,
+        app.loanProduct.interestPeriod
       );
+      details.push([
+        "Interest Period:",
+        app.loanProduct.interestPeriod || "MONTHLY",
+      ]);
       details.push(["Total Due:", fmt(loanDetails.totalDue)]);
       details.push(["Monthly Payment:", fmt(loanDetails.monthlyPayment)]);
     }
@@ -611,17 +620,27 @@ export default function InstitutionLoanApplicationsTracking({
                     </h4>
                     <div className="grid grid-cols-2 gap-3 text-sm">
                       {(() => {
+                        const principal =
+                          selectedApplication.approvedAmount ||
+                          selectedApplication.amountApplied;
                         const details = calculateLoanDetails(
-                          selectedApplication.amountApplied,
+                          principal,
                           selectedApplication.loanProduct.interestRate,
-                          selectedApplication.repaymentPeriodMonths
+                          selectedApplication.repaymentPeriodMonths,
+                          selectedApplication.loanProduct.interestPeriod
                         );
                         return (
                           <>
                             <div>
                               <span className="text-gray-600">Principal:</span>
                               <span className="font-semibold ml-2">
-                                {fmt(selectedApplication.amountApplied)}
+                                {fmt(principal)}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-gray-600">Interest Period:</span>
+                              <span className="font-semibold ml-2">
+                                {selectedApplication.loanProduct.interestPeriod || "MONTHLY"}
                               </span>
                             </div>
                             <div>
@@ -694,7 +713,7 @@ export default function InstitutionLoanApplicationsTracking({
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label className="text-xs text-gray-500">
-                          Amount Granted
+                          Principal Granted
                         </Label>
                         <div className="font-semibold text-green-600">
                           {fmt(selectedApplication.institutionLoan.amountGranted)}

@@ -56,9 +56,43 @@ export async function POST(req: Request) {
       );
     }
 
+    const normalizedEmail = String(data.institutionEmail || "").trim().toLowerCase();
+    const normalizedPhone = String(data.institutionPhone || "").trim();
+    const normalizedContactPhone = String(data.primaryContactPhone || "").trim();
+    const normalizedBranchId =
+      currentUser.role === UserRole.ADMIN
+        ? String(data.branchId || "").trim()
+        : String(currentUser.branchId || "").trim();
+
+    if (!normalizedBranchId) {
+      return NextResponse.json(
+        { error: "You are not assigned to a branch. Contact administrator.", data: null },
+        { status: 403 }
+      );
+    }
+
+    const branchExists = await db.branch.findUnique({
+      where: { id: normalizedBranchId },
+      select: { id: true },
+    });
+
+    if (!branchExists) {
+      return NextResponse.json(
+        { error: "Selected branch was not found", data: null },
+        { status: 404 }
+      );
+    }
+
+    if (!data.password || !String(data.password).trim()) {
+      return NextResponse.json(
+        { error: "Password is required", data: null },
+        { status: 400 }
+      );
+    }
+
     // Check if email already exists
     const existingEmail = await db.user.findUnique({
-      where: { email: data.institutionEmail },
+      where: { email: normalizedEmail },
     });
 
     if (existingEmail) {
@@ -69,9 +103,9 @@ export async function POST(req: Request) {
     }
 
     // Check if phone already exists
-    if (data.institutionPhone) {
+    if (normalizedPhone) {
       const existingPhone = await db.user.findUnique({
-        where: { phone: data.institutionPhone },
+        where: { phone: normalizedPhone },
       });
 
       if (existingPhone) {
@@ -92,7 +126,7 @@ export async function POST(req: Request) {
     }
 
     // Hash password
-    const hashedPassword = await bcrypt.hash(data.password, 10);
+    const hashedPassword = await bcrypt.hash(String(data.password), 10);
 
     // Generate institution number
     const institutionCount = await db.institution.count();
@@ -111,11 +145,11 @@ export async function POST(req: Request) {
           firstName: data.institutionName,
           lastName: data.institutionType,
           name: data.institutionName,
-          email: data.institutionEmail,
-          phone: data.institutionPhone,
+          email: normalizedEmail,
+          phone: normalizedPhone,
           password: hashedPassword,
           role: UserRole.INSTITUTION,
-          branchId: data.branchId,
+          branchId: normalizedBranchId,
           isActive: false,
           isVerified: false,
           requiresPasswordChange: true,
@@ -125,7 +159,7 @@ export async function POST(req: Request) {
       // Create Institution
       const institution = await tx.institution.create({
         data: {
-          userId: user.id,
+          user: { connect: { id: user.id } },
           institutionNumber,
           isApproved: false,
           institutionName: data.institutionName,
@@ -150,10 +184,10 @@ export async function POST(req: Request) {
           postalAddress: data.postalAddress,
           primaryContactPerson: data.primaryContactPerson,
           primaryContactTitle: data.primaryContactTitle,
-          primaryContactPhone: data.primaryContactPhone,
+          primaryContactPhone: normalizedContactPhone,
           primaryContactEmail: data.primaryContactEmail,
-          institutionPhone: data.institutionPhone,
-          institutionEmail: data.institutionEmail,
+          institutionPhone: normalizedPhone,
+          institutionEmail: normalizedEmail,
           accountTitle: data.accountTitle || data.institutionName,
           accountType: data.accountType,
           operatingInstructions: data.operatingInstructions,
@@ -212,6 +246,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: null, data: result });
   } catch (error) {
     console.error("API Error creating institution:", error);
+    if (error instanceof Error) {
+      console.error("Institution create failure details:", error.message);
+    }
 
     return NextResponse.json(
       { error: "Failed to register institution. Please try again.", data: null },

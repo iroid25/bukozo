@@ -38,7 +38,10 @@ export async function PATCH(
 
     const reschedule = await db.loanReschedule.findUnique({
       where: { id },
-      include: { loan: true }
+      include: {
+        loan: true,
+        institutionLoan: { include: { institution: { include: { user: true } } } },
+      }
     });
 
     if (!reschedule) {
@@ -48,8 +51,14 @@ export async function PATCH(
       );
     }
 
+    const isInstitution = !!reschedule.institutionLoan;
+    const effectiveBranchId = isInstitution
+      ? reschedule.institutionLoan!.institution.user.branchId
+      : reschedule.loan!.branchId;
+    const targetLoanId = isInstitution ? reschedule.institutionLoanId! : reschedule.loanId!;
+
     // Branch Check
-    if (user.role === "BRANCHMANAGER" && reschedule.loan.branchId !== user.branchId) {
+    if (user.role === "BRANCHMANAGER" && effectiveBranchId !== user.branchId) {
       return NextResponse.json(
         { success: false, error: "Access denied - Different branch" },
         { status: 403 }
@@ -95,15 +104,25 @@ export async function PATCH(
 
       // 2. If APPROVED, update loan due date and set isRescheduled
       if (status === "APPROVED") {
-        await tx.loan.update({
-          where: { id: reschedule.loanId },
-          data: {
-            dueDate: reschedule.newDueDate,
-            isRescheduled: true
-          }
-        });
+        if (isInstitution) {
+          await tx.institutionLoan.update({
+            where: { id: reschedule.institutionLoanId! },
+            data: {
+              dueDate: reschedule.newDueDate,
+              isRescheduled: true
+            }
+          });
+        } else {
+          await tx.loan.update({
+            where: { id: reschedule.loanId! },
+            data: {
+              dueDate: reschedule.newDueDate,
+              isRescheduled: true
+            }
+          });
+        }
       }
-      
+
       // 3. Create Audit Log
       await tx.auditLog.create({
         data: {
@@ -111,18 +130,20 @@ export async function PATCH(
             action: status === "APPROVED" ? "LOAN_RESCHEDULE_APPROVED" : "LOAN_RESCHEDULE_REJECTED",
             entityType: "LoanReschedule",
             entityId: id,
-            details: `Reschedule request ${status} for loan ${reschedule.loanId} by ${user.name}`
+            details: `Reschedule request ${status} for ${isInstitution ? "institution " : ""}loan ${targetLoanId} by ${user.name}`
         }
       });
-      
+
       // 4. Create Notification for the loan officer (requester)
        await tx.notification.create({
           data: {
             userId: reschedule.requestedById,
             type: "IN_APP", // Assuming this enum exists, or string
             subject: `Loan Reschedule ${status}`,
-            message: `Your reschedule request for loan ${reschedule.loanId} has been ${status}.`,
-            targetAddress: `/dashboard/loans/${reschedule.loanId}`,
+            message: `Your reschedule request for loan ${targetLoanId} has been ${status}.`,
+            targetAddress: isInstitution
+              ? `/dashboard/institution-loan-applications`
+              : `/dashboard/loans/${targetLoanId}`,
             status: "SENT"
           }
        });

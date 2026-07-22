@@ -28,13 +28,20 @@ export async function GET(request: NextRequest) {
     const where: any = {};
     if (status) where.status = status;
     if (loanId) where.loanId = loanId;
-    
-    // Branch Manager restriction
+
+    // Branch Manager restriction — covers both individual loans (branchId
+    // directly on Loan) and institution loans (branch resolved via
+    // institution's user). Using OR rather than `where.loan = {...}` because
+    // that form requires the loan relation to be non-null and would silently
+    // exclude every institution-loan reschedule (loanId is null for those).
     if (user.role === "BRANCHMANAGER") {
-        where.loan = { branchId: user.branchId };
+        where.OR = [
+          { loan: { branchId: user.branchId } },
+          { institutionLoan: { institution: { user: { branchId: user.branchId } } } },
+        ];
     }
     // Loan Officer restriction (optional: can only see loans they manage? or all in branch? Usually all in branch or system depends on policy. Sticking to general view for now, usually LOs need to see their rescheduling history)
-    
+
     const reschedules = await db.loanReschedule.findMany({
         where,
         include: {
@@ -54,6 +61,15 @@ export async function GET(request: NextRequest) {
                          select: { name: true }
                     }
                 }
+            },
+            institutionLoan: {
+                include: {
+                    institution: {
+                        include: {
+                            user: { select: { name: true, email: true, branchId: true } },
+                        },
+                    },
+                },
             },
             requestedBy: {
                 select: {

@@ -177,7 +177,13 @@ export async function GET(request: NextRequest) {
             user: { select: { id: true, name: true, email: true, phone: true } },
           },
         },
-        loanProduct: true,
+        loanProduct: {
+          select: {
+            name: true,
+            interestRate: true,
+            interestPeriod: true,
+          },
+        },
       },
       orderBy: { createdAt: "desc" },
     });

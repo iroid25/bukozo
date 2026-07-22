@@ -1,17 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/config/auth";
+import { getAuthUserWithFreshBranch } from "@/config/useAuth";
 import { db } from "@/prisma/db";
 import { startOfDay, endOfDay, startOfMonth, endOfMonth } from "date-fns";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
+    const user = await getAuthUserWithFreshBranch();
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = session.user as any;
     const now = new Date();
     const todayStart = startOfDay(now);
     const todayEnd = endOfDay(now);

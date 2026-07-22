@@ -1,10 +1,17 @@
 
 import { NextResponse } from "next/server";
 import { db } from "@/prisma/db";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/config/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user || (session.user as any).role !== "ADMIN") {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     // 1. Create Table
     await db.$executeRawUnsafe(`

@@ -69,8 +69,6 @@ const nextConfig: NextConfig = {
   },
   async headers() {
     const isDev = process.env.NODE_ENV === "development";
-    // localhost:8000/8001 = fingerprint reader bridge (runs on teller's local machine)
-    // ws:// entries are Next.js HMR — dev only
     const connectSrc = [
       "'self'",
       "http://localhost:8000",
@@ -86,6 +84,22 @@ const nextConfig: NextConfig = {
           {
             key: "Content-Security-Policy",
             value: `connect-src ${connectSrc};`,
+          },
+          {
+            key: "X-Frame-Options",
+            value: "DENY",
+          },
+          {
+            key: "X-Content-Type-Options",
+            value: "nosniff",
+          },
+          {
+            key: "Referrer-Policy",
+            value: "strict-origin-when-cross-origin",
+          },
+          {
+            key: "Strict-Transport-Security",
+            value: "max-age=63072000; includeSubDomains; preload",
           },
         ],
       },

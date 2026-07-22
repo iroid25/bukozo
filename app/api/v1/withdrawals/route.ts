@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/prisma/db";
+import { getAuthUserWithFreshBranch } from "@/config/useAuth";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
 import { sendTransactionAlertEmail } from "@/lib/email";
@@ -33,10 +34,9 @@ async function getDynamicAgentWithdrawalFees() {
 // GET /api/v1/withdrawals - List Withdrawals
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) return ApiErrors.unauthorized();
+    const user = await getAuthUserWithFreshBranch();
+    if (!user) return ApiErrors.unauthorized();
 
-    const user = session.user as any;
     const { searchParams } = new URL(request.url);
     const branchId = searchParams.get("branchId") || user.branchId;
     const memberId = searchParams.get("memberId") || undefined;
@@ -358,7 +358,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 3. Transaction
+    // 3. Vault Balance Check (CASH only)
+    if (channel?.toUpperCase() === "CASH" && account.branchId) {
+      const branchVault = await db.vault.findFirst({
+        where: { branchId: account.branchId, isActive: true },
+        select: { id: true, balance: true },
+      });
+      const vaultRequired = amount + fee;
+      if (!branchVault) {
+        return NextResponse.json(
+          { error: "No active vault found for this branch. Please contact an administrator." },
+          { status: 400 },
+        );
+      }
+      if (branchVault.balance < vaultRequired) {
+        return NextResponse.json(
+          {
+            error: `Insufficient vault balance. Available: UGX ${branchVault.balance.toLocaleString()}, Required: UGX ${vaultRequired.toLocaleString()}`,
+          },
+          { status: 400 },
+        );
+      }
+    }
+
+    // 4. Transaction
     // Ensure expenditure COA accounts exist before transaction
     await ensureExpenditureStructure();
     const result = await db.$transaction(async (tx) => {
@@ -416,6 +439,15 @@ export async function POST(request: NextRequest) {
               description: `Cash Withdrawal - ${transactionRef}. Principal: ${amount}, Fee: ${fee}`,
               performedByUserId: handlerUserId!,
             },
+          });
+        }
+
+        // Vault balance update for CASH withdrawals
+        if (channel?.toUpperCase() === "CASH" && account.branchId) {
+          const vaultRequired = amount + fee;
+          await tx.vault.updateMany({
+            where: { branchId: account.branchId, isActive: true },
+            data: { balance: { decrement: vaultRequired } },
           });
         }
       }

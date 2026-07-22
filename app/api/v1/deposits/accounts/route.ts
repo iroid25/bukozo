@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
                 applicantSignature: true,
                 passportPhoto: true,
                 fingerprintTemplate: true,
-                user: { select: { name: true, image: true } },
+                user: { select: { name: true, image: true, phone: true } },
               },
             },
           },

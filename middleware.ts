@@ -1,9 +1,22 @@
 import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { generateCsrfToken, setCsrfCookie, validateCsrf } from "@/lib/csrf";
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // CSRF protection for API mutations
+  if (pathname.startsWith("/api/")) {
+    if (!validateCsrf(request)) {
+      return NextResponse.json(
+        { error: "CSRF token missing or invalid" },
+        { status: 403 }
+      );
+    }
+    return NextResponse.next();
+  }
+
   console.log(`[Middleware] Request to: ${pathname}`);
 
   // 1. Get the token
@@ -26,18 +39,22 @@ export async function middleware(request: NextRequest) {
   if (
     token?.requiresPasswordChange &&
     isDashboardPage &&
-    pathname !== "/dashboard/force-password-change"
+    pathname !== "/dashboard/force-password-change" &&
+    !pathname.startsWith("/api/auth")
   ) {
-    // Only redirect if they are not already on the force-password-change page
-    // and they are not trying to logout (if logout is under /apih/auth)
     return NextResponse.redirect(
-      new URL("/dashboard/force-password-change", request.url),
+      new URL("/dashboard/force-password-change", request.url)
     );
   }
 
-  return NextResponse.next();
+  // 4. Set CSRF cookie on page loads if not present
+  let response = NextResponse.next();
+  if (!request.cookies.has("csrf-token") && !pathname.startsWith("/api/")) {
+    response = setCsrfCookie(response, generateCsrfToken());
+  }
+  return response;
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/login"],
+  matcher: ["/dashboard/:path*", "/login", "/api/:path*"],
 };

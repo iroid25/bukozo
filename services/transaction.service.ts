@@ -504,16 +504,15 @@ export class TransactionService {
             where: { userId: handlerUserId },
           });
           if (userFloat) {
-            // For Agent: Float increases (agent receives amount + agentShare)
-            // For Teller: Float decreases (teller gives out amount + fee in cash)
+            // Float decreases when handler gives cash to member
             const floatChange = isAgent
               ? data.amount + agentShare
-              : -(data.amount + feeCharge);
+              : data.amount + feeCharge;
             await tx.userFloat.update({
               where: { userId: handlerUserId },
               data: {
                 balance: {
-                  [isAgent ? "increment" : "decrement"]: Math.abs(floatChange),
+                  decrement: floatChange,
                 },
               },
             });
@@ -522,7 +521,7 @@ export class TransactionService {
               data: {
                 floatId: userFloat.id,
                 type: TransactionType.WITHDRAWAL,
-                amount: Math.abs(floatChange),
+                amount: floatChange,
                 description: isAgent
                   ? `Agent Withdrawal - Payout Cash. Earned: ${agentShare}`
                   : `Teller Payout Cash. Principal: ${data.amount}, Fee: ${feeCharge}`,
@@ -839,6 +838,7 @@ export class TransactionService {
             transactionRef,
             type: isFeePayment ? TransactionType.FEE : TransactionType.DEPOSIT,
             amount: data.amount,
+            fee: 0,
             status: data.channel?.toUpperCase() === "MOBILE_MONEY" 
               ? TransactionStatus.PENDING 
               : TransactionStatus.COMPLETED,
@@ -872,6 +872,12 @@ export class TransactionService {
             studentYear: (data as any).studentYear || null,
           },
         });
+
+        const isMobileMoney = data.channel?.toUpperCase() === "MOBILE_MONEY";
+
+        // MOBILE_MONEY: transaction stays PENDING; webhook recordDepositCompletion
+        // handles balance/float/GL later. Skip all financial updates here.
+        if (!isMobileMoney) {
 
         // Update balance - ALL deposits add to account balance (including fee payments)
 
@@ -912,9 +918,9 @@ export class TransactionService {
           },
         });
 
-        // Float updates for CASH and MOBILE_MONEY — only TELLER/AGENT roles hold a float
+        // Float updates for CASH only (MOBILE_MONEY float handled by webhook)
         const isFloatHolder = FLOAT_REQUIRED_ROLES.has(floatCheck.handlerUser.role as UserRole);
-        if (isFloatHolder && (data.channel?.toUpperCase() === "CASH" || data.channel?.toUpperCase() === "MOBILE_MONEY")) {
+        if (isFloatHolder && data.channel?.toUpperCase() === "CASH") {
           const userFloat = await tx.userFloat.findUnique({
             where: { userId: handlerUserId },
           });
@@ -956,7 +962,7 @@ export class TransactionService {
           await tx.userFloat.update({
             where: { userId: handlerUserId },
             data: {
-              balance: { [isAgent ? "decrement" : "increment"]: floatChange },
+              balance: { increment: floatChange },
             },
           });
 
@@ -970,6 +976,14 @@ export class TransactionService {
               relatedTransactionId: transaction.id,
             },
           });
+
+          // Record transaction fee
+          if (feeAmount > 0) {
+            await tx.transaction.update({
+              where: { id: transaction.id },
+              data: { fee: feeAmount },
+            });
+          }
 
           // Record Income for Agent Fee
           if (feeAmount > 0) {
@@ -1147,6 +1161,8 @@ export class TransactionService {
           });
         }
 
+        } // end !isMobileMoney
+
         // Notifications
         const ownerName =
           account.member?.user?.name ||
@@ -1298,11 +1314,11 @@ export class TransactionService {
           data: { balance: { increment: data.amount } },
         });
 
-        // GL journal entry: Dr Source Savings, Cr Target Savings (only if different GL accounts)
+        // GL journal entry: Dr Source Savings, Cr Target Savings
         const sourceLedgerId = (sourceAccount.accountType as any)?.ledgerAccountId;
         const targetLedgerId = (targetAccount.accountType as any)?.ledgerAccountId;
 
-        if (sourceLedgerId && targetLedgerId && sourceLedgerId !== targetLedgerId) {
+        if (sourceLedgerId && targetLedgerId) {
           const [srcGL, tgtGL] = await Promise.all([
             tx.chartOfAccount.findUnique({ where: { id: sourceLedgerId } }),
             tx.chartOfAccount.findUnique({ where: { id: targetLedgerId } }),

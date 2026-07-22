@@ -83,6 +83,46 @@ export default function LoanWriteOffClient({
       minimumFractionDigits: 0,
     }).format(amount);
 
+  // Institution loans and individual loans have different shapes — these
+  // helpers handle both a write-off record (which nests `.loan` or
+  // `.institutionLoan`) and a raw loan/institutionLoan record (as returned
+  // directly by the eligible-loans list), so nothing below crashes when an
+  // institution write-off/loan shows up instead of an individual one.
+  const getBorrowerName = (item: any) => {
+    if (!item) return "Unknown";
+    if (item.loan) return item.loan.member?.user?.name || "Unknown";
+    if (item.institutionLoan) return item.institutionLoan.institution?.institutionName || "Unknown";
+    if (item.institution) return item.institution.institutionName || "Unknown";
+    if (item.member) return item.member.user?.name || "Unknown";
+    return "Unknown";
+  };
+  const getBorrowerNumber = (item: any) => {
+    if (!item) return "";
+    if (item.loan) return item.loan.member?.memberNumber || "";
+    if (item.institutionLoan) return item.institutionLoan.institution?.institutionNumber || "";
+    if (item.institution) return item.institution.institutionNumber || "";
+    if (item.member) return item.member.memberNumber || "";
+    return "";
+  };
+  const getLoanProductName = (item: any) => {
+    if (!item) return "Loan";
+    if (item.loan) return item.loan.loanApplication?.loanProduct?.name || "Loan";
+    if (item.institutionLoan) return item.institutionLoan.application?.loanProduct?.name || "Loan";
+    if (item.application) return item.application.loanProduct?.name || "Loan";
+    if (item.loanApplication) return item.loanApplication.loanProduct?.name || "Loan";
+    return "Loan";
+  };
+  const getBorrowerAccounts = (item: any) => {
+    if (!item) return [];
+    if (item.loan) return item.loan.member?.accounts || [];
+    if (item.institutionLoan) return item.institutionLoan.institution?.accounts || [];
+    if (item.institution) return item.institution.accounts || [];
+    if (item.member) return item.member.accounts || [];
+    return [];
+  };
+  const isInstitutionItem = (item: any) =>
+    !!(item?.institutionLoan || item?.institution || item?.isInstitution);
+
   // Filter write-offs
   const filteredWriteOffs = useMemo(() => {
     if (!searchQuery.trim() && statusFilter === "all") return writeOffs;
@@ -90,10 +130,10 @@ export default function LoanWriteOffClient({
     return writeOffs.filter((writeOff) => {
       const matchesSearch =
         !searchQuery.trim() ||
-        writeOff.loan.member.user.name
+        getBorrowerName(writeOff)
           .toLowerCase()
           .includes(searchQuery.toLowerCase()) ||
-        writeOff.loan.member.memberNumber
+        getBorrowerNumber(writeOff)
           .toLowerCase()
           .includes(searchQuery.toLowerCase()) ||
         writeOff.reason.toLowerCase().includes(searchQuery.toLowerCase());
@@ -154,7 +194,12 @@ export default function LoanWriteOffClient({
       const res = await fetch("/api/v1/loan-write-offs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ loanId: selectedLoanId, reason: reason.trim(), minuteNumber: minuteNumber.trim() || undefined, notes: notes.trim() || undefined }),
+        body: JSON.stringify({
+          ...(isInstitutionItem(selectedLoan) ? { institutionLoanId: selectedLoanId } : { loanId: selectedLoanId }),
+          reason: reason.trim(),
+          minuteNumber: minuteNumber.trim() || undefined,
+          notes: notes.trim() || undefined,
+        }),
       });
       const result = await res.json();
 
@@ -376,15 +421,18 @@ export default function LoanWriteOffClient({
                       <TableCell>
                         <div>
                           <p className="font-medium">
-                            {writeOff.loan.member.user.name}
+                            {getBorrowerName(writeOff)}
+                            {isInstitutionItem(writeOff) && (
+                              <Badge variant="outline" className="ml-2 text-xs">Institution</Badge>
+                            )}
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            {writeOff.loan.member.memberNumber}
+                            {getBorrowerNumber(writeOff)}
                           </p>
                         </div>
                       </TableCell>
                       <TableCell>
-                        {writeOff.loan.loanApplication.loanProduct.name}
+                        {getLoanProductName(writeOff)}
                       </TableCell>
                       <TableCell className="font-medium">
                         {formatCurrency(writeOff.amountDisbursed)}
@@ -462,8 +510,9 @@ export default function LoanWriteOffClient({
                 <SelectContent>
                   {eligibleLoans.map((loan) => (
                     <SelectItem key={loan.id} value={loan.id}>
-                      {loan.member.user.name} -{" "}
-                      {loan.loanApplication.loanProduct.name} (
+                      {getBorrowerName(loan)}
+                      {isInstitutionItem(loan) ? " (Institution)" : ""} -{" "}
+                      {getLoanProductName(loan)} (
                       {formatCurrency(loan.outstandingBalance)})
                     </SelectItem>
                   ))}
@@ -479,21 +528,21 @@ export default function LoanWriteOffClient({
                 </h3>
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div>
-                    <p className="text-gray-600">Member</p>
+                    <p className="text-gray-600">{isInstitutionItem(selectedLoan) ? "Institution" : "Member"}</p>
                     <p className="font-medium">
-                      {selectedLoan.member.user.name}
+                      {getBorrowerName(selectedLoan)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-gray-600">Member Number</p>
+                    <p className="text-gray-600">{isInstitutionItem(selectedLoan) ? "Institution Number" : "Member Number"}</p>
                     <p className="font-medium">
-                      {selectedLoan.member.memberNumber}
+                      {getBorrowerNumber(selectedLoan)}
                     </p>
                   </div>
                   <div>
                     <p className="text-gray-600">Loan Product</p>
                     <p className="font-medium">
-                      {selectedLoan.loanApplication.loanProduct.name}
+                      {getLoanProductName(selectedLoan)}
                     </p>
                   </div>
                   <div>
@@ -617,27 +666,27 @@ export default function LoanWriteOffClient({
                 </h3>
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div>
-                    <p className="text-gray-600">Member Name</p>
+                    <p className="text-gray-600">{isInstitutionItem(selectedWriteOff) ? "Institution Name" : "Member Name"}</p>
                     <p className="font-medium">
-                      {selectedWriteOff.loan.member.user.name}
+                      {getBorrowerName(selectedWriteOff)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-gray-600">Member Number</p>
+                    <p className="text-gray-600">{isInstitutionItem(selectedWriteOff) ? "Institution Number" : "Member Number"}</p>
                     <p className="font-medium">
-                      {selectedWriteOff.loan.member.memberNumber}
+                      {getBorrowerNumber(selectedWriteOff)}
                     </p>
                   </div>
                   <div>
                     <p className="text-gray-600">Loan Product</p>
                     <p className="font-medium">
-                      {selectedWriteOff.loan.loanApplication.loanProduct.name}
+                      {getLoanProductName(selectedWriteOff)}
                     </p>
                   </div>
                   <div>
                     <p className="text-gray-600">Account Number</p>
                     <p className="font-medium">
-                      {selectedWriteOff.loan.member.accounts[0]
+                      {getBorrowerAccounts(selectedWriteOff)[0]
                         ?.accountNumber || "N/A"}
                     </p>
                   </div>
@@ -833,15 +882,15 @@ export default function LoanWriteOffClient({
                 <h3 className="font-semibold mb-2 text-blue-900">Summary</h3>
                 <div className="space-y-1 text-sm">
                   <p>
-                    <span className="text-gray-600">Member:</span>{" "}
+                    <span className="text-gray-600">{isInstitutionItem(selectedWriteOff) ? "Institution:" : "Member:"}</span>{" "}
                     <span className="font-medium">
-                      {selectedWriteOff.loan.member.user.name}
+                      {getBorrowerName(selectedWriteOff)}
                     </span>
                   </p>
                   <p>
                     <span className="text-gray-600">Loan Product:</span>{" "}
                     <span className="font-medium">
-                      {selectedWriteOff.loan.loanApplication.loanProduct.name}
+                      {getLoanProductName(selectedWriteOff)}
                     </span>
                   </p>
                   <p>
@@ -899,11 +948,10 @@ export default function LoanWriteOffClient({
 
               {/* Account Selection for Transaction Record */}
               {showApprovalDialog &&
-                selectedWriteOff.loan.member.accounts &&
-                selectedWriteOff.loan.member.accounts.length > 0 && (
+                getBorrowerAccounts(selectedWriteOff).length > 0 && (
                   <div className="space-y-2">
                     <Label htmlFor="accountSelect" className="text-gray-600">
-                      Link to Member Account (Optional)
+                      Link to {isInstitutionItem(selectedWriteOff) ? "Institution" : "Member"} Account (Optional)
                     </Label>
                     <Select
                       value={selectedAccountId}
@@ -913,7 +961,7 @@ export default function LoanWriteOffClient({
                         <SelectValue placeholder="Select account for transaction record" />
                       </SelectTrigger>
                       <SelectContent>
-                        {selectedWriteOff.loan.member.accounts.map(
+                        {getBorrowerAccounts(selectedWriteOff).map(
                           (account: any) => (
                             <SelectItem key={account.id} value={account.id}>
                               {account.accountType.name} -{" "}

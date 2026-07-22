@@ -200,7 +200,7 @@ function formatForExport(value: number | string | null, definition: KpiDefinitio
 async function loadSnapshots(asOfDate: Date, branchId?: string) {
   const branchFilter = branchId && branchId !== "all" ? { branchId } : {};
 
-  const [members, branches, loans, savingsAccounts, shareAccounts, institutionShareAccounts, repayments, writeOffs] = await Promise.all([
+  const [members, branches, individualLoans, institutionLoansRaw, savingsAccounts, shareAccounts, institutionShareAccounts, repayments, writeOffs] = await Promise.all([
     db.member.findMany({
       where: {
         registrationDate: { lte: asOfDate },
@@ -264,6 +264,58 @@ async function loadSnapshots(asOfDate: Date, branchId?: string) {
           select: {
             name: true,
             location: true,
+          },
+        },
+        writeOffs: {
+          select: {
+            totalBalance: true,
+            dateWrittenOff: true,
+            status: true,
+          },
+        },
+      },
+      orderBy: { disbursementDate: "asc" },
+    }),
+    // Institution loans — kept in a separate query (InstitutionLoan has no
+    // branchId of its own; it's resolved via the institution's user) and
+    // normalized below to the same shape as `Loan` so the $-value KPIs
+    // (portfolio, arrears, disbursements) include them. Deliberately kept
+    // out of member-keyed groupings (loanByMember, activeMembers, group vs
+    // individual client counts) since an institution isn't a member.
+    db.institutionLoan.findMany({
+      where: {
+        disbursementDate: { lte: asOfDate },
+        ...(branchId && branchId !== "all"
+          ? { institution: { user: { branchId } } }
+          : {}),
+      },
+      select: {
+        id: true,
+        institutionId: true,
+        amountGranted: true,
+        outstandingBalance: true,
+        disbursementDate: true,
+        status: true,
+        dueDate: true,
+        interestRate: true,
+        application: {
+          select: {
+            repaymentPeriodMonths: true,
+          },
+        },
+        schedules: {
+          select: {
+            dueDate: true,
+            totalPayment: true,
+            paidAmount: true,
+            principalPayment: true,
+            interestPayment: true,
+            status: true,
+          },
+        },
+        institution: {
+          select: {
+            user: { select: { branchId: true } },
           },
         },
         writeOffs: {
@@ -350,8 +402,20 @@ async function loadSnapshots(asOfDate: Date, branchId?: string) {
     db.loanWriteOff.findMany({
       where: {
         status: "APPROVED",
-        ...(branchId && branchId !== "all" ? { loan: { branchId } } : {}),
-        OR: [{ dateWrittenOff: { lte: asOfDate } }, { requestedAt: { lte: asOfDate } }],
+        // Two independent OR-conditions combined via AND — a second `OR` key
+        // on the same where object would silently replace the first, which
+        // is exactly the bug that would drop the date condition here.
+        AND: [
+          { OR: [{ dateWrittenOff: { lte: asOfDate } }, { requestedAt: { lte: asOfDate } }] },
+          ...(branchId && branchId !== "all"
+            ? [{
+                OR: [
+                  { loan: { branchId } },
+                  { institutionLoan: { institution: { user: { branchId } } } },
+                ],
+              }]
+            : []),
+        ],
       },
       select: {
         totalBalance: true,
@@ -368,6 +432,25 @@ async function loadSnapshots(asOfDate: Date, branchId?: string) {
     openedDate: a.openedAt,
     accountType: a.accountType,
   }));
+
+  // Same convention as normalizedInstitutionShares above — institutions are
+  // treated as "members" for this report's client-count KPIs, matching how
+  // institution share accounts are already merged in.
+  const normalizedInstitutionLoans = institutionLoansRaw.map((l: any) => ({
+    id: l.id,
+    memberId: l.institutionId,
+    amountGranted: l.amountGranted,
+    outstandingBalance: l.outstandingBalance,
+    disbursementDate: l.disbursementDate,
+    status: l.status,
+    dueDate: l.dueDate,
+    interestRate: l.interestRate,
+    loanApplication: l.application,
+    schedules: l.schedules,
+    branch: null,
+    writeOffs: l.writeOffs,
+  }));
+  const loans = [...individualLoans, ...normalizedInstitutionLoans];
 
   return { members, branches, loans, savingsAccounts, shareAccounts: [...shareAccounts, ...normalizedInstitutionShares], repayments, writeOffs };
 }

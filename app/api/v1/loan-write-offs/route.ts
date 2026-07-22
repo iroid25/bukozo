@@ -30,6 +30,12 @@ export async function GET(request: NextRequest) {
             loanApplication: { include: { loanProduct: true } },
           },
         },
+        institutionLoan: {
+          include: {
+            institution: { include: { user: true } },
+            application: { include: { loanProduct: true } },
+          },
+        },
         requestedBy: true,
         approvedBy: true,
       },
@@ -53,44 +59,74 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Only loan officers can create write-off requests" }, { status: 403 });
     }
 
-    const { loanId, reason, minuteNumber, notes } = await request.json();
+    const { loanId, institutionLoanId, reason, minuteNumber, notes } = await request.json();
 
-    const loan = await db.loan.findUnique({
-      where: { id: loanId },
-      include: {
-        member: { include: { user: true, accounts: true } },
-        loanApplication: { include: { loanProduct: true } },
-        repayments: true,
-      },
-    });
+    if (!loanId && !institutionLoanId) {
+      return NextResponse.json({ success: false, error: "loanId or institutionLoanId is required" }, { status: 400 });
+    }
+    if (loanId && institutionLoanId) {
+      return NextResponse.json({ success: false, error: "Provide only one of loanId or institutionLoanId" }, { status: 400 });
+    }
 
-    if (!loan) return NextResponse.json({ success: false, error: "Loan not found" }, { status: 404 });
+    let loan: any = null;
+    let institutionLoan: any = null;
+    let ownerName = "";
+
+    if (loanId) {
+      loan = await db.loan.findUnique({
+        where: { id: loanId },
+        include: {
+          member: { include: { user: true, accounts: true } },
+          loanApplication: { include: { loanProduct: true } },
+          repayments: true,
+        },
+      });
+      if (!loan) return NextResponse.json({ success: false, error: "Loan not found" }, { status: 404 });
+      ownerName = loan.member.user.name;
+    } else {
+      institutionLoan = await db.institutionLoan.findUnique({
+        where: { id: institutionLoanId },
+        include: {
+          institution: { include: { user: true } },
+          application: { include: { loanProduct: true } },
+          repayments: true,
+        },
+      });
+      if (!institutionLoan) return NextResponse.json({ success: false, error: "Institution loan not found" }, { status: 404 });
+      ownerName = institutionLoan.institution.institutionName;
+    }
 
     const existingWriteOff = await db.loanWriteOff.findFirst({
-      where: { loanId, status: { in: ["PENDING", "APPROVED"] } },
+      where: loanId
+        ? { loanId, status: { in: ["PENDING", "APPROVED"] } }
+        : { institutionLoanId, status: { in: ["PENDING", "APPROVED"] } },
     });
     if (existingWriteOff) {
       return NextResponse.json({ success: false, error: "This loan already has a pending or approved write-off request" }, { status: 400 });
     }
 
-    const totalPaid = loan.amountPaid;
-    const totalBalance = loan.outstandingBalance;
-    const principalPortion = loan.amountGranted;
-    const paymentRatio = totalPaid / loan.totalAmountDue;
+    const source = loan || institutionLoan;
+    const totalPaid = source.amountPaid;
+    const totalBalance = source.outstandingBalance;
+    const principalPortion = source.amountGranted;
+    const paymentRatio = totalPaid / source.totalAmountDue;
     const principalPaid = principalPortion * paymentRatio;
     const interestPaid = totalPaid - principalPaid;
-    const principalBalance = loan.amountGranted - principalPaid;
+    const principalBalance = source.amountGranted - principalPaid;
     const interestBalance = totalBalance - principalBalance;
 
     const writeOff = await db.loanWriteOff.create({
       data: {
-        loanId, amountDisbursed: loan.amountGranted, principalPaid, interestPaid,
+        loanId: loanId || null,
+        institutionLoanId: institutionLoanId || null,
+        amountDisbursed: source.amountGranted, principalPaid, interestPaid,
         penaltyPaid: 0, totalPaid, principalBalance, interestBalance, penaltyBalance: 0,
         totalBalance, reason, minuteNumber: minuteNumber || null, notes: notes || null,
         requestedByUserId: user.id, status: "PENDING",
       },
       include: {
         loan: { include: { member: { include: { user: true } }, loanApplication: { include: { loanProduct: true } } } },
+        institutionLoan: { include: { institution: { include: { user: true } }, application: { include: { loanProduct: true } } } },
         requestedBy: true,
       },
     });
@@ -100,7 +136,7 @@ export async function POST(request: NextRequest) {
       await db.notification.create({
         data: {
           userId: manager.id, type: "IN_APP", subject: "New Loan Write-Off Request",
-          message: `${user.name} has requested to write off a loan for ${loan.member.user.name}. Amount: ${formatCurrency(totalBalance)}`,
+          message: `${user.name} has requested to write off a loan for ${ownerName}. Amount: ${formatCurrency(totalBalance)}`,
           targetAddress: `/dashboard/loan-write-offs`, sentAt: new Date(), isRead: false, status: "SENT",
         },
       });

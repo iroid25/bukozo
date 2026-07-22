@@ -42,31 +42,22 @@ export async function getFinancialSummary(): Promise<FinancialSummary> {
     ]);
 
     // Ensure all values are numbers, not objects
-    const depositCount =
-      typeof depositStats.total.count === "object"
-        ? (depositStats.total.count as any)?._count ||
-          (depositStats.total.count as any)?.id ||
-          0
-        : Number(depositStats.total.count) || 0;
-
-    const withdrawalCount =
-      typeof withdrawalStats.total.count === "object"
-        ? (withdrawalStats.total.count as any)?._count ||
-          (withdrawalStats.total.count as any)?.id ||
-          0
-        : Number(withdrawalStats.total.count) || 0;
+    const dStats = depositStats.success && depositStats.data ? depositStats.data : { today: { amount: 0, count: 0 }, thisMonth: { amount: 0, count: 0 }, total: { amount: 0, count: 0 } };
+    const wStats = withdrawalStats.success && withdrawalStats.data ? withdrawalStats.data : { today: { amount: 0, count: 0 }, thisMonth: { amount: 0, count: 0 }, total: { amount: 0, count: 0 } };
+    const depositCount = Number(dStats.total.count) || 0;
+    const withdrawalCount = Number(wStats.total.count) || 0;
 
     return {
       deposits: {
-        today: Number(depositStats.today.amount) || 0,
-        thisMonth: Number(depositStats.thisMonth.amount) || 0,
-        total: Number(depositStats.total.amount) || 0,
+        today: Number(dStats.today.amount) || 0,
+        thisMonth: Number(dStats.thisMonth.amount) || 0,
+        total: Number(dStats.total.amount) || 0,
         count: depositCount,
       },
       withdrawals: {
-        today: Number(withdrawalStats.today.amount) || 0,
-        thisMonth: Number(withdrawalStats.thisMonth.amount) || 0,
-        total: Number(withdrawalStats.total.amount) || 0,
+        today: Number(wStats.today.amount) || 0,
+        thisMonth: Number(wStats.thisMonth.amount) || 0,
+        total: Number(wStats.total.amount) || 0,
         count: withdrawalCount,
       },
       loans: {
@@ -78,14 +69,14 @@ export async function getFinancialSummary(): Promise<FinancialSummary> {
       },
       netFlow: {
         today:
-          (Number(depositStats.today.amount) || 0) -
-          (Number(withdrawalStats.today.amount) || 0),
+          (Number(dStats.today.amount) || 0) -
+          (Number(wStats.today.amount) || 0),
         thisMonth:
-          (Number(depositStats.thisMonth.amount) || 0) -
-          (Number(withdrawalStats.thisMonth.amount) || 0),
+          (Number(dStats.thisMonth.amount) || 0) -
+          (Number(wStats.thisMonth.amount) || 0),
         total:
-          (Number(depositStats.total.amount) || 0) -
-          (Number(withdrawalStats.total.amount) || 0),
+          (Number(dStats.total.amount) || 0) -
+          (Number(wStats.total.amount) || 0),
       },
     };
   } catch (error) {

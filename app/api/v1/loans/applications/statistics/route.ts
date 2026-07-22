@@ -16,8 +16,13 @@ export async function GET() {
     let officerId = undefined;
 
     if (["TELLER", "LOANOFFICER", "BRANCHMANAGER", "ACCOUNTANT"].includes(role)) {
-        if (branchId) filterBranchId = branchId;
-        if (["TELLER", "LOANOFFICER"].includes(role)) officerId = userId;
+        if (branchId) {
+          filterBranchId = branchId;
+        } else if (["TELLER", "LOANOFFICER"].includes(role)) {
+          // No branch on record for this staff member — fall back to
+          // "assigned to me" rather than showing everything unscoped.
+          officerId = userId;
+        }
     }
 
     const result = await LoanService.getApplicationStatistics({ 

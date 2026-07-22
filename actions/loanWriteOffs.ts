@@ -333,6 +333,17 @@ export async function approveLoanWriteOff(
       };
     }
 
+    // This legacy action only ever handles individual-loan write-offs.
+    // Institution loan write-offs are created via /api/v1/loan-write-offs
+    // and approved via its dedicated route, which does support both.
+    if (!writeOff.loan) {
+      return {
+        success: false,
+        error: "This action does not support institution loan write-offs — use the loan write-offs page instead.",
+      };
+    }
+    const loan = writeOff.loan;
+
     if (writeOff.status !== "PENDING") {
       return {
         success: false,
@@ -343,7 +354,7 @@ export async function approveLoanWriteOff(
     // specific account validation
     let accountIdToUse = targetAccountId;
     if (accountIdToUse) {
-      const accountExists = writeOff.loan.member.accounts.find(
+      const accountExists = loan.member.accounts.find(
         (a) => a.id === accountIdToUse
       );
       if (!accountExists) {
@@ -352,10 +363,10 @@ export async function approveLoanWriteOff(
           error: "Selected account does not belong to the member",
         };
       }
-    } else if (writeOff.loan.member.accounts.length > 0) {
+    } else if (loan.member.accounts.length > 0) {
       // Fallback to first account if none selected, but ideally explicit selection is better
       // For now, we keep backward compatibility or auto-selection if only 1 account exists
-      accountIdToUse = writeOff.loan.member.accounts[0].id;
+      accountIdToUse = loan.member.accounts[0].id;
     }
 
     await db.$transaction(async (tx) => {
@@ -370,7 +381,7 @@ export async function approveLoanWriteOff(
       });
 
       await tx.loan.update({
-        where: { id: writeOff.loanId },
+        where: { id: loan.id },
         data: {
           status: "WRITTEN_OFF",
           outstandingBalance: 0,
@@ -382,7 +393,7 @@ export async function approveLoanWriteOff(
         await tx.transaction.create({
           data: {
             transactionRef: `WO-${writeOffId.slice(0, 8)}`,
-            memberId: writeOff.loan.memberId,
+            memberId: loan.memberId,
             accountId: accountIdToUse,
             type: "OTHER",
             amount: writeOff.totalBalance,
@@ -391,7 +402,7 @@ export async function approveLoanWriteOff(
             transactionDate: new Date(),
             processedByUserId: user.id,
             channel: "WRITE_OFF",
-            loanId: writeOff.loanId,
+            loanId: loan.id,
           },
         });
       }
@@ -402,7 +413,7 @@ export async function approveLoanWriteOff(
         userId: writeOff.requestedByUserId,
         type: "IN_APP",
         subject: "Write-Off Request Approved",
-        message: `Your write-off request for ${writeOff.loan.member.user.name}'s loan has been approved by ${user.name}`,
+        message: `Your write-off request for ${loan.member.user.name}'s loan has been approved by ${user.name}`,
         targetAddress: `/dashboard/loan-write-offs`,
         sentAt: new Date(),
         isRead: false,
@@ -487,12 +498,13 @@ export async function rejectLoanWriteOff(writeOffId: string, reason: string) {
       },
     });
 
+    const borrowerName = writeOff.loan?.member?.user?.name || "the borrower";
     await db.notification.create({
       data: {
         userId: writeOff.requestedByUserId,
         type: "IN_APP",
         subject: "Write-Off Request Rejected",
-        message: `Your write-off request for ${writeOff.loan.member.user.name}'s loan has been rejected. Reason: ${reason}`,
+        message: `Your write-off request for ${borrowerName}'s loan has been rejected. Reason: ${reason}`,
         targetAddress: `/dashboard/loan-write-offs`,
         sentAt: new Date(),
         isRead: false,

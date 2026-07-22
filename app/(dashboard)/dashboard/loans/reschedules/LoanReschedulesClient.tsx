@@ -34,7 +34,7 @@ interface RescheduleRequest {
   reason: string;
   status: "PENDING" | "APPROVED" | "REJECTED";
   createdAt: Date;
-  loan: {
+  loan?: {
     member: {
       user: {
         name: string;
@@ -46,7 +46,16 @@ interface RescheduleRequest {
     } | null;
     outstandingBalance: number;
     amountGranted: number;
-  };
+  } | null;
+  institutionLoan?: {
+    institution: {
+      institutionName: string;
+      institutionNumber: string;
+      user: { branchId?: string | null };
+    };
+    outstandingBalance: number;
+    amountGranted: number;
+  } | null;
   requestedBy: {
     name: string;
     role: string;
@@ -124,6 +133,14 @@ export default function LoanReschedulesClient({ data, userRole }: Props) {
     }
   };
 
+  const getBorrowerName = (item: RescheduleRequest) =>
+    item.loan?.member?.user?.name || item.institutionLoan?.institution?.institutionName || "Unknown";
+  const getBorrowerNumber = (item: RescheduleRequest) =>
+    item.loan?.member?.memberNumber || item.institutionLoan?.institution?.institutionNumber || "";
+  const getBranchName = (item: RescheduleRequest) =>
+    item.loan?.branch?.name || (item.institutionLoan ? "—" : "");
+  const isInstitutionItem = (item: RescheduleRequest) => !!item.institutionLoan;
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "APPROVED":
@@ -138,9 +155,9 @@ export default function LoanReschedulesClient({ data, userRole }: Props) {
   const handleExport = async (filteredData: RescheduleRequest[]) => {
     try {
       const exportData = filteredData.map((item) => ({
-        "Member Name": item.loan.member.user.name,
-        "Member Number": item.loan.member.memberNumber,
-        "Branch": item.loan.branch?.name || "N/A",
+        "Member Name": getBorrowerName(item),
+        "Member Number": getBorrowerNumber(item),
+        "Branch": getBranchName(item) || "N/A",
         "Current Due Date": format(new Date(item.oldDueDate), "yyyy-MM-dd"),
         "Requested Due Date": format(new Date(item.newDueDate), "yyyy-MM-dd"),
         "Reason": item.reason,
@@ -163,16 +180,21 @@ export default function LoanReschedulesClient({ data, userRole }: Props) {
 
   const columns: Column<RescheduleRequest>[] = [
     {
-      accessorKey: (row) => row.loan.member.user.name,
+      accessorKey: (row) => getBorrowerName(row),
       header: "Member",
       cell: (row) => (
         <div>
-          <p className="font-medium">{row.loan.member.user.name}</p>
+          <p className="font-medium">
+            {getBorrowerName(row)}
+            {isInstitutionItem(row) && (
+              <Badge variant="outline" className="ml-2 text-xs">Institution</Badge>
+            )}
+          </p>
           <p className="text-sm text-muted-foreground">
-            {row.loan.member.memberNumber}
+            {getBorrowerNumber(row)}
           </p>
           <p className="text-xs text-muted-foreground">
-            {row.loan.branch?.name}
+            {getBranchName(row)}
           </p>
         </div>
       ),
@@ -266,8 +288,8 @@ export default function LoanReschedulesClient({ data, userRole }: Props) {
             <ScrollArea className="flex-1 p-6 overflow-y-auto">
               <div className="space-y-6">
                 <div className="grid grid-cols-2 gap-4 bg-muted/30 p-4 rounded-lg">
-                   <div><p className="text-xs text-muted-foreground uppercase font-bold">Member</p><p className="font-medium">{selectedRequest.loan.member.user.name}</p></div>
-                   <div><p className="text-xs text-muted-foreground uppercase font-bold">Outstanding</p><p className="font-medium">UGX {selectedRequest.loan.outstandingBalance.toLocaleString()}</p></div>
+                   <div><p className="text-xs text-muted-foreground uppercase font-bold">{isInstitutionItem(selectedRequest) ? "Institution" : "Member"}</p><p className="font-medium">{getBorrowerName(selectedRequest)}</p></div>
+                   <div><p className="text-xs text-muted-foreground uppercase font-bold">Outstanding</p><p className="font-medium">UGX {(selectedRequest.loan?.outstandingBalance ?? selectedRequest.institutionLoan?.outstandingBalance ?? 0).toLocaleString()}</p></div>
                    <div><p className="text-xs text-muted-foreground uppercase font-bold">Old Due Date</p><p className="font-medium">{format(new Date(selectedRequest.oldDueDate), "PPP")}</p></div>
                    <div><p className="text-xs text-muted-foreground uppercase font-bold">New Due Date</p><p className="font-medium text-blue-600">{format(new Date(selectedRequest.newDueDate), "PPP")}</p></div>
                 </div>

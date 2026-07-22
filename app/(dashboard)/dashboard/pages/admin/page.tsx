@@ -58,6 +58,9 @@ interface Transaction {
       name: string;
     };
   };
+  institution?: {
+    institutionName: string;
+  };
 }
 
 interface DashboardData {
@@ -443,7 +446,7 @@ const AdminDashboard = () => {
                       <div key={txn.id} className="flex items-start gap-4">
                         <div className={`mt-1.5 h-2 w-2 rounded-full ${txn.type === 'DEPOSIT' ? 'bg-emerald-400' : 'bg-red-400'}`} />
                         <div className="flex-1 min-w-0">
-                           <p className="text-sm font-bold truncate text-white">{txn.member?.user?.name || 'System User'}</p>
+                           <p className="text-sm font-bold truncate text-white">{txn.member?.user?.name || txn.institution?.institutionName || 'System User'}</p>
                            <p className="text-[10px] text-gray-400 flex items-center gap-1 uppercase tracking-wider">
                               <span className="font-mono">{txn.transactionRef}</span>
                               <Circle className="w-1 h-1 fill-gray-600" />

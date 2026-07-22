@@ -5,7 +5,7 @@ import { getAuthUser } from "@/config/useAuth";
 import { TransactionStatus, TransactionType } from "@prisma/client";
 import { reverseJournalEntriesForRecord } from "@/lib/journal-entries-extended";
 
-const REVERSAL_ALLOWED_ROLES = ["ADMIN", "MANAGER", "DIRECTOR"];
+const REVERSAL_ALLOWED_ROLES = ["ADMIN", "BRANCHMANAGER", "ACCOUNTANT"];
 
 export async function POST(request: NextRequest) {
   try {
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
       (Date.now() - new Date(originalTransaction.transactionDate).getTime()) /
       (1000 * 60 * 60);
 
-    if (hoursSince > 24) {
+    if (hoursSince > 24 && user.role !== "ADMIN") {
       return NextResponse.json(
         {
           success: false,
@@ -257,6 +257,10 @@ export async function POST(request: NextRequest) {
               reversedDate: new Date(),
               reversedBy: user.id,
             },
+          });
+          await tx.savingsAccount.update({
+            where: { id: savingsAccount.id },
+            data: { balance: { decrement: originalTransaction.amount } },
           });
         }
       }

@@ -117,19 +117,25 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ data: [], pagination: { total: 0 } });
       }
     } else if (["TELLER", "LOANOFFICER"].includes(session.user.role)) {
-      individualWhere.OR = [
-        { applicantId: session.user.id },
-        { loanOfficerId: session.user.id },
-        { allocatedTellerId: session.user.id }
-      ];
-      institutionWhere.OR = [
-        { applicantUserId: session.user.id },
-        { loanOfficerId: session.user.id },
-        { allocatedTellerId: session.user.id }
-      ];
+      // Branch-wide visibility (matching BRANCHMANAGER/ACCOUNTANT below), with
+      // a fallback to "assigned to me" only when the staff member has no
+      // branch set — otherwise ANDing a personal-assignment filter with the
+      // branch filter hid every application not personally handled by this
+      // exact staff member, even other applications within their own branch.
       if (session.user.branchId) {
         individualWhere.member = { user: { branchId: session.user.branchId } };
         institutionWhere.institution = { user: { branchId: session.user.branchId } };
+      } else {
+        individualWhere.OR = [
+          { applicantId: session.user.id },
+          { loanOfficerId: session.user.id },
+          { allocatedTellerId: session.user.id }
+        ];
+        institutionWhere.OR = [
+          { applicantUserId: session.user.id },
+          { loanOfficerId: session.user.id },
+          { allocatedTellerId: session.user.id }
+        ];
       }
     } else if (["BRANCHMANAGER", "ACCOUNTANT"].includes(session.user.role) && session.user.branchId) {
       individualWhere.member = { user: { branchId: session.user.branchId } };

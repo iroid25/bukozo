@@ -73,6 +73,27 @@ export async function GET(request: NextRequest) {
             },
           },
         },
+        accountMembers: {
+          select: {
+            id: true,
+            role: true,
+            account: {
+              select: {
+                id: true,
+                accountNumber: true,
+                balance: true,
+                accountType: {
+                  select: {
+                    name: true,
+                    isShareAccount: true,
+                    canWithdraw: true,
+                    hasFixedPeriod: true,
+                  },
+                },
+              },
+            },
+          },
+        },
       },
       orderBy: {
         user: {

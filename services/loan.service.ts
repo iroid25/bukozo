@@ -735,23 +735,23 @@ export class LoanService {
               "MONTHLY",
           );
 
-          const interestRate =
-            interestPeriod === "ANNUAL"
-              ? rawInterestRate / 12
-              : rawInterestRate;
-
           // Clamp to a sane range so a corrupted or out-of-range
           // repaymentPeriodMonths/gracePeriod value can never push setMonth()
           // past the representable Date range and produce an Invalid Date
           // (the fallback below must use the same clamped values, or a
           // pathological input makes the fallback invalid too).
+          // gracePeriod is stored in DAYS (see the "Grace Period (Days)" loan
+          // application field) — it must be applied via setDate(), not folded
+          // into the setMonth() call as if it were a month count.
           const _safePeriodMonths = Math.min(1200, Math.max(1, Number(periodMonths) || productPeriodMonths || 1));
-          const _safeGrace = Math.min(1200, Math.max(0, Number(gracePeriod) || 0));
+          const _safeGraceDays = Math.min(365, Math.max(0, Number(gracePeriod) || 0));
           const dueDate = new Date(repaymentStartDate);
-          dueDate.setMonth(dueDate.getMonth() + _safePeriodMonths + _safeGrace - 1);
+          dueDate.setMonth(dueDate.getMonth() + _safePeriodMonths - 1);
+          dueDate.setDate(dueDate.getDate() + _safeGraceDays);
           if (isNaN(dueDate.getTime())) {
             const fallbackDue = new Date(disbursementDate);
-            fallbackDue.setMonth(fallbackDue.getMonth() + _safePeriodMonths + _safeGrace);
+            fallbackDue.setMonth(fallbackDue.getMonth() + _safePeriodMonths);
+            fallbackDue.setDate(fallbackDue.getDate() + _safeGraceDays);
             dueDate.setTime(fallbackDue.getTime());
           }
           if (isNaN(dueDate.getTime())) {
@@ -1337,7 +1337,7 @@ export class LoanService {
               totalAmountDue,
               outstandingBalance: totalAmountDue,
               dueDate,
-              gracePeriod: _safeGrace,
+              gracePeriod: _safeGraceDays,
               interestAmount: totalInterest,
               interestType: effectiveInterestType,
               interestPeriod,
@@ -1390,7 +1390,7 @@ export class LoanService {
               approvedAmount: amountGranted,
               repaymentPeriodMonths: _safePeriodMonths,
               repaymentStartDate,
-              gracePeriod: _safeGrace,
+              gracePeriod: _safeGraceDays,
             },
           });
 
@@ -1785,14 +1785,17 @@ export class LoanService {
             app.interestPeriod || app.loanProduct.interestPeriod || "MONTHLY",
           );
 
-          // Clamp to a sane range (1-1200 months / 0-1200 months grace) so a
-          // corrupted or out-of-range repaymentPeriodMonths/gracePeriod value
-          // on the application record can never push setMonth() past the
-          // representable Date range and produce an Invalid Date.
+          // Clamp to a sane range so a corrupted or out-of-range
+          // repaymentPeriodMonths/gracePeriod value on the application record
+          // can never push setMonth() past the representable Date range and
+          // produce an Invalid Date. gracePeriod is stored in DAYS (see the
+          // "Grace Period (Days)" application field) — it must be applied via
+          // setDate(), not folded into the setMonth() call as a month count.
           const _safePeriodMonths = Math.min(1200, Math.max(1, Number(periodMonths) || 12));
-          const _safeGrace = Math.min(1200, Math.max(0, Number(gracePeriod) || 0));
+          const _safeGraceDays = Math.min(365, Math.max(0, Number(gracePeriod) || 0));
           const dueDate = new Date();
-          dueDate.setMonth(dueDate.getMonth() + _safePeriodMonths + _safeGrace);
+          dueDate.setMonth(dueDate.getMonth() + _safePeriodMonths);
+          dueDate.setDate(dueDate.getDate() + _safeGraceDays);
           if (isNaN(dueDate.getTime())) {
             const fallbackDue = new Date();
             fallbackDue.setMonth(fallbackDue.getMonth() + 12);
@@ -2648,6 +2651,9 @@ export class LoanService {
       loan.status === "OVERDUE" ||
       (loan.dueDate && new Date(loan.dueDate) < new Date());
 
+    // Compute penalty amount due (but don't deduct from remaining yet —
+    // penalty is allocated LAST after interest and principal)
+    let computedPenaltyDue = 0;
     if (isOverdue) {
       const penaltyConfig = await db.globalFeeConfiguration.findUnique({
         where: { key: "PENALTY_CONFIG" },
@@ -2677,31 +2683,29 @@ export class LoanService {
                 (1000 * 60 * 60 * 24),
             ),
           }));
-          penaltyPortion = calculateCompoundingPenalty(installments, tiers);
+          computedPenaltyDue = calculateCompoundingPenalty(installments, tiers);
         } else {
-          penaltyPortion = calculateSimplePenaltyEstimation(
+          computedPenaltyDue = calculateSimplePenaltyEstimation(
             loan.outstandingBalance,
             daysOverdue,
             tiers,
           );
         }
 
-        const totalPenaltyDue = penaltyPortion;
-        const remainingPenaltyToPay = Math.max(
+        computedPenaltyDue = Math.max(
           0,
-          totalPenaltyDue - (loan.penaltyPaid || 0),
+          computedPenaltyDue - (loan.penaltyPaid || 0),
         );
-        penaltyPortion = Math.min(remaining, remainingPenaltyToPay);
-        remaining -= penaltyPortion;
       }
     }
 
     const settlementThreshold =
       remainingPrincipalBalance + remainingInterestBalance;
 
-    if (remaining >= settlementThreshold - 0.01) {
+    if (remaining >= settlementThreshold + computedPenaltyDue - 0.01) {
       interestPortion = remainingInterestBalance;
       principalPortion = remainingPrincipalBalance;
+      penaltyPortion = computedPenaltyDue;
       return {
         interest: Number(interestPortion.toFixed(2)),
         penalty: Number(penaltyPortion.toFixed(2)),
@@ -2772,6 +2776,12 @@ export class LoanService {
       );
       principalPortion += extraPrincipal;
       remaining -= extraPrincipal;
+    }
+
+    // Allocate penalty LAST — only after interest and principal are satisfied
+    if (remaining > 0.009 && computedPenaltyDue > 0) {
+      penaltyPortion = Math.min(remaining, computedPenaltyDue);
+      remaining -= penaltyPortion;
     }
 
     return {
@@ -3293,7 +3303,8 @@ export class LoanService {
                 repaymentDate: new Date(),
                 channel: resolvedChannel,
                 mobileMoneyRef: data.reference,
-                description: `${data.notes || "Institution loan repayment"}${data.transactionId ? ` (Tx: ${data.transactionId})` : ""}`,
+                transactionId: repaymentTransactionId || data.transactionId || undefined,
+                description: data.notes || "Institution loan repayment",
               },
             });
             const repaymentRecordId = repaymentTransactionId || data.transactionId || data.loanId;

@@ -394,19 +394,23 @@ export function calculateLoanSchedule({
       ? disbursementDate
       : new Date();
 
-  const effectiveMonthlyRate =
-    interestPeriod === "ANNUAL" ? interestRate / 12 : interestRate;
-
   const safeRepaymentPeriodMonths = Math.max(1, Math.min(600, Number(repaymentPeriodMonths) || 12));
   const safeAmountGranted = Math.max(0, Number(amountGranted) || 0);
   const safeInterestRate = Math.max(0, Number(interestRate) || 0);
+
+  // The two schedule functions below both treat their `monthlyRatePercent`
+  // argument as a per-month rate. When interestPeriod is ANNUAL, the caller's
+  // interestRate is a per-year figure, so it must be divided by 12 here —
+  // otherwise a 30% annual rate gets applied as 30% per month (12x too much).
+  const effectiveMonthlyRate =
+    interestPeriod === "ANNUAL" ? safeInterestRate / 12 : safeInterestRate;
 
   const gracePeriodMonths = Math.floor(gracePeriod / 30);
 
   if (interestType === "REDUCING_BALANCE") {
     return calculateReducingBalanceSchedule(
       safeAmountGranted,
-      safeInterestRate,
+      effectiveMonthlyRate,
       safeRepaymentPeriodMonths,
       gracePeriodMonths,
       safeDisbursementDate,
@@ -416,7 +420,7 @@ export function calculateLoanSchedule({
   }
   return calculateFlatRateSchedule(
     safeAmountGranted,
-    safeInterestRate,
+    effectiveMonthlyRate,
     safeRepaymentPeriodMonths,
     gracePeriodMonths,
     safeDisbursementDate,

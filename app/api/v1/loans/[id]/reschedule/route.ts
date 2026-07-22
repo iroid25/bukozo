@@ -37,6 +37,8 @@ export async function POST(
       );
     }
 
+    // Try individual loan first, then institution loan — mirrors the same
+    // dual-check pattern used by the disbursement route for a shared [id].
     const loan = await db.loan.findUnique({
       where: { id },
       include: {
@@ -44,15 +46,27 @@ export async function POST(
       }
     });
 
+    let institutionLoan: any = null;
     if (!loan) {
+      institutionLoan = await db.institutionLoan.findUnique({
+        where: { id },
+        include: { institution: { include: { user: true } } },
+      });
+    }
+
+    if (!loan && !institutionLoan) {
       return NextResponse.json(
         { success: false, error: "Loan not found" },
         { status: 404 }
       );
     }
-    
+
+    const isInstitution = !!institutionLoan;
+    const effectiveBranchId = isInstitution ? institutionLoan.institution.user.branchId : loan!.branchId;
+    const oldDueDate = isInstitution ? institutionLoan.dueDate : loan!.dueDate;
+
     // Check access for branch manager
-    if (user.role === "BRANCHMANAGER" && loan.branchId !== user.branchId) {
+    if (user.role === "BRANCHMANAGER" && effectiveBranchId !== user.branchId) {
        return NextResponse.json(
         { success: false, error: "Access denied - Different branch" },
         { status: 403 }
@@ -61,10 +75,9 @@ export async function POST(
 
     // Check if there is already a pending request
     const existingPending = await db.loanReschedule.findFirst({
-        where: {
-            loanId: id,
-            status: "PENDING"
-        }
+        where: isInstitution
+          ? { institutionLoanId: id, status: "PENDING" }
+          : { loanId: id, status: "PENDING" }
     });
 
     if (existingPending) {
@@ -76,8 +89,9 @@ export async function POST(
 
     const reschedule = await db.loanReschedule.create({
       data: {
-        loanId: id,
-        oldDueDate: loan.dueDate,
+        loanId: isInstitution ? null : id,
+        institutionLoanId: isInstitution ? id : null,
+        oldDueDate,
         newDueDate: new Date(body.newDueDate),
         reason: body.reason,
         requestedById: user.id,
@@ -109,7 +123,7 @@ export async function POST(
             action: "LOAN_RESCHEDULE_REQUEST",
             entityType: "LoanReschedule",
             entityId: reschedule.id,
-            details: `Requested reschedule for loan ${loan.id}. New Due Date: ${newDueDate}, Reason: ${reason}`,
+            details: `Requested reschedule for ${isInstitution ? "institution " : ""}loan ${id}. New Due Date: ${newDueDate}, Reason: ${reason}`,
             timestamp: new Date()
         }
     })

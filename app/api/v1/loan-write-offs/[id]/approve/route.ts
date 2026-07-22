@@ -30,6 +30,12 @@ export async function POST(
             loanApplication: { include: { loanProduct: { include: { ledgerAccount: true } } } },
           },
         },
+        institutionLoan: {
+          include: {
+            institution: { include: { user: true, accounts: true } },
+            application: { include: { loanProduct: { include: { ledgerAccount: true } } } },
+          },
+        },
         requestedBy: true,
       },
     });
@@ -37,12 +43,23 @@ export async function POST(
     if (!writeOff) return NextResponse.json({ success: false, error: "Write-off request not found" }, { status: 404 });
     if (writeOff.status !== "PENDING") return NextResponse.json({ success: false, error: "This write-off has already been processed" }, { status: 400 });
 
+    const isInstitution = !!writeOff.institutionLoan;
+    const ownerAccounts = isInstitution
+      ? writeOff.institutionLoan!.institution.accounts
+      : writeOff.loan!.member.accounts;
+    const ownerName = isInstitution
+      ? writeOff.institutionLoan!.institution.institutionName
+      : writeOff.loan!.member.user.name;
+    const branchId = isInstitution
+      ? writeOff.institutionLoan!.institution.user.branchId || undefined
+      : writeOff.loan!.branchId || undefined;
+
     let accountIdToUse = targetAccountId;
     if (accountIdToUse) {
-      const accountExists = writeOff.loan.member.accounts.find((a) => a.id === accountIdToUse);
-      if (!accountExists) return NextResponse.json({ success: false, error: "Selected account does not belong to the member" }, { status: 400 });
-    } else if (writeOff.loan.member.accounts.length > 0) {
-      accountIdToUse = writeOff.loan.member.accounts[0].id;
+      const accountExists = ownerAccounts.find((a: any) => a.id === accountIdToUse);
+      if (!accountExists) return NextResponse.json({ success: false, error: "Selected account does not belong to the borrower" }, { status: 400 });
+    } else if (ownerAccounts.length > 0) {
+      accountIdToUse = ownerAccounts[0].id;
     }
 
     await ensureExpenditureStructure();
@@ -52,25 +69,32 @@ export async function POST(
         where: { id: writeOffId },
         data: { status: "APPROVED", approvedByUserId: user.id, approvedAt: new Date(), dateWrittenOff: new Date() },
       });
-      await tx.loan.update({ where: { id: writeOff.loanId }, data: { status: "WRITTEN_OFF", outstandingBalance: 0 } });
 
-      // Mark all remaining non-PAID repayment schedules as WRITTEN_OFF
-      await tx.loanRepaymentSchedule.updateMany({
-        where: {
-          loanId: writeOff.loanId,
-          status: { not: "PAID" },
-        },
-        data: {
-          status: "WRITTEN_OFF",
-        },
-      });
+      if (isInstitution) {
+        await tx.institutionLoan.update({ where: { id: writeOff.institutionLoanId! }, data: { status: "WRITTEN_OFF", outstandingBalance: 0 } });
+        await tx.institutionLoanRepaymentSchedule.updateMany({
+          where: { loanId: writeOff.institutionLoanId!, status: { not: "PAID" } },
+          data: { status: "WRITTEN_OFF" },
+        });
+      } else {
+        await tx.loan.update({ where: { id: writeOff.loanId! }, data: { status: "WRITTEN_OFF", outstandingBalance: 0 } });
+        // Mark all remaining non-PAID repayment schedules as WRITTEN_OFF
+        await tx.loanRepaymentSchedule.updateMany({
+          where: { loanId: writeOff.loanId!, status: { not: "PAID" } },
+          data: { status: "WRITTEN_OFF" },
+        });
+      }
+
       if (accountIdToUse) {
         await tx.transaction.create({
           data: {
-            transactionRef: `WO-${writeOffId.slice(0, 8)}`, memberId: writeOff.loan.memberId,
+            transactionRef: `WO-${writeOffId.slice(0, 8)}`,
+            memberId: isInstitution ? undefined : writeOff.loan!.memberId,
+            institutionId: isInstitution ? writeOff.institutionLoan!.institutionId : undefined,
             accountId: accountIdToUse, type: "OTHER", amount: writeOff.totalBalance,
             status: "COMPLETED", description: `Loan write-off approved - ${writeOff.reason}`,
-            transactionDate: new Date(), processedByUserId: user.id, channel: "WRITE_OFF", loanId: writeOff.loanId,
+            transactionDate: new Date(), processedByUserId: user.id, channel: "WRITE_OFF",
+            loanId: isInstitution ? writeOff.institutionLoanId! : writeOff.loanId!,
           },
         });
       }
@@ -80,7 +104,9 @@ export async function POST(
       // and only fall back to a generic 107-prefix match if the product has no
       // ledger account configured, so we don't misbook against another product's
       // sub-portfolio.
-      const productLedgerAccount = writeOff.loan.loanApplication?.loanProduct?.ledgerAccount;
+      const productLedgerAccount = isInstitution
+        ? writeOff.institutionLoan?.application?.loanProduct?.ledgerAccount
+        : writeOff.loan?.loanApplication?.loanProduct?.ledgerAccount;
       const [loanPortfolioFallback, badDebtExpense] = await Promise.all([
         productLedgerAccount && productLedgerAccount.isActive
           ? Promise.resolve(null)
@@ -108,7 +134,7 @@ export async function POST(
             description: `Loan write-off - ${writeOff.reason}`,
             entryDate: new Date(),
             reference: `WO-${writeOffId.slice(0, 8)}`,
-            branchId: writeOff.loan.branchId || undefined,
+            branchId,
             createdByUserId: user.id,
           },
         });
@@ -122,7 +148,7 @@ export async function POST(
             description: `Loan write-off - ${writeOff.reason}`,
             entryDate: new Date(),
             reference: `WO-${writeOffId.slice(0, 8)}`,
-            branchId: writeOff.loan.branchId || undefined,
+            branchId,
             createdByUserId: user.id,
           },
         });
@@ -142,7 +168,7 @@ export async function POST(
     await db.notification.create({
       data: {
         userId: writeOff.requestedByUserId, type: "IN_APP", subject: "Write-Off Request Approved",
-        message: `Your write-off request for ${writeOff.loan.member.user.name}'s loan has been approved by ${user.name}`,
+        message: `Your write-off request for ${ownerName}'s loan has been approved by ${user.name}`,
         targetAddress: `/dashboard/loan-write-offs`, sentAt: new Date(), isRead: false, status: "SENT",
       },
     });

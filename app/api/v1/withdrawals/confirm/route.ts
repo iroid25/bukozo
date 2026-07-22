@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/config/auth";
+import { getAuthUserWithFreshBranch } from "@/config/useAuth";
 import { db } from "@/prisma/db";
 import { TransactionType, TransactionStatus, UserRole } from "@prisma/client";
 import { sendTransactionAlertEmail } from "@/lib/email";
@@ -14,8 +13,8 @@ import { CASH_AT_HAND_CODE } from "@/lib/services/asset-structure";
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
+    const user = await getAuthUserWithFreshBranch();
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -68,7 +67,6 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Final security and balance checks
-    const user = session.user as any;
     if (
       user.role !== UserRole.ADMIN &&
       verification.account.branchId !== user.branchId

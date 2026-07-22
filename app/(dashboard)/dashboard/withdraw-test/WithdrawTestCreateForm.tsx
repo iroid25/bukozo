@@ -305,16 +305,28 @@ interface WithdrawalCreateFormProps {
 interface SignatoryVerificationProps {
   signatoryId: string;
   signatoryName: string;
-  signatoryTitle?: string | null;
-  isPrimary: boolean;
+  signatoryTitle?: string;
+  signatoryPhone?: string;
+  isPrimary?: boolean;
   photoImage?: string | null;
   storedSignatureImage?: string | null;
   fingerprintTemplate?: string | null;
   isVerified: boolean;
-  onVerifiedChange: (id: string, checked: boolean) => void;
-  fingerprintState?: { captured: boolean; score: number; template: string | null };
-  onFingerprintCapture?: (id: string, capture: string) => void;
+  onVerifiedChange: (id: string, verified: boolean) => void;
+  fingerprintState?: {
+    captured: boolean;
+    score: number;
+    template: string | null;
+  } | null;
+  onFingerprintCapture?: (id: string, capture: any) => void;
   onFingerprintReset?: (id: string) => void;
+  authMethod?: "FINGERPRINT" | "SMS" | "SIGNATURE";
+  otpState?: { sent: boolean; value: string; verified: boolean };
+  onSendOtp?: (id: string) => void;
+  onOtpChange?: (id: string, value: string) => void;
+  onOtpVerify?: (id: string) => void;
+  signatureConfirmed?: boolean;
+  onSignatureConfirm?: (id: string) => void;
 }
 
 function SignatoryVerificationCard({
@@ -330,6 +342,13 @@ function SignatoryVerificationCard({
   fingerprintState,
   onFingerprintCapture,
   onFingerprintReset,
+  authMethod,
+  otpState,
+  onSendOtp,
+  onOtpChange,
+  onOtpVerify,
+  signatureConfirmed,
+  onSignatureConfirm,
 }: SignatoryVerificationProps) {
   const initials = signatoryName
     .split(" ")
@@ -373,6 +392,15 @@ function SignatoryVerificationCard({
             <p className="text-xs text-gray-500 mt-0.5">
               {signatoryTitle || "Signatory"}
             </p>
+            {authMethod && (
+              <Badge variant="outline" className={`mt-1 text-[10px] px-1.5 py-0 ${
+                authMethod === "SMS" ? "border-blue-300 text-blue-700" :
+                authMethod === "FINGERPRINT" ? "border-purple-300 text-purple-700" :
+                "border-orange-300 text-orange-700"
+              }`}>
+                {authMethod === "SMS" ? "SMS OTP" : authMethod === "FINGERPRINT" ? "Fingerprint" : "Signature"}
+              </Badge>
+            )}
           </div>
         </div>
 
@@ -421,46 +449,91 @@ function SignatoryVerificationCard({
           </div>
         </div>
 
-        {/* Fingerprint scan for signatory */}
-        {fingerprintTemplate && (
-          <div className="mt-3 border-t pt-3">
-            <p className="text-xs font-medium text-gray-500 mb-2 flex items-center gap-1">
-              <Fingerprint className="h-3 w-3" />
-              Fingerprint Verification
-            </p>
-            {fingerprintState?.captured ? (
-              <div className="flex items-center gap-2">
-                <CheckCircle className="h-4 w-4 text-green-600" />
-                <span className="text-xs text-green-700 font-medium">
-                  Verified (score: {fingerprintState.score})
-                </span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="ml-auto h-6 text-xs"
-                  onClick={() => onFingerprintReset?.(signatoryId)}
-                >
-                  Retake
-                </Button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
+        {/* Auth method specific verification */}
+        <div className="mt-3 border-t pt-3">
+          {authMethod === "FINGERPRINT" && fingerprintTemplate ? (
+            <>
+              <p className="text-xs font-medium text-gray-500 mb-2 flex items-center gap-1">
+                <Fingerprint className="h-3 w-3" />
+                Fingerprint Verification
+              </p>
+              {fingerprintState?.captured ? (
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                  <span className="text-xs text-green-700 font-medium">
+                    Verified (score: {fingerprintState.score})
+                  </span>
+                  <Button type="button" variant="ghost" size="sm" className="ml-auto h-6 text-xs"
+                    onClick={() => onFingerprintReset?.(signatoryId)}>Retake</Button>
+                </div>
+              ) : (
                 <FingerprintScanner
                   label={`Scan ${signatoryName}'s Fingerprint`}
                   onCapture={(capture) => onFingerprintCapture?.(signatoryId, capture)}
                   onReset={() => onFingerprintReset?.(signatoryId)}
                 />
-              </div>
-            )}
-          </div>
-        )}
+              )}
+            </>
+          ) : authMethod === "SMS" ? (
+            <>
+              <p className="text-xs font-medium text-gray-500 mb-2 flex items-center gap-1">
+                <Smartphone className="h-3 w-3" />
+                SMS Verification
+              </p>
+              {otpState?.verified ? (
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                  <span className="text-xs text-green-700 font-medium">OTP Verified</span>
+                </div>
+              ) : otpState?.sent ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="text"
+                    placeholder="Enter OTP"
+                    value={otpState.value}
+                    onChange={(e) => onOtpChange?.(signatoryId, e.target.value)}
+                    className="h-8 text-sm flex-1"
+                    maxLength={6}
+                  />
+                  <Button type="button" size="sm" className="h-8 text-xs"
+                    onClick={() => onOtpVerify?.(signatoryId)} disabled={otpState.value.length < 4}>Verify</Button>
+                </div>
+              ) : (
+                <Button type="button" size="sm" variant="outline" className="text-xs gap-1"
+                  onClick={() => onSendOtp?.(signatoryId)}>
+                  <Smartphone className="h-3 w-3" /> Send OTP
+                </Button>
+              )}
+            </>
+          ) : authMethod === "SIGNATURE" ? (
+            <>
+              <p className="text-xs font-medium text-gray-500 mb-2 flex items-center gap-1">
+                <PenLine className="h-3 w-3" />
+                Signature Verification
+              </p>
+              {signatureConfirmed ? (
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                  <span className="text-xs text-green-700 font-medium">Signature Confirmed</span>
+                </div>
+              ) : !storedSignatureImage ? (
+                <p className="text-xs text-gray-400">No signature on file to compare</p>
+              ) : (
+                <Button type="button" size="sm" variant="outline" className="text-xs gap-1"
+                  onClick={() => onSignatureConfirm?.(signatoryId)}>
+                  <CheckCircle className="h-3 w-3" /> Confirm Signature Matches
+                </Button>
+              )}
+            </>
+          ) : null}
+        </div>
 
         {!isVerified && (
           <p className="text-xs text-purple-600 mt-2 flex items-center gap-1">
             <Info className="h-3 w-3 flex-shrink-0" />
-            Tick the checkbox above after visually confirming the signatory
-            details
+            {authMethod === "SMS" ? "Complete OTP verification above" :
+             authMethod === "SIGNATURE" ? "Confirm the signature matches" :
+             "Tick the checkbox and verify fingerprint above"}
           </p>
         )}
       </div>
@@ -537,6 +610,9 @@ export default function WithdrawalCreateForm({
   const [verifiedAgent, setVerifiedAgent] = useState(false);
   const [verifiedJointMembers, setVerifiedJointMembers] = useState<Set<string>>(new Set());
   const [jointMemberFingerprintStates, setJointMemberFingerprintStates] = useState<Record<string, { captured: boolean; score: number; template: string | null }>>({});
+  const [jointAuthMethod, setJointAuthMethod] = useState<"FINGERPRINT" | "SMS" | "SIGNATURE">("FINGERPRINT");
+  const [jointOtpStates, setJointOtpStates] = useState<Record<string, { sent: boolean; value: string; verified: boolean }>>({});
+  const [jointSignatureConfirmed, setJointSignatureConfirmed] = useState<Set<string>>(new Set());
   const [accountHold, setAccountHold] = useState<any>(null);
   const [checkingHold, setCheckingHold] = useState(false);
 
@@ -1292,6 +1368,60 @@ export default function WithdrawalCreateForm({
     });
   };
 
+  const handleJointSendOtp = async (memberId: string) => {
+    const account = getSelectedAccount();
+    const jm = account?.jointMembers?.find((j) => j.memberId === memberId);
+    const phone = jm?.member?.user?.phone;
+    if (!phone) { toast.error("Joint member has no phone number"); return; }
+    try {
+      const res = await fetch("/api/v1/verification/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, purpose: "JOINT_WITHDRAWAL" }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "Failed to send OTP");
+      setJointOtpStates((prev) => ({ ...prev, [memberId]: { sent: true, value: "", verified: false } }));
+      toast.success("OTP sent to joint member");
+    } catch (e: any) { toast.error(e.message || "Failed to send OTP"); }
+  };
+
+  const handleJointOtpChange = (memberId: string, value: string) => {
+    setJointOtpStates((prev) => ({
+      ...prev,
+      [memberId]: { ...prev[memberId] || { sent: true, value: "", verified: false }, value },
+    }));
+  };
+
+  const handleJointOtpVerify = async (memberId: string) => {
+    const otpState = jointOtpStates[memberId];
+    if (!otpState?.value || otpState.value.length < 4) { toast.error("Enter a valid OTP"); return; }
+    try {
+      const res = await fetch("/api/v1/verification/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: otpState.value, purpose: "JOINT_WITHDRAWAL" }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "Invalid OTP");
+      setJointOtpStates((prev) => ({ ...prev, [memberId]: { ...prev[memberId], verified: true } }));
+      const newSet = new Set(verifiedJointMembers);
+      newSet.add(memberId);
+      setVerifiedJointMembers(newSet);
+      toast.success("Joint member verified via OTP");
+    } catch (e: any) { toast.error(e.message || "OTP verification failed"); }
+  };
+
+  const handleJointSignatureConfirm = (memberId: string) => {
+    const newSet = new Set(jointSignatureConfirmed);
+    newSet.add(memberId);
+    setJointSignatureConfirmed(newSet);
+    const verified = new Set(verifiedJointMembers);
+    verified.add(memberId);
+    setVerifiedJointMembers(verified);
+    toast.success("Signature confirmed for joint member");
+  };
+
   const agentName =
     selectedInstitution?.user?.name ||
     selectedInstitution?.institutionName ||
@@ -1459,8 +1589,10 @@ export default function WithdrawalCreateForm({
         body: JSON.stringify({
           ...formData,
           skipDelivery,
-        verificationMethod: verificationMode,
-      }),
+          verificationMethod: verificationMode,
+          withdrawalType,
+          jointAuthMethod: jointAuthMethod,
+        }),
       });
 
       const result = await res.json();
@@ -2575,24 +2707,58 @@ export default function WithdrawalCreateForm({
                             ? "no additional co-holders need to verify."
                             : `${requiredCoHolders} more co-holder${requiredCoHolders > 1 ? "s" : ""} must also verify below.`}
                         </p>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {jointMembers.map((jm) => (
-                            <SignatoryVerificationCard
-                              key={jm.id}
-                              signatoryId={jm.memberId}
-                              signatoryName={jm.member.user.name}
-                              signatoryTitle={`Joint holder — #${jm.member.memberNumber}`}
-                              isPrimary={false}
-                              photoImage={jm.member.passportPhoto || jm.member.user.image}
-                              storedSignatureImage={jm.member.applicantSignature}
-                              fingerprintTemplate={jm.member.fingerprintTemplate}
-                              isVerified={verifiedJointMembers.has(jm.memberId)}
-                              onVerifiedChange={handleJointMemberVerified}
-                              fingerprintState={jointMemberFingerprintStates[jm.memberId]}
-                              onFingerprintCapture={handleJointMemberFingerprintCapture}
-                              onFingerprintReset={handleJointMemberFingerprintReset}
-                            />
+
+                        {/* Auth Method Selector */}
+                        <div className="flex items-center gap-2 p-3 bg-white rounded-lg border border-amber-200">
+                          <span className="text-xs font-medium text-gray-600 whitespace-nowrap">Verification Method:</span>
+                          {(["FINGERPRINT", "SMS", "SIGNATURE"] as const).map((method) => (
+                            <button
+                              key={method}
+                              type="button"
+                              onClick={() => setJointAuthMethod(method)}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                                jointAuthMethod === method
+                                  ? "bg-amber-100 text-amber-800 border border-amber-300 shadow-sm"
+                                  : "bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100"
+                              }`}
+                            >
+                              {method === "FINGERPRINT" ? <Fingerprint className="h-3.5 w-3.5" />
+                                : method === "SMS" ? <Smartphone className="h-3.5 w-3.5" />
+                                : <PenLine className="h-3.5 w-3.5" />}
+                              {method === "FINGERPRINT" ? "Fingerprint" : method === "SMS" ? "SMS OTP" : "Signature"}
+                            </button>
                           ))}
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {jointMembers.map((jm) => {
+                            const memberId = jm.memberId || jm.id;
+                            return (
+                              <SignatoryVerificationCard
+                                key={jm.id}
+                                signatoryId={memberId}
+                                signatoryName={jm.member.user.name}
+                                signatoryTitle={`Joint holder — #${jm.member.memberNumber}`}
+                                signatoryPhone={jm.member.user.phone}
+                                isPrimary={false}
+                                photoImage={jm.member.passportPhoto || jm.member.user.image}
+                                storedSignatureImage={jm.member.applicantSignature}
+                                fingerprintTemplate={jm.member.fingerprintTemplate}
+                                isVerified={verifiedJointMembers.has(memberId)}
+                                onVerifiedChange={handleJointMemberVerified}
+                                fingerprintState={jointMemberFingerprintStates[memberId]}
+                                onFingerprintCapture={handleJointMemberFingerprintCapture}
+                                onFingerprintReset={handleJointMemberFingerprintReset}
+                                authMethod={jointAuthMethod}
+                                otpState={jointOtpStates[memberId]}
+                                onSendOtp={handleJointSendOtp}
+                                onOtpChange={handleJointOtpChange}
+                                onOtpVerify={handleJointOtpVerify}
+                                signatureConfirmed={jointSignatureConfirmed.has(memberId)}
+                                onSignatureConfirm={handleJointSignatureConfirm}
+                              />
+                            );
+                          })}
                         </div>
                       </div>
                     ) : null;

@@ -2,8 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/prisma/db";
 import { TransactionStatus } from "@prisma/client";
 
+const MOMO_CALLBACK_SECRET = process.env.MOMO_CALLBACK_SECRET;
+
 export async function POST(req: NextRequest) {
   try {
+    // Verify callback secret if configured
+    if (MOMO_CALLBACK_SECRET) {
+      const authHeader = req.headers.get("authorization");
+      const token = authHeader?.startsWith("Bearer ")
+        ? authHeader.slice(7)
+        : req.headers.get("x-momo-secret");
+      if (token !== MOMO_CALLBACK_SECRET) {
+        return NextResponse.json(
+          { error: "Unauthorized" },
+          { status: 401 }
+        );
+      }
+    }
+
     const body = await req.json();
 
     const {

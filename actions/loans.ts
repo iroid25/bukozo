@@ -827,7 +827,7 @@ export async function createLoanFromApplication(
       if (calcResult.schedule && calcResult.schedule.length > 0) {
         dueDate = calcResult.schedule[calcResult.schedule.length - 1].dueDate;
       } else {
-        dueDate.setMonth(dueDate.getDate() + repaymentPeriodMonths);
+        dueDate.setMonth(dueDate.getMonth() + repaymentPeriodMonths);
       }
 
       // Create the loan with PENDING status (ready for disbursement)

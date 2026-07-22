@@ -21,11 +21,19 @@ export async function POST(
 
     const writeOff = await db.loanWriteOff.findUnique({
       where: { id: writeOffId },
-      include: { loan: { include: { member: { include: { user: true } } } }, requestedBy: true },
+      include: {
+        loan: { include: { member: { include: { user: true } } } },
+        institutionLoan: { include: { institution: true } },
+        requestedBy: true,
+      },
     });
 
     if (!writeOff) return NextResponse.json({ success: false, error: "Write-off request not found" }, { status: 404 });
     if (writeOff.status !== "PENDING") return NextResponse.json({ success: false, error: "This write-off has already been processed" }, { status: 400 });
+
+    const ownerName = writeOff.institutionLoan
+      ? writeOff.institutionLoan.institution.institutionName
+      : writeOff.loan!.member.user.name;
 
     await db.loanWriteOff.update({
       where: { id: writeOffId },
@@ -35,7 +43,7 @@ export async function POST(
     await db.notification.create({
       data: {
         userId: writeOff.requestedByUserId, type: "IN_APP", subject: "Write-Off Request Rejected",
-        message: `Your write-off request for ${writeOff.loan.member.user.name}'s loan has been rejected. Reason: ${reason}`,
+        message: `Your write-off request for ${ownerName}'s loan has been rejected. Reason: ${reason}`,
         targetAddress: `/dashboard/loan-write-offs`, sentAt: new Date(), isRead: false, status: "SENT",
       },
     });

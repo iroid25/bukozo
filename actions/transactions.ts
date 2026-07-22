@@ -387,109 +387,11 @@ export async function updateTransaction(data: TransactionUpdateDTO) {
  * Reverse a transaction
  */
 export async function reverseTransaction(data: TransactionReverseDTO) {
-  try {
-    // Get the original transaction
-    const originalTransaction = await db.transaction.findUnique({
-      where: { id: data.transactionId },
-      include: {
-        account: true,
-      },
-    });
-
-    if (!originalTransaction) {
-      return {
-        success: false,
-        error: "Transaction not found",
-      };
-    }
-
-    // Check if transaction can be reversed
-    if (originalTransaction.status !== TransactionStatus.COMPLETED) {
-      return {
-        success: false,
-        error: "Only completed transactions can be reversed",
-      };
-    }
-
-    // Check if within 24 hours
-    const hoursSinceTransaction =
-      (Date.now() - new Date(originalTransaction.transactionDate).getTime()) /
-      (1000 * 60 * 60);
-
-    if (hoursSinceTransaction > 24) {
-      return {
-        success: false,
-        error: "Transactions can only be reversed within 24 hours",
-      };
-    }
-
-    // Create reversal transaction in a transaction
-    const result = await db.$transaction(async (tx) => {
-      const reversalRef = `REV-${originalTransaction.transactionRef}`;
-
-      const reversalTransaction = await tx.transaction.create({
-        data: {
-          transactionRef: reversalRef,
-          memberId: originalTransaction.memberId,
-          institutionId: originalTransaction.institutionId,
-          accountId: originalTransaction.accountId,
-          type: originalTransaction.type,
-          amount: -originalTransaction.amount,
-          status: TransactionStatus.COMPLETED,
-          description: `Reversal of ${originalTransaction.transactionRef}: ${data.reason}`,
-          transactionDate: new Date(),
-          processedByUserId: data.userId,
-          relatedTransactionId: originalTransaction.id,
-          channel: originalTransaction.channel,
-        },
-      });
-
-      // Mark original transaction as reversed
-      await tx.transaction.update({
-        where: { id: data.transactionId },
-        data: {
-          status: TransactionStatus.REVERSED,
-          relatedTransactionId: reversalTransaction.id,
-        },
-      });
-
-      // Update account balance
-      const account = originalTransaction.account;
-      if (account) {
-        let newBalance = account.balance;
-        if (originalTransaction.type === TransactionType.DEPOSIT) {
-          newBalance -= originalTransaction.amount;
-        } else if (originalTransaction.type === TransactionType.WITHDRAWAL) {
-          newBalance += originalTransaction.amount;
-        }
-
-        await tx.account.update({
-          where: { id: account.id },
-          data: { balance: newBalance },
-        });
-      }
-
-      return reversalTransaction;
-    });
-
-    revalidatePath("/dashboard/transactions");
-    revalidatePath(`/dashboard/transactions/${data.transactionId}`);
-
-    return {
-      success: true,
-      data: result,
-      message: "Transaction reversed successfully",
-    };
-  } catch (error) {
-    console.error("Error reversing transaction:", error);
-    return {
-      success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : "Failed to reverse transaction",
-    };
-  }
+  console.warn("reverseTransaction server action is deprecated — use POST /api/v1/transactions/reverse instead");
+  return {
+    success: false,
+    error: "This endpoint is deprecated. Use the API route POST /api/v1/transactions/reverse instead.",
+  };
 }
 
 /**

@@ -465,9 +465,11 @@ export async function getWrittenOffLoansReport(filters?: any) {
       });
       console.log("[WrittenOff] Found", writeOffRecords.length, "approved LoanWriteOff records");
 
-      // Map write-off records to loan data format
-      const writeOffLoanData = writeOffRecords.map(wo => {
-        const l = wo.loan;
+      // Map write-off records to loan data format — institution loan
+      // write-offs (wo.loan null) aren't covered by this legacy report yet,
+      // so they're skipped here rather than crashing the page.
+      const writeOffLoanData = writeOffRecords.filter(wo => wo.loan).map(wo => {
+        const l = wo.loan!;
         const amountPaid = l.repayments.reduce((sum, r) => sum + r.amount, 0);
         return {
           loanId: l.id,

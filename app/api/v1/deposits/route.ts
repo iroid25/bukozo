@@ -1,11 +1,11 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/prisma/db";
-import { getAuthUser } from "@/config/useAuth";
+import { getAuthUserWithFreshBranch } from "@/config/useAuth";
 import { UserRole } from "@prisma/client";
 
 export async function GET(req: NextRequest) {
   try {
-    const user = await getAuthUser();
+    const user = await getAuthUserWithFreshBranch();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -174,7 +174,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await getAuthUser();
+    const user = await getAuthUserWithFreshBranch();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

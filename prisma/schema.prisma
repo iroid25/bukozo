@@ -1499,6 +1499,7 @@ model InstitutionLoan {
   principalPaid        Float                              @default(0)
   lastPenaltyAppliedAt DateTime?
   penaltyCharged       Float                              @default(0)
+  isRescheduled        Boolean                            @default(false)
   allocatedTeller      User?                              @relation("InstitutionLoanManager", fields: [allocatedTellerId], references: [id])
   application          InstitutionLoanApplication         @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   institution          Institution                        @relation("InstitutionLoans", fields: [institutionId], references: [id], onDelete: Cascade)
@@ -1506,6 +1507,8 @@ model InstitutionLoan {
   repayments           InstitutionLoanRepayment[]
   schedules            InstitutionLoanRepaymentSchedule[]
   repaymentRequests    LoanRepaymentRequest[]
+  writeOffs            LoanWriteOff[]
+  reschedules          LoanReschedule[]
 
   @@index([institutionId])
   @@index([status])
@@ -1521,6 +1524,7 @@ model InstitutionLoanRepayment {
   repaymentDate  DateTime        @default(now())
   channel        String
   mobileMoneyRef String?
+  transactionId  String?         @unique
   description    String?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
@@ -1532,6 +1536,7 @@ model InstitutionLoanRepayment {
   @@index([loanId])
   @@index([institutionId])
   @@index([repaymentDate])
+  @@index([transactionId])
 }
 
 model InsuranceContribution {
@@ -1603,7 +1608,8 @@ model LoanRepaymentRequest {
 
 model LoanWriteOff {
   id                String         @id @default(cuid())
-  loanId            String
+  loanId            String?
+  institutionLoanId String?
   amountDisbursed   Float
   principalPaid     Float
   interestPaid      Float
@@ -1627,10 +1633,12 @@ model LoanWriteOff {
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
   approvedBy        User?          @relation("WriteOffApprovedBy", fields: [approvedByUserId], references: [id])
-  loan              Loan           @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  loan              Loan?          @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  institutionLoan   InstitutionLoan? @relation(fields: [institutionLoanId], references: [id], onDelete: Cascade)
   requestedBy       User           @relation("WriteOffRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Cascade)
 
   @@index([loanId])
+  @@index([institutionLoanId])
   @@index([status])
   @@index([requestedByUserId])
   @@index([approvedByUserId])
@@ -2280,7 +2288,8 @@ model BranchReserveAllocation {
 
 model LoanReschedule {
   id                    String           @id @default(cuid())
-  loanId                String
+  loanId                String?
+  institutionLoanId     String?
   oldDueDate            DateTime
   newDueDate            DateTime
   reason                String
@@ -2310,11 +2319,13 @@ model LoanReschedule {
   minuteNumber          String?
   loanOfficerId         String?
   approvedBy            User?            @relation("RescheduleApprover", fields: [approvedById], references: [id])
-  loan                  Loan             @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  loan                  Loan?            @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  institutionLoan       InstitutionLoan? @relation(fields: [institutionLoanId], references: [id], onDelete: Cascade)
   loanOfficer           User?            @relation("RescheduleOfficer", fields: [loanOfficerId], references: [id])
   requestedBy           User             @relation("RescheduleRequester", fields: [requestedById], references: [id])
 
   @@index([loanId])
+  @@index([institutionLoanId])
   @@index([status])
 }
 
