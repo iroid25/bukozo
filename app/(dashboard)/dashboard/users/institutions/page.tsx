@@ -18,11 +18,14 @@ export default function InstitutionsPage() {
   const [institutions, setInstitutions] = useState([]);
   const [branches, setBranches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
-      setLoading(true);
+      // Show skeleton only on first load; silent refresh after that
+      if (!institutions.length) setLoading(true);
+      else setRefreshing(true);
       setError(null);
 
       const [instResp, branchesResp] = await Promise.all([
@@ -33,7 +36,6 @@ export default function InstitutionsPage() {
       if (instResp.data.success && branchesResp.data.success) {
         let fetchedInstitutions = instResp.data.data || [];
 
-        // Filter by branch if not ADMIN
         const userRole = (session?.user as any)?.role;
         const userBranchId = (session?.user as any)?.branchId;
 
@@ -61,6 +63,7 @@ export default function InstitutionsPage() {
       toast.error(message);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [session]);
 
@@ -72,7 +75,7 @@ export default function InstitutionsPage() {
     return <TableLoading />;
   }
 
-  if (error) {
+  if (error && !institutions.length) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 p-6 text-center">
         <div className="p-4 rounded-full bg-red-50 text-red-500">

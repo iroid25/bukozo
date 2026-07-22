@@ -74,6 +74,10 @@ const nextConfig: NextConfig = {
       "http://localhost:8000",
       "http://localhost:8001",
       "http://127.0.0.1:8001",
+      "https://utfs.io",
+      "https://*.ufs.dev",
+      "https://uploadthing.com",
+      "https://*.uploadthing.com",
       ...(isDev ? ["ws://localhost:3000", "ws://localhost:3001"] : []),
     ].join(" ");
 

@@ -4,7 +4,7 @@ const CSRF_COOKIE = "csrf-token";
 const CSRF_HEADER = "x-csrf-token";
 const CSRF_METHODS = ["POST", "PUT", "PATCH", "DELETE"];
 
-// Paths that are exempt from CSRF (webhooks, public callbacks, auth endpoints)
+// Paths that are exempt from CSRF (webhooks, public callbacks, auth endpoints, uploads)
 const CSRF_EXEMPT_PATHS = [
   "/api/auth/",
   "/api/webhook",
@@ -14,6 +14,8 @@ const CSRF_EXEMPT_PATHS = [
   "/api/auth/verify-otp",
   "/api/auth/reset-password",
   "/api/v1/auth/",
+  "/api/uploadthing",
+  "/api/debug/upload",
 ];
 
 function hexToUint8Array(hex: string): Uint8Array {
