@@ -11,6 +11,7 @@ import { AUDIT_ACTIONS } from "@/lib/lib/audit-constants";
 import WithdrawalVerificationEmail from "@/app/(dashboard)/dashboard/withdraw-test/components/email-templates/withdrawal-verification";
 import { calculateWithdrawalFee } from "@/lib/fees";
 import { sendTransactionAlertEmail } from "@/lib/email";
+import { EMAIL_FROM } from "@/lib/email";
 import {
   FEE_INCOME_CODE,
   WITHDRAWAL_FEE_CODE,
@@ -737,7 +738,7 @@ async function sendWithdrawalVerificationEmail(
 ) {
   try {
     const { data, error } = await resend.emails.send({
-      from: "Bukonzo Teachers SACCO <info@maripatechagency.com>",
+      from: EMAIL_FROM,
       to: email,
       subject: `Withdrawal Verification Code: ${verificationCode}`,
       react: WithdrawalVerificationEmail({

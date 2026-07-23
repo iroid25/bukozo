@@ -3,6 +3,7 @@ import { generateToken } from "@/lib/token";
 import { ResetPasswordEmail } from "@/components/email-templates/reset-password";
 import { Resend } from "resend";
 import { NextResponse } from "next/server";
+import { EMAIL_FROM } from "@/lib/email";
 
 const apiKey = process.env.RESEND_API_KEY;
 const resend = apiKey ? new Resend(apiKey) : null;
@@ -44,7 +45,7 @@ export async function POST(req: Request) {
       console.log(`📨 [MOCK EMAIL] To: ${email} | Code: ${token}`);
     } else {
       const response = await resend.emails.send({
-        from: "BukonzoTeachersSacco <info@maripatechagency.com>",
+        from: EMAIL_FROM,
         to: email,
         subject: "Password Reset Code",
         react: ResetPasswordEmail({ userFirstname, token }),

@@ -4,6 +4,7 @@ import { db } from "@/prisma/db";
 import { getAuthUser } from "@/config/useAuth";
 import { Resend } from "resend";
 import crypto from "crypto";
+import { EMAIL_FROM } from "@/lib/email";
 
 const resend = new Resend(process.env.RESEND_API_KEY!);
 
@@ -157,7 +158,7 @@ export async function POST(request: NextRequest) {
       if (memberEmail) {
 
         await resend.emails.send({
-          from: "BukonzoTeachersSacco <info@maripatechagency.com>",
+          from: EMAIL_FROM,
           to: memberEmail,
           subject: "Loan Repayment Verification Code",
           html: `

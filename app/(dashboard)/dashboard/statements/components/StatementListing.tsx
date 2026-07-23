@@ -86,7 +86,7 @@
 //         organizationName="BUTSACCO"
 //         organizationAddress="123 Main Street, Kampala, Uganda"
 //         organizationPhone="+256 123 456 789"
-//         organizationEmail="info@butsacco.com"
+//         organizationEmail="info@bukonzounitedteacherscooperativesociety.com"
 //       />
 //     );
 
@@ -566,7 +566,7 @@ export default function StatementListing({
         organizationName="BUTSACCO"
         organizationAddress="123 Main Street, Kampala, Uganda"
         organizationPhone="+256 123 456 789"
-        organizationEmail="info@butsacco.com"
+        organizationEmail="info@bukonzounitedteacherscooperativesociety.com"
       />
     );
 

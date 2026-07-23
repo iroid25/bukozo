@@ -849,7 +849,7 @@ export async function sendStatementEmail(params: SendStatementEmailParams) {
               <div class="footer">
                 <p>
                   BUTSACCO | 123 Main Street, Kampala, Uganda<br>
-                  Phone: +256 123 456 789 | Email: info@butsacco.com
+                  Phone: +256 123 456 789 | Email: info@bukonzounitedteacherscooperativesociety.com
                 </p>
                 <p style="margin-top: 10px;">
                   This is an automated email. Please do not reply to this message.
@@ -863,7 +863,7 @@ export async function sendStatementEmail(params: SendStatementEmailParams) {
 
     // Using Resend
     const result = await resend.emails.send({
-      from: "BUTSACCO <statements@butsacco.com>",
+      from: "BUTSACCO <info@bukonzounitedteacherscooperativesociety.com>",
       to: recipientEmail,
       subject: `Bank Statement - ${startDate} to ${endDate}`,
       html: emailHtml,

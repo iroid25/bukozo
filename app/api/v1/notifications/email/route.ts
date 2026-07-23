@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/config/auth";
 import { Resend } from "resend";
+import { EMAIL_FROM } from "@/lib/email";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -33,7 +34,7 @@ export async function POST(request: NextRequest) {
         batch.map(async (email: string) => {
           try {
             await resend.emails.send({
-              from: "bukonzo Teachers SACCO <info@maripatechagency.com>",
+              from: EMAIL_FROM,
               to: email,
               subject,
               html: `

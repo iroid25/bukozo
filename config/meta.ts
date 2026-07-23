@@ -13,7 +13,7 @@ export const siteConfig = {
     },
     email: {
       primary: "jb@desishub.com",
-      support: "info@maripatechagency.com",
+      support: "info@bukonzounitedteacherscooperativesociety.com",
       appointments: "jb@desishub.com",
     },
     address: {

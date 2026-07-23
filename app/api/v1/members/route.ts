@@ -9,6 +9,7 @@ import { Prisma, UserRole } from "@prisma/client";
 import { findFingerprintConflict } from "@/lib/fingerprint-uniqueness";
 import { normalizeFingerprintTemplate } from "@/lib/fingerprint";
 import { isValidNin, normalizeNin } from "@/lib/identity";
+import { EMAIL_FROM } from "@/lib/email";
 
 const resend = new Resend(process.env.RESEND_API_KEY!);
 
@@ -56,7 +57,7 @@ async function sendWelcomeEmail({
 }): Promise<{ success: boolean; error?: string }> {
   try {
     const result = await resend.emails.send({
-      from: " bukonzo Teachers SACCO <info@maripatechagency.com>", // Using your existing verified domain
+      from: EMAIL_FROM,
       to: email,
       subject: "Welcome to  bukonzo Teachers SACCO",
       html: `
@@ -91,7 +92,7 @@ async function sendWelcomeEmail({
                 This email was sent from  bukonzo Teachers SACCO
               </p>
               <p style="font-size: 12px; color: #888; margin: 5px 0 0 0;">
-                If you have any questions, please contact us at info@maripatechagency.com
+                If you have any questions, please contact us at info@bukonzounitedteacherscooperativesociety.com
               </p>
             </div>
           </div>

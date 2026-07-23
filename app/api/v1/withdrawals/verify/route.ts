@@ -214,15 +214,13 @@ import {
 import { createWithdrawalFeeJournalEntry } from "@/lib/journal-entries-extended";
 import { assertMemberCanTransact } from "@/lib/member-transact-eligibility";
 import { isJointSavingsAccountType } from "@/lib/accounting/account-type-rules";
+import { EMAIL_FROM } from "@/lib/email";
 
 // Initialize Resend - skip logging at module level to avoid build crashes
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
   : null;
-const resendFromAddress =
-  process.env.RESEND_FROM_EMAIL ||
-  process.env.EMAIL_FROM ||
-  "Bukonz Sacco <onboarding@resend.dev>";
+const resendFromAddress = EMAIL_FROM;
 
 async function getWithdrawalFeeFallbackTiers(
   isInstitution: boolean,

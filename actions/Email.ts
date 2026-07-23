@@ -4,6 +4,7 @@
 import { db } from "@/prisma/db";
 import { getAuthUser } from "@/config/useAuth";
 import { Resend } from "resend";
+import { EMAIL_FROM } from "@/lib/email";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -119,7 +120,7 @@ export async function sendBulkEmail({
         batch.map(async (email: string) => {
           try {
             const result = await resend.emails.send({
-              from: " bukonzo Teachers SACCO <info@maripatechagency.com> ", // Using your existing verified domain
+              from: EMAIL_FROM,
               to: email,
               subject: subject,
               html: `
@@ -138,7 +139,7 @@ export async function sendBulkEmail({
                         This email was sent from  bukonzo Teachers SACCO
                       </p>
                       <p style="font-size: 12px; color: #888; margin: 5px 0 0 0;">
-                        If you have any questions, please contact us at info@maripatechagency.com
+                         If you have any questions, please contact us at info@bukonzounitedteacherscooperativesociety.com
                       </p>
                     </div>
                   </div>

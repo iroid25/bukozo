@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { Resend } from "resend";
 import crypto from "crypto";
 import { createNativeLoanRepaymentLedgerEntries } from "@/lib/services/loan-ledger";
+import { EMAIL_FROM } from "@/lib/email";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -369,7 +370,7 @@ export async function createRepaymentRequest(data: {
       const memberEmail = loan.member.user.email;
       if (memberEmail && smsCode) {
         await resend.emails.send({
-          from: "BukonzoTeachersSacco <info@maripatechagency.com>",
+          from: EMAIL_FROM,
           to: memberEmail,
           subject: "Loan Repayment Verification Code",
           html: `

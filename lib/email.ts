@@ -1,5 +1,11 @@
 import { Resend } from "resend";
 
+export const EMAIL_FROM =
+  process.env.RESEND_FROM_EMAIL ||
+  "Bukonz Sacco <info@bukonzounitedteacherscooperativesociety.com>";
+
+export const EMAIL_ADDRESS = "info@bukonzounitedteacherscooperativesociety.com";
+
 const apiKey = process.env.RESEND_API_KEY;
 if (!apiKey) {
   console.warn(
@@ -83,7 +89,7 @@ export async function sendStatementEmail(
     }
 
     const result = await resend.emails.send({
-      from: "SACCO <info@maripatechagency.com>",
+      from: EMAIL_FROM,
       // to: ""iradtu22@gmail.com",
       to: [memberEmail],
       subject: `Bank Statement - ${statementPeriod}`,
@@ -183,7 +189,7 @@ export async function sendLoanReminderEmail(
     }
 
     const result = await resend.emails.send({
-      from: "SACCO <info@maripatechagency.com>",
+      from: EMAIL_FROM,
       to: [memberEmail],
       // to: ""iradtu22@gmail.com", // Keeping logic consistent with existing, but using dynamic for this feature
       subject: `Loan Repayment Reminder - Due in 5 Days`,
@@ -265,7 +271,7 @@ export async function sendLoanApplicationEmail(
     }
 
     return await resend.emails.send({
-      from: "SACCO <info@maripatechagency.com>",
+      from: EMAIL_FROM,
       to: [memberEmail],
       subject: `Loan Application Received - ${loanProduct}`,
       html: emailContent,
@@ -342,7 +348,7 @@ export async function sendLoanApprovalEmail(
     }
 
     return await resend.emails.send({
-      from: "SACCO <info@maripatechagency.com>",
+      from: EMAIL_FROM,
       to: [memberEmail],
       subject: `Loan Application Approved - ${loanProduct}`,
       html: emailContent,
@@ -407,7 +413,7 @@ export async function sendWithdrawalPasscodeEmail(
     }
 
     return await resend.emails.send({
-      from: "SACCO <info@maripatechagency.com>",
+      from: EMAIL_FROM,
       to: [memberEmail],
       subject: `Withdrawal Passcode - ${passcode}`,
       html: emailContent,
@@ -497,7 +503,7 @@ export async function sendTransactionAlertEmail(
     }
 
     return await resend.emails.send({
-      from: "SACCO <info@maripatechagency.com>",
+      from: EMAIL_FROM,
       to: [memberEmail],
       subject: `Transaction Alert: ${typeLabel} - ${formattedAmount}`,
       html: emailContent,

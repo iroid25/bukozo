@@ -3,6 +3,7 @@
 import { db } from "@/prisma/db";
 import { hash } from "bcryptjs";
 import { randomBytes } from "crypto";
+import { EMAIL_FROM } from "@/lib/email";
 
 export async function forgotPassword(email: string) {
   try {
@@ -39,7 +40,7 @@ export async function forgotPassword(email: string) {
         await import("@/components/email-templates/reset-password");
 
       const { data, error } = await resend.emails.send({
-        from: "BukonzoTeachersSacco <info@maripatechagency.com>",
+        from: EMAIL_FROM,
         to: email,
         subject: "Password Reset Code",
         react: ResetPasswordEmail({ userFirstname: user.firstName, token }),

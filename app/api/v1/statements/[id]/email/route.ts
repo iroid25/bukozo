@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/prisma/db";
 import { getAuthUser } from "@/config/useAuth";
 import { Resend } from "resend";
+import { EMAIL_FROM } from "@/lib/email";
 
 const resend = new Resend(process.env.RESEND_API_KEY!);
 
@@ -162,7 +163,7 @@ export async function POST(
             <div class="footer">
               <strong>BUTSACCO</strong>
               <p style="margin: 10px 0;">123 Main Street, Kampala, Uganda</p>
-              <p style="margin: 5px 0;">Phone: +256 123 456 789 | Email: info@butsacco.com</p>
+              <p style="margin: 5px 0;">Phone: +256 123 456 789 | Email: info@bukonzounitedteacherscooperativesociety.com</p>
               <p style="margin-top: 15px; font-size: 11px;">
                 &copy; ${new Date().getFullYear()} BUTSACCO. All rights reserved.
               </p>
@@ -190,7 +191,7 @@ Please find your statement attached as a PDF document.
 
 If you have any questions, please contact us at:
 Phone: +256 123 456 789
-Email: info@butsacco.com
+Email: info@bukonzounitedteacherscooperativesociety.com
 
 Best regards,
 BUTSACCO Team
@@ -203,7 +204,7 @@ BUTSACCO
 
     // Send email using Resend
     const result = await resend.emails.send({
-      from: "BUTSACCO Statements <statements@butsacco.com>",
+      from: EMAIL_FROM,
       to: recipientEmail,
       subject: `Bank Statement - ${startDate} to ${endDate}`,
       html: emailHtml,

@@ -8,6 +8,7 @@ import { z } from "zod";
 import { notifyBranchManagersAboutNewUser } from "@/actions/notification";
 import { Resend } from "resend";
 import WelcomeEmail from "@/components/email-templates/member-welcome";
+import { EMAIL_FROM } from "@/lib/email";
 import { findFingerprintConflict } from "@/lib/fingerprint-uniqueness";
 import { normalizeFingerprintTemplate } from "@/lib/fingerprint";
 import {
@@ -579,7 +580,7 @@ export async function POST(request: NextRequest) {
 
         const { data: emailData, error: emailError } = await resend.emails.send(
           {
-            from: "Bukonzo Teachers SACCO <info@maripatechagency.com>",
+            from: EMAIL_FROM,
             to: newUser.email,
             subject: "Welcome to Bukonzo Teachers SACCO - Account Created",
             react: WelcomeEmail({

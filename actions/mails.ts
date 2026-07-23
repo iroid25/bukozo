@@ -3,6 +3,7 @@
 import { Statement } from "@/types/statements";
 // import { Statement } from "@prisma/client";
 import { Resend } from "resend";
+import { EMAIL_FROM } from "@/lib/email";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 export async function sendStatement(
@@ -24,7 +25,7 @@ export async function sendStatement(
       (e): e is string => !!e,
     );
     const { data, error } = await resend.emails.send({
-      from: "SACCO Statement <info@maripatechagency.com>",
+      from: EMAIL_FROM,
       to: recipients,
       subject: `Your BUTSACCO Statement (${statement.startDate} to ${statement.endDate})`,
       text: `Dear ${recipientName},\n\nPlease find your account statement attached.\n\nBest regards,\nBUTSACCO Team`,

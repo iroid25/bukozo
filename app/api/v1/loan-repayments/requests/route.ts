@@ -7,6 +7,7 @@ import { LoanRepaymentRequestService } from "@/services/loan-repayment-request.s
 import { Resend } from "resend";
 import crypto from "crypto";
 import { assertMemberCanTransact } from "@/lib/member-transact-eligibility";
+import { EMAIL_FROM } from "@/lib/email";
 
 const resend = new Resend(process.env.RESEND_API_KEY!);
 
@@ -248,7 +249,7 @@ export async function POST(request: NextRequest) {
     if (memberEmail && smsCode) {
       try {
         await resend.emails.send({
-          from: "BukonzoTeachersSacco <info@maripatechagency.com>",
+          from: EMAIL_FROM,
           to: memberEmail,
           subject: "Loan Repayment Verification Code",
           html: `<p>Verification code: <strong>${smsCode}</strong></p><p>Total: ${formatCurrency(amount)}</p>`,

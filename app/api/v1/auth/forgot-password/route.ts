@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/prisma/db";
 import { randomBytes } from "crypto";
+import { EMAIL_FROM } from "@/lib/email";
 
 export async function POST(request: NextRequest) {
   try {
@@ -46,7 +47,7 @@ export async function POST(request: NextRequest) {
         await import("@/components/email-templates/reset-password");
 
       const { data, error } = await resend.emails.send({
-        from: "BukonzoTeachersSacco <info@maripatechagency.com>",
+        from: EMAIL_FROM,
         to: email,
         subject: "Password Reset Code",
         react: ResetPasswordEmail({ userFirstname: user.firstName, token }),
