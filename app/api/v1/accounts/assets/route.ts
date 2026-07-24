@@ -4,57 +4,14 @@ import { authOptions } from "@/config/auth";
 import { getChartOfAccounts } from "@/lib/services/chartOfAccounts";
 import { ensureAssetStructure } from "@/lib/services/asset-structure";
 import { resolveBranchScope } from "@/lib/services/branch-scope";
-import { db } from "@/prisma/db";
+import { fetchAssetsSummary } from "@/lib/services/accounting/assets-aggregate";
 
 export const dynamic = "force-dynamic";
 
-type AssetNodeSource =
-  | "FIXED_ASSET_CATEGORY"
-  | "CURRENT_ASSET_CATEGORY"
-  | "LOAN_ASSET_BUCKET";
-
-type AssetCategoryNode = {
-  source: AssetNodeSource;
-  key: string;
-  id: string;
-  isManualLedger: false;
-  label: string;
-  amount: number;
-  count: number;
-};
-
-function buildCategoryNode(
-  source: "FIXED_ASSET_CATEGORY" | "CURRENT_ASSET_CATEGORY",
-  key: string,
-  amount: number,
-  count: number,
-): AssetCategoryNode {
-  return {
-    source,
-    key,
-    id: `${source}:${key}`,
-    isManualLedger: false,
-    label: key,
-    amount,
-    count,
-  };
-}
-
 // GET /api/v1/accounts/assets - Assets dashboard summary.
 //
-// Response shape:
-// {
-//   data, pagination            // @deprecated legacy COA rows — only used by
-//                                // AssetCreateForm / CurrentAssetTransferForm /
-//                                // AssetDisposalForm classification pickers.
-//                                // New code should use `classifications` below.
-//   fixedAssets: { total, categories: AssetCategoryNode[] }
-//   currentAssets: { total, categories: AssetCategoryNode[] }
-//   loans: AssetCategoryNode
-//   cashAtHand: { amount, count, label, isModeled: true }
-//   classifications: { fixed: string[], current: string[] }   // unique FixedAsset.category values
-//   totalAssets: number
-// }
+// Uses the shared fetchAssetsSummary() service for real data aggregation.
+// Also returns legacy COA data for backward-compatible classification pickers.
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -80,7 +37,7 @@ export async function GET(request: NextRequest) {
 
     await ensureAssetStructure();
 
-    // @deprecated — legacy COA query kept for backward-compatible classification pickers
+    // Legacy COA query for classification pickers
     const result = await getChartOfAccounts({
       page,
       limit,
@@ -92,150 +49,17 @@ export async function GET(request: NextRequest) {
       branchId: scopedBranchId,
     });
 
-    // --- Real source-of-truth aggregation for the Assets dashboard page ---
-
-    const fixedAssetGroups = await db.fixedAsset.groupBy({
-      by: ["category"],
-      where: {
-        assetType: "FIXED",
-        status: { not: "DISPOSED" },
-        ...(scopedBranchId ? { branchId: scopedBranchId } : {}),
-      },
-      _sum: { currentValue: true },
-      _count: { _all: true },
-    });
-
-    const currentAssetGroups = await db.fixedAsset.groupBy({
-      by: ["category"],
-      where: {
-        assetType: "CURRENT",
-        status: { not: "DISPOSED" },
-        ...(scopedBranchId ? { branchId: scopedBranchId } : {}),
-      },
-      _sum: { currentValue: true },
-      _count: { _all: true },
-    });
-
-    const fixedAssetCategories: AssetCategoryNode[] = fixedAssetGroups
-      .map((row) =>
-        buildCategoryNode(
-          "FIXED_ASSET_CATEGORY",
-          row.category,
-          Number(row._sum.currentValue || 0),
-          Number(row._count._all || 0),
-        ),
-      )
-      .sort((a, b) => b.amount - a.amount);
-
-    const currentAssetCategories: AssetCategoryNode[] = currentAssetGroups
-      .map((row) =>
-        buildCategoryNode(
-          "CURRENT_ASSET_CATEGORY",
-          row.category,
-          Number(row._sum.currentValue || 0),
-          Number(row._count._all || 0),
-        ),
-      )
-      .sort((a, b) => b.amount - a.amount);
-
-    const fixedAssetsTotal = fixedAssetCategories.reduce(
-      (sum, node) => sum + node.amount,
-      0,
-    );
-    const currentAssetsTotal = currentAssetCategories.reduce(
-      (sum, node) => sum + node.amount,
-      0,
-    );
-
-    const loanAgg = await db.loan.aggregate({
-      _sum: { outstandingBalance: true },
-      _count: { _all: true },
-      where: {
-        outstandingBalance: { gt: 0 },
-        status: { not: "WRITTEN_OFF" },
-        ...(scopedBranchId ? { branchId: scopedBranchId } : {}),
-      },
-    });
-
-    const institutionLoanAgg = await db.institutionLoan.aggregate({
-      _sum: { outstandingBalance: true },
-      _count: { _all: true },
-      where: {
-        outstandingBalance: { gt: 0 },
-        status: { not: "WRITTEN_OFF" },
-        ...(scopedBranchId
-          ? { institution: { user: { branchId: scopedBranchId } } }
-          : {}),
-      },
-    });
-
-    const loansNode: AssetCategoryNode = {
-      source: "LOAN_ASSET_BUCKET",
-      key: "loans",
-      id: "LOAN_ASSET_BUCKET:loans",
-      isManualLedger: false,
-      label: "Loans",
-      amount: Number(loanAgg._sum.outstandingBalance || 0) + Number(institutionLoanAgg._sum.outstandingBalance || 0),
-      count: Number(loanAgg._count._all || 0) + Number(institutionLoanAgg._count._all || 0),
-    };
-
-    const repaymentWhere = scopedBranchId
-      ? { loan: { branchId: scopedBranchId } }
-      : {};
-
-    const repaymentAgg = await db.loanRepayment.aggregate({
-      where: repaymentWhere,
-      _sum: { principalPaid: true },
-      _count: { _all: true },
-    });
-
-    const institutionRepaymentAgg = await db.institutionLoanRepayment.aggregate({
-      _sum: { principalPaid: true },
-      _count: { _all: true },
-      where: scopedBranchId
-        ? { institution: { user: { branchId: scopedBranchId } } }
-        : {},
-    });
-
-    const cashAtHand = {
-      amount: Number(repaymentAgg._sum.principalPaid || 0) + Number(institutionRepaymentAgg._sum.principalPaid || 0),
-      count: Number(repaymentAgg._count._all || 0) + Number(institutionRepaymentAgg._count._all || 0),
-      label: "Cash at Hand (modeled from loan repayments)",
-      isModeled: true as const,
-    };
-
-    const vaultAgg = await db.vault.aggregate({
-      where: { isActive: true, ...(scopedBranchId ? { branchId: scopedBranchId } : {}) },
-      _sum: { balance: true },
-    });
-    const vaultBalance = {
-      amount: Number(vaultAgg._sum.balance || 0),
-      label: "Cash in Vault",
-    };
-
-    const floatAgg = await db.userFloat.aggregate({
-      where: {
-        isActiveForDay: true,
-        ...(scopedBranchId ? { user: { branchId: scopedBranchId } } : {}),
-      },
-      _sum: { balance: true },
-    });
-    const floatBalance = {
-      amount: Number(floatAgg._sum.balance || 0),
-      label: "Teller Float",
-    };
-
-    const totalAssets =
-      fixedAssetsTotal + currentAssetsTotal + loansNode.amount + cashAtHand.amount + vaultBalance.amount + floatBalance.amount;
+    // Real source-of-truth aggregation via shared service
+    const summary = await fetchAssetsSummary(scopedBranchId);
 
     const balanceByCode = new Map<string, number>([
-      ["100000", totalAssets],
-      ["101000", fixedAssetsTotal],
-      ["102000", currentAssetsTotal],
-      ["101100", cashAtHand.amount],
-      ["107000", loansNode.amount],
-      ["102004", floatBalance.amount],
-      ["102005", vaultBalance.amount],
+      ["100000", summary.totalAssets],
+      ["101000", summary.fixedAssets.total],
+      ["102000", summary.currentAssets.total],
+      ["101100", summary.cashAtHand.amount],
+      ["107000", summary.loans.amount],
+      ["102004", summary.float.amount],
+      ["102005", summary.vault.amount],
     ]);
 
     const overrideSourceBalance = (account: any): any => {
@@ -255,21 +79,20 @@ export async function GET(request: NextRequest) {
       ? result.data.map(overrideSourceBalance)
       : result.data;
 
-    // Unique classification categories from real FixedAsset data
-    const fixedCategories = fixedAssetGroups.map((r) => r.category).sort();
-    const currentCategories = currentAssetGroups.map((r) => r.category).sort();
-
     return NextResponse.json({
       ...result,
       data: sourceAlignedData,
-      fixedAssets: { total: fixedAssetsTotal, categories: fixedAssetCategories },
-      currentAssets: { total: currentAssetsTotal, categories: currentAssetCategories },
-      loans: loansNode,
-      cashAtHand,
-      vault: vaultBalance,
-      float: floatBalance,
-      classifications: { fixed: fixedCategories, current: currentCategories },
-      totalAssets,
+      fixedAssets: summary.fixedAssets,
+      currentAssets: summary.currentAssets,
+      loans: summary.loans,
+      cashAtHand: summary.cashAtHand,
+      vault: summary.vault,
+      float: summary.float,
+      classifications: {
+        fixed: summary.fixedAssets.categories.map((c) => c.key).sort(),
+        current: summary.currentAssets.categories.map((c) => c.key).sort(),
+      },
+      totalAssets: summary.totalAssets,
     });
   } catch (error) {
     console.error("Error fetching assets:", error);

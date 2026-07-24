@@ -55,12 +55,12 @@ import {
   Activity,
   History,
   RefreshCw,
-  LayoutGrid
+  LayoutGrid,
+  Building2
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import { NewAccountForm } from "./components/NewAccountForm";
 import { COATree } from "./components/COATree";
 import { cn } from "@/lib/utils";
 import { useAccountingSyncVersion } from "@/lib/hooks/useAccountingSync";
@@ -118,10 +118,10 @@ export default function ChartOfAccountsPage() {
   const { data: session, status } = useSession();
   const [selectedAccount, setSelectedAccount] = useState<ChartOfAccount | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const [createAccountOpen, setCreateAccountOpen] = useState(false);
   const accountingSyncVersion = useAccountingSyncVersion({
     enabled: status === "authenticated",
   });
+
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [ledgerType, setLedgerType] = useState<string>("ALL");
@@ -133,14 +133,36 @@ export default function ChartOfAccountsPage() {
   const [itemsType, setItemsType] = useState<string>("GENERIC");
   const [itemsLoading, setItemsLoading] = useState(false);
   const [refreshingCoa, setRefreshingCoa] = useState(false);
-  const [resetting, setResetting] = useState(false);
+  const [selectedBranchId, setSelectedBranchId] = useState<string>("all");
+  const [branchOptions, setBranchOptions] = useState<
+    Array<{ id: string; name: string }>
+  >([]);
+  const [branchLoading, setBranchLoading] = useState(false);
   const limit = 50;
+  const isAdmin = session?.user?.role === "ADMIN";
+
+  useEffect(() => {
+    if (status !== "authenticated" || !isAdmin) return;
+    const loadBranches = async () => {
+      try {
+        setBranchLoading(true);
+        const response = await fetch("/api/v1/branches", {
+          credentials: "include",
+          cache: "no-store",
+        });
+        if (!response.ok) return;
+        const payload = await response.json();
+        setBranchOptions(Array.isArray(payload?.data) ? payload.data : []);
+      } finally {
+        setBranchLoading(false);
+      }
+    };
+    void loadBranches();
+  }, [status, isAdmin]);
 
   // React Query for the list view
-  // For INCOME/EXPENDITURES, fetches from the same budgetCategory endpoints the type pages use.
-  // For ASSETS/LIABILITIES/EQUITY/ALL, fetches from the COA endpoint.
-  const isBudgetType = ledgerType === "INCOME" || ledgerType === "EXPENDITURES";
-
+  // Each ledger type fetches from its dedicated page's data source.
+  // This guarantees consistency between the COA page and each type-specific page.
   const {
     data: unifiedData,
     isLoading: loading,
@@ -151,10 +173,9 @@ export default function ChartOfAccountsPage() {
   } = useQuery({
     queryKey: ["chart-of-accounts-unified", page, ledgerType, level, search, activeOnly, coreOnly, accountingSyncVersion],
     queryFn: async () => {
-      if (isBudgetType) {
-        const endpoint = ledgerType === "INCOME" ? "/api/v1/income/categories" : "/api/v1/expenditure/categories";
-        const response = await fetch(endpoint);
-        if (!response.ok) throw new Error("Failed to fetch categories");
+      if (ledgerType === "INCOME") {
+        const response = await fetch("/api/v1/income/categories");
+        if (!response.ok) throw new Error("Failed to fetch income categories");
         const result = await response.json();
         const categories = (result.data || []) as any[];
         const total = categories.length;
@@ -167,7 +188,7 @@ export default function ChartOfAccountsPage() {
           accountCode: cat.code || "",
           accountName: cat.name || "",
           fullCode: cat.code || "",
-          ledgerType: ledgerType,
+          ledgerType: "INCOME",
           level: cat.parentId ? 2 : 1,
           balance: 0,
           debitBalance: 0,
@@ -181,20 +202,197 @@ export default function ChartOfAccountsPage() {
         return { data: mapped, pagination: { page, limit: perPage, total, totalPages } };
       }
 
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: limit.toString(),
-      });
-      if (ledgerType !== "ALL") params.append("ledgerType", ledgerType);
-      if (level !== "ALL") params.append("level", level);
-      if (search) params.append("search", search);
-      if (activeOnly) params.append("isActive", "true");
-      if (coreOnly) params.append("coreOnly", "true");
+      if (ledgerType === "EXPENDITURES") {
+        const response = await fetch("/api/v1/expenditure/categories");
+        if (!response.ok) throw new Error("Failed to fetch expenditure categories");
+        const result = await response.json();
+        const categories = (result.data || []) as any[];
+        const total = categories.length;
+        const perPage = 50;
+        const totalPages = Math.max(1, Math.ceil(total / perPage));
+        const start = (page - 1) * perPage;
+        const paged = categories.slice(start, start + perPage);
+        const mapped = paged.map((cat: any) => ({
+          id: cat.id,
+          accountCode: cat.code || "",
+          accountName: cat.name || "",
+          fullCode: cat.code || "",
+          ledgerType: "EXPENDITURES",
+          level: cat.parentId ? 2 : 1,
+          balance: 0,
+          debitBalance: 0,
+          creditBalance: 0,
+          isActive: cat.isActive !== false,
+          currency: "UGX",
+          category: cat.kind,
+          parent: cat.parent ? { id: cat.parent.id, accountCode: cat.parent.code, accountName: cat.parent.name, fullCode: cat.parent.code } : undefined,
+          _count: { children: cat._count?.children || 0, journalEntries: cat._count?.expenditureRecords || 0, debitTransactions: 0, creditTransactions: 0 },
+        }));
+        return { data: mapped, pagination: { page, limit: perPage, total, totalPages } };
+      }
 
-      const response = await fetch(`/api/v1/chart-of-accounts?${params}`);
-      if (!response.ok) throw new Error("Failed to fetch accounts");
-      const result = await response.json();
-      return result as { data: ChartOfAccount[], pagination: any };
+      if (ledgerType === "ASSETS") {
+        const response = await fetch("/api/v1/accounts/assets");
+        if (!response.ok) throw new Error("Failed to fetch assets");
+        const result = await response.json();
+        const categories: any[] = [
+          ...(result.fixedAssets?.categories || []),
+          ...(result.currentAssets?.categories || []),
+          ...(result.loans ? [result.loans] : []),
+        ];
+        const total = categories.length;
+        const perPage = 50;
+        const totalPages = Math.max(1, Math.ceil(total / perPage));
+        const start = (page - 1) * perPage;
+        const paged = categories.slice(start, start + perPage);
+        const mapped = paged.map((cat: any) => ({
+          id: cat.id,
+          accountCode: cat.key || "",
+          accountName: cat.label || cat.key || "",
+          fullCode: cat.key || "",
+          ledgerType: "ASSETS",
+          level: 2,
+          balance: cat.amount || 0,
+          debitBalance: cat.amount || 0,
+          creditBalance: 0,
+          isActive: true,
+          currency: "UGX",
+          category: cat.source,
+          _count: { children: 0, journalEntries: cat.count || 0, debitTransactions: 0, creditTransactions: 0 },
+        }));
+        return { data: mapped, pagination: { page, limit: perPage, total, totalPages } };
+      }
+
+      if (ledgerType === "LIABILITIES") {
+        const response = await fetch("/api/v1/accounts/liabilities");
+        if (!response.ok) throw new Error("Failed to fetch liabilities");
+        const result = await response.json();
+        const groups = result.groups || {};
+        const categories: any[] = [
+          ...(groups.current?.savings?.items || []),
+          ...(groups.current?.fixedDeposits?.items || []),
+          ...(groups.current?.loanInsurance?.items || []),
+        ];
+        const total = categories.length;
+        const perPage = 50;
+        const totalPages = Math.max(1, Math.ceil(total / perPage));
+        const start = (page - 1) * perPage;
+        const paged = categories.slice(start, start + perPage);
+        const mapped = paged.map((cat: any) => ({
+          id: cat.id,
+          accountCode: cat.accountCode || "",
+          accountName: cat.name || "",
+          fullCode: cat.accountCode || "",
+          ledgerType: "LIABILITIES",
+          level: 2,
+          balance: cat.amount || 0,
+          debitBalance: 0,
+          creditBalance: cat.amount || 0,
+          isActive: true,
+          currency: "UGX",
+          category: cat.source,
+          _count: { children: 0, journalEntries: cat.accountCount || 0, debitTransactions: 0, creditTransactions: 0 },
+        }));
+        return { data: mapped, pagination: { page, limit: perPage, total, totalPages } };
+      }
+
+      if (ledgerType === "EQUITY") {
+        const response = await fetch("/api/v1/equity");
+        if (!response.ok) throw new Error("Failed to fetch equity");
+        const result = await response.json();
+        const categories: any[] = [
+          ...(result.statutoryReserves?.items || []),
+          ...(result.grantsAndDonations?.items || []),
+          ...(result.shareCapital?.items || []),
+        ];
+        if (result.retainedEarnings?.amount) {
+          categories.push({
+            id: "retained-earnings",
+            source: "RETAINED_EARNINGS",
+            name: "Retained Earnings",
+            amount: result.retainedEarnings.amount,
+            type: "RETAINED_EARNINGS",
+          });
+        }
+        const total = categories.length;
+        const perPage = 50;
+        const totalPages = Math.max(1, Math.ceil(total / perPage));
+        const start = (page - 1) * perPage;
+        const paged = categories.slice(start, start + perPage);
+        const mapped = paged.map((cat: any) => ({
+          id: cat.id,
+          accountCode: cat.source === "RETAINED_EARNINGS" ? "303000" : (cat.accountCode || ""),
+          accountName: cat.name || "",
+          fullCode: cat.source === "RETAINED_EARNINGS" ? "303000" : (cat.accountCode || ""),
+          ledgerType: "EQUITY",
+          level: 2,
+          balance: cat.amount || 0,
+          debitBalance: 0,
+          creditBalance: cat.amount || 0,
+          isActive: true,
+          currency: "UGX",
+          category: cat.source || cat.type,
+          _count: { children: 0, journalEntries: cat.accountCount || 0, debitTransactions: 0, creditTransactions: 0 },
+        }));
+        return { data: mapped, pagination: { page, limit: perPage, total, totalPages } };
+      }
+
+      // ALL — fetch from each type's dedicated source in parallel
+      const [assetsRes, liabRes, equityRes, incomeRes, expRes] = await Promise.all([
+        fetch("/api/v1/accounts/assets").then(r => r.ok ? r.json() : { fixedAssets: { categories: [] }, currentAssets: { categories: [] }, loans: null }),
+        fetch("/api/v1/accounts/liabilities").then(r => r.ok ? r.json() : { groups: {} }),
+        fetch("/api/v1/equity").then(r => r.ok ? r.json() : { statutoryReserves: { items: [] }, grantsAndDonations: { items: [] }, shareCapital: { items: [] } }),
+        fetch("/api/v1/income/categories").then(r => r.ok ? r.json() : { data: [] }),
+        fetch("/api/v1/expenditure/categories").then(r => r.ok ? r.json() : { data: [] }),
+      ]);
+
+      const allItems: any[] = [];
+      // Assets
+      for (const cat of (assetsRes.fixedAssets?.categories || [])) {
+        allItems.push({ id: cat.id, accountCode: cat.key, accountName: cat.label, fullCode: cat.key, ledgerType: "ASSETS", level: 2, balance: cat.amount, debitBalance: cat.amount, creditBalance: 0, isActive: true, currency: "UGX", category: cat.source, _count: { children: 0, journalEntries: cat.count || 0, debitTransactions: 0, creditTransactions: 0 } });
+      }
+      for (const cat of (assetsRes.currentAssets?.categories || [])) {
+        allItems.push({ id: cat.id, accountCode: cat.key, accountName: cat.label, fullCode: cat.key, ledgerType: "ASSETS", level: 2, balance: cat.amount, debitBalance: cat.amount, creditBalance: 0, isActive: true, currency: "UGX", category: cat.source, _count: { children: 0, journalEntries: cat.count || 0, debitTransactions: 0, creditTransactions: 0 } });
+      }
+      if (assetsRes.loans) {
+        allItems.push({ id: assetsRes.loans.id, accountCode: assetsRes.loans.key, accountName: assetsRes.loans.label, fullCode: assetsRes.loans.key, ledgerType: "ASSETS", level: 2, balance: assetsRes.loans.amount, debitBalance: assetsRes.loans.amount, creditBalance: 0, isActive: true, currency: "UGX", category: assetsRes.loans.source, _count: { children: 0, journalEntries: assetsRes.loans.count || 0, debitTransactions: 0, creditTransactions: 0 } });
+      }
+      // Liabilities
+      const liabGroups = liabRes.groups || {};
+      for (const item of (liabGroups.current?.savings?.items || [])) {
+        allItems.push({ id: item.id, accountCode: item.accountCode, accountName: item.name, fullCode: item.accountCode, ledgerType: "LIABILITIES", level: 2, balance: item.amount, debitBalance: 0, creditBalance: item.amount, isActive: true, currency: "UGX", category: item.source, _count: { children: 0, journalEntries: item.accountCount || 0, debitTransactions: 0, creditTransactions: 0 } });
+      }
+      for (const item of (liabGroups.current?.fixedDeposits?.items || [])) {
+        allItems.push({ id: item.id, accountCode: item.accountCode, accountName: item.name, fullCode: item.accountCode, ledgerType: "LIABILITIES", level: 2, balance: item.amount, debitBalance: 0, creditBalance: item.amount, isActive: true, currency: "UGX", category: item.source, _count: { children: 0, journalEntries: item.accountCount || 0, debitTransactions: 0, creditTransactions: 0 } });
+      }
+      for (const item of (liabGroups.current?.loanInsurance?.items || [])) {
+        allItems.push({ id: item.id, accountCode: "", accountName: item.name, fullCode: "", ledgerType: "LIABILITIES", level: 2, balance: item.amount, debitBalance: 0, creditBalance: item.amount, isActive: true, currency: "UGX", category: item.source, _count: { children: 0, journalEntries: item.accountCount || 0, debitTransactions: 0, creditTransactions: 0 } });
+      }
+      // Equity
+      for (const item of (equityRes.statutoryReserves?.items || [])) {
+        allItems.push({ id: item.id, accountCode: "", accountName: item.description || "Statutory Reserve", fullCode: "", ledgerType: "EQUITY", level: 2, balance: item.amount, debitBalance: 0, creditBalance: item.amount, isActive: true, currency: "UGX", category: item.source, _count: { children: 0, journalEntries: 0, debitTransactions: 0, creditTransactions: 0 } });
+      }
+      for (const item of (equityRes.grantsAndDonations?.items || [])) {
+        allItems.push({ id: item.id, accountCode: "", accountName: item.description || "Grant/Donation", fullCode: "", ledgerType: "EQUITY", level: 2, balance: item.amount, debitBalance: 0, creditBalance: item.amount, isActive: true, currency: "UGX", category: item.source, _count: { children: 0, journalEntries: 0, debitTransactions: 0, creditTransactions: 0 } });
+      }
+      for (const item of (equityRes.shareCapital?.items || [])) {
+        allItems.push({ id: item.id, accountCode: "", accountName: item.name, fullCode: "", ledgerType: "EQUITY", level: 2, balance: item.amount, debitBalance: 0, creditBalance: item.amount, isActive: true, currency: "UGX", category: item.source, _count: { children: 0, journalEntries: item.accountCount || 0, debitTransactions: 0, creditTransactions: 0 } });
+      }
+      // Income
+      for (const cat of (incomeRes.data || [])) {
+        allItems.push({ id: cat.id, accountCode: cat.code, accountName: cat.name, fullCode: cat.code, ledgerType: "INCOME", level: cat.parentId ? 2 : 1, balance: 0, debitBalance: 0, creditBalance: 0, isActive: cat.isActive !== false, currency: "UGX", category: cat.kind, _count: { children: cat._count?.children || 0, journalEntries: cat._count?.incomeRecords || 0, debitTransactions: 0, creditTransactions: 0 } });
+      }
+      // Expenditures
+      for (const cat of (expRes.data || [])) {
+        allItems.push({ id: cat.id, accountCode: cat.code, accountName: cat.name, fullCode: cat.code, ledgerType: "EXPENDITURES", level: cat.parentId ? 2 : 1, balance: 0, debitBalance: 0, creditBalance: 0, isActive: cat.isActive !== false, currency: "UGX", category: cat.kind, _count: { children: cat._count?.children || 0, journalEntries: cat._count?.expenditureRecords || 0, debitTransactions: 0, creditTransactions: 0 } });
+      }
+
+      const total = allItems.length;
+      const perPage = 50;
+      const totalPages = Math.max(1, Math.ceil(total / perPage));
+      const start = (page - 1) * perPage;
+      const paged = allItems.slice(start, start + perPage);
+      return { data: paged, pagination: { page, limit: perPage, total, totalPages } };
     },
     enabled: status === "authenticated",
     refetchInterval: 15000,
@@ -345,44 +543,8 @@ export default function ChartOfAccountsPage() {
     }
   };
 
-  const resetChartOfAccounts = async () => {
-    const firstConfirm = window.confirm(
-      "This will delete all Chart of Accounts rows and rebuild the standard core structure. Continue?",
-    );
-    if (!firstConfirm) return;
-
-    const confirmCode = window.prompt("Type RESET_COA to confirm the hard reset.");
-    if (confirmCode !== "RESET_COA") {
-      toast.error("Reset cancelled");
-      return;
-    }
-
-    try {
-      setRefreshingCoa(true);
-      const response = await fetch("/api/v1/accounting/coa/reset", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ confirm: "RESET_COA" }),
-      });
-
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok || !payload.success) {
-        throw new Error(payload?.details || payload?.error || "Failed to reset Chart of Accounts");
-      }
-
-      toast.success("Chart of Accounts reset and rebuilt");
-      await fetchUnified();
-    } catch (error) {
-      console.error("Error resetting Chart of Accounts:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to reset Chart of Accounts");
-    } finally {
-      setRefreshingCoa(false);
-    }
-  };
-
   const resetFilters = async () => {
     try {
-      setResetting(true);
       setSearch("");
       setLedgerType("ALL");
       setLevel("ALL");
@@ -396,7 +558,6 @@ export default function ChartOfAccountsPage() {
     } catch (error) {
       toast.error("Failed to reset filters");
     } finally {
-      setResetting(false);
     }
   };
 
@@ -497,27 +658,6 @@ export default function ChartOfAccountsPage() {
                 <RefreshCw className={cn("h-4 w-4", isFetching || refreshingCoa ? "animate-spin" : "")} />
                 {refreshingCoa ? "Refreshing" : "Refresh COA"}
             </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              className="hidden md:flex gap-2 rounded-xl"
-              onClick={resetFilters}
-              disabled={resetting}
-            >
-                <Loader2 className={cn("h-4 w-4", resetting ? "animate-spin" : "")} />
-                {resetting ? "Resetting" : "Reset"}
-            </Button>
-            {session?.user?.role === "ADMIN" && (
-              <Button
-                variant="destructive"
-                size="sm"
-                className="hidden md:flex gap-2 rounded-xl"
-                onClick={resetChartOfAccounts}
-                disabled={refreshingCoa}
-              >
-                {refreshingCoa ? "Resetting COA" : "Reset COA"}
-              </Button>
-            )}
             <div className="bg-slate-100 dark:bg-slate-800 p-1 rounded-xl flex border border-slate-200 dark:border-slate-700">
                 <Button variant="ghost" size="sm" className="rounded-lg h-8 w-8 p-0"><History className="h-4 w-4" /></Button>
             </div>
